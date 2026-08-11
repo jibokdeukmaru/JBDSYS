@@ -13575,10 +13575,12 @@ if ('serviceWorker' in navigator) {
         </label>
         <span id="emSelCount" style="font-size:12px;color:var(--brand);font-weight:700;min-width:44px;"></span>
         <div style="width:1px;height:16px;background:var(--border);"></div>
-        <button class="em-bulk-btn" id="emBulkRead"   onclick="emBulkAction('read')"   disabled>읽음</button>
-        <button class="em-bulk-btn" id="emBulkUnread" onclick="emBulkAction('unread')" disabled>안읽음</button>
-        <button class="em-bulk-btn" id="emBulkSpam"   onclick="emBulkAction('spam')"   disabled>스팸</button>
-        <button class="em-bulk-btn em-bulk-del" id="emBulkTrash" onclick="emBulkAction('trash')" disabled>삭제</button>
+        <span id="emBulkGmailBtns" style="display:flex;align-items:center;gap:8px;">
+          <button class="em-bulk-btn" id="emBulkRead"   onclick="emBulkAction('read')"   disabled>읽음</button>
+          <button class="em-bulk-btn" id="emBulkUnread" onclick="emBulkAction('unread')" disabled>안읽음</button>
+          <button class="em-bulk-btn" id="emBulkSpam"   onclick="emBulkAction('spam')"   disabled>스팸</button>
+        </span>
+        <button class="em-bulk-btn em-bulk-del" id="emBulkTrash" onclick="emBulkTrashClick()" disabled>삭제</button>
       </div>
       <div class="em-mail-list" id="emMailList">
         <div class="em-empty">
@@ -13625,6 +13627,15 @@ if ('serviceWorker' in navigator) {
       <div class="em-compose-body">
         <textarea id="emailBody" placeholder="내용을 입력하세요..."></textarea>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;">
+        <button type="button" onclick="document.getElementById('emailAttachInput').click()" style="border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 14px;font-size:12px;color:var(--brand-dark);cursor:pointer;display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          파일첨부
+        </button>
+        <span id="emAttachMsg" style="font-size:11.5px;color:#888;"></span>
+        <input type="file" id="emailAttachInput" multiple style="display:none;" onchange="handleEmailFileSelect(event)">
+      </div>
+      <div id="emAttachList" style="display:flex;flex-direction:column;gap:6px;padding:0 16px 8px;"></div>
       <div class="em-compose-ai-bar">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
         <input class="em-compose-ai-input" id="emAiPrompt" placeholder="AI 메일 작성: 작성하고 싶은 내용을 입력하세요 (예: 견적 문의 답변 메일)">
@@ -13730,7 +13741,7 @@ if ('serviceWorker' in navigator) {
         <tr><td style="color:var(--brand);font-weight:700;padding-right:10px;">W.</td><td><a href="https://jibokdeukmaru.com" style="color:var(--brand);text-decoration:none;">jibokdeukmaru.com</a></td></tr>
       </table>
       <div style="margin-top:10px;">
-        <img src="https://github.com/jibokdeukmaru/JBDSYS/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="height:18px;" onerror="this.style.display='none'">
+        <img src="https://raw.githubusercontent.com/jibokdeukmaru/JBDSYS/main/%EB%A1%9C%EA%B3%A0.png" alt="지복득마루" style="height:18px;" onerror="this.style.display='none'">
       </div>
     </td>
   </tr>
@@ -13813,9 +13824,14 @@ if ('serviceWorker' in navigator) {
     document.getElementById('emFolderTitle').textContent = FOLDER_LABELS[folder] || folder;
     const sel = document.getElementById('emFolderSelectMobile'); if (sel) sel.value = folder;
     const si = document.getElementById('emSearchInput'); if (si) si.value = '';
-    // 일괄 작업 바는 Gmail 폴더(받은/스팸/휴지통)에서만 표시
+    // 일괄 작업 바: Gmail 폴더(받은/스팸/휴지통)는 읽음/안읽음/스팸/삭제 전부,
+    // 보낸메일함/임시보관함(로컬 저장)은 전체선택+삭제만 표시
     const bulk = document.getElementById('emBulkBar');
-    if (bulk) bulk.style.display = (window.USE_GMAIL_API && ['inbox','spam','trash'].includes(folder)) ? 'flex' : 'none';
+    const isGmailFolder = window.USE_GMAIL_API && ['inbox','spam','trash'].includes(folder);
+    const isLocalFolder = ['sent','draft'].includes(folder);
+    if (bulk) bulk.style.display = (isGmailFolder || isLocalFolder) ? 'flex' : 'none';
+    const gmailBtns = document.getElementById('emBulkGmailBtns');
+    if (gmailBtns) gmailBtns.style.display = isGmailFolder ? 'flex' : 'none';
     const allChk = document.getElementById('emSelectAll'); if (allChk) allChk.checked = false;
     closeEmailCompose();
     closeEmailDetail();
@@ -14123,6 +14139,31 @@ if ('serviceWorker' in navigator) {
     }
   }
 
+  // 삭제 버튼: Gmail 폴더는 서버(휴지통 이동), 보낸메일함/임시보관함은 로컬 기록에서 바로 삭제
+  window.emBulkTrashClick = function() {
+    if (_currentFolder === 'sent' || _currentFolder === 'draft') { _emDeleteLocalSelected(); return; }
+    emBulkAction('trash');
+  };
+
+  function _emDeleteLocalSelected() {
+    const idxs = Array.from(document.querySelectorAll('.em-mail-check:checked'))
+      .map(cb => parseInt(cb.getAttribute('data-idx'), 10)).filter(n => !isNaN(n));
+    if (!idxs.length) return;
+    if (!confirm(`${idxs.length}개 메일을 삭제하시겠습니까?`)) return;
+    const idxSet = new Set(idxs);
+    const key = _currentFolder === 'sent'
+      ? 'baram_email_log_' + ((window._currentUser && window._currentUser.id) || 'guest')
+      : 'baram_email_draft_' + ((window._currentUser && window._currentUser.id) || 'guest');
+    try {
+      let items = JSON.parse(localStorage.getItem(key) || '[]');
+      items = items.filter((_, i) => !idxSet.has(i));
+      localStorage.setItem(key, JSON.stringify(items));
+    } catch(e) {}
+    if (_currentFolder === 'draft' && typeof updateDraftCount === 'function') updateDraftCount();
+    const allChk = document.getElementById('emSelectAll'); if (allChk) allChk.checked = false;
+    renderEmailList();
+  }
+
   window.emBulkAction = async function(op) {
     const ids = _emCheckedIds();
     if (!ids.length) return;
@@ -14230,10 +14271,25 @@ if ('serviceWorker' in navigator) {
         return;
       }
       _renderGmailDetail(data.message);
+      // ★ 본문을 열람하면 안읽은 메일은 자동으로 읽음 처리
+      if (m.unread) _emAutoMarkRead(m, email);
     } catch(e) {
       if (dp) dp.innerHTML = `<div style="padding:30px;text-align:center;color:#c0392b;">오류: ${_emEsc(e.message||'')}<br><button onclick="backToEmailList()" style="margin-top:16px;background:none;border:1px solid #ddd;border-radius:8px;padding:8px 20px;cursor:pointer;">목록으로</button></div>`;
     }
   };
+
+  // 상세 열람 시 자동 읽음 처리 (목록 새로고침 없이 조용히 서버에 반영)
+  async function _emAutoMarkRead(m, email) {
+    m.unread = false;
+    _renderGmailList(_allEmailItems, _currentFolder);
+    const cacheKey = email + '|' + _currentFolder;
+    if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    try {
+      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'read', ids: m.gmailId });
+      await fetchWithRetry(`${window.ERP_URL}?${params}`, undefined, 0, 30000);
+      if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
+    } catch(e) { /* 자동 읽음처리 실패는 조용히 무시 */ }
+  }
 
   function _renderGmailDetail(msg) {
     const dp = document.getElementById('emDetailPanel');
@@ -14346,7 +14402,7 @@ if ('serviceWorker' in navigator) {
         const sender = _emEsc(_currentFolder === 'sent' ? (m.to || '-') : (m.from || '나'));
         const subjectDisplay = _emEsc(m.subject || '(제목없음)');
         html += `<div class="em-mail-row" onclick="openEmailDetail(${m._idx})">
-          <input type="checkbox" class="em-mail-check" onclick="event.stopPropagation()">
+          <input type="checkbox" class="em-mail-check" data-idx="${m._idx}" onchange="emOnCheck()" onclick="event.stopPropagation()">
           <svg class="em-mail-flag" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" onclick="event.stopPropagation()"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           <svg class="em-mail-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
           <span class="em-mail-sender">${sender}</span>
@@ -14405,8 +14461,52 @@ if ('serviceWorker' in navigator) {
       ['emailTo','emailCc','emailSubject','emailBody'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
       document.getElementById('emAiPrompt').value = '';
     }
+    _emailAttachments = [];
+    renderEmailAttachList();
     document.getElementById('emComposeMsg').textContent = '';
     setTimeout(() => { const el = document.getElementById('emailTo'); if (el) el.focus(); }, 100);
+  };
+
+  // ── 첨부파일: 선택한 파일을 base64로 읽어 목록에 담아둔다 (발송 시 서버로 전송) ──
+  let _emailAttachments = []; // [{name, mimeType, size, base64}]
+
+  function renderEmailAttachList() {
+    const el = document.getElementById('emAttachList');
+    if (!el) return;
+    if (!_emailAttachments.length) { el.innerHTML = ''; return; }
+    el.innerHTML = _emailAttachments.map((f, i) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:#FAF6EF;font-size:12px;">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_fileIconSvg()}${_noticeEscHtml(f.name)} <span style="color:#aaa;">${_formatFileSize(f.size)}</span></span>
+        <button type="button" onclick="removeEmailAttach(${i})" style="border:none;background:none;color:#e74c3c;cursor:pointer;font-size:13px;flex-shrink:0;padding:0 4px;">✕</button>
+      </div>`).join('');
+  }
+
+  window.removeEmailAttach = function(i) {
+    _emailAttachments.splice(i, 1);
+    renderEmailAttachList();
+  };
+
+  window.handleEmailFileSelect = async function(evt) {
+    const files = Array.from(evt.target.files || []);
+    if (!files.length) return;
+    const msgEl = document.getElementById('emAttachMsg');
+    for (const file of files) {
+      if (msgEl) msgEl.textContent = `첨부 중... (${file.name})`;
+      try {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        _emailAttachments.push({ name: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, base64 });
+        renderEmailAttachList();
+      } catch(e) {
+        if (msgEl) msgEl.textContent = '첨부 오류: ' + e.message;
+      }
+    }
+    if (msgEl) { msgEl.textContent = '✔ 첨부 완료'; setTimeout(() => { msgEl.textContent = ''; }, 2000); }
+    evt.target.value = ''; // 같은 파일 다시 선택 가능하게 초기화
   };
 
   window.closeEmailCompose = function() {
@@ -14461,17 +14561,24 @@ if ('serviceWorker' in navigator) {
       const senderDept    = user ? (user.dept  || '') : '';
       const senderPhone   = user ? (user.phone || '') : '';
       const senderEmail   = user ? (user.email || '') : '';
-      const senderCardUrl = user ? (user.cardUrl || '') : '';
 
-      const params = new URLSearchParams({
-        action:'sendEmailFromERP', from, to, cc, subject, body,
-        senderName, senderTitle, senderDept, senderPhone, senderEmail, senderCardUrl
+      // ★ 첨부파일(base64)은 URL 파라미터로 못 실어보내므로(용량 제한) POST로 전송
+      const res  = await fetch(`${RESERVE_URL}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        redirect: 'follow',
+        body: JSON.stringify({
+          action:'sendEmailFromERP', from, to, cc, subject, body,
+          senderName, senderTitle, senderDept, senderPhone, senderEmail,
+          attachments: _emailAttachments.map(f => ({ name: f.name, mimeType: f.mimeType, data: f.base64 }))
+        })
       });
-      const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
       const data = await res.json();
       if (data.status === 'ok') {
         if (msgEl) { msgEl.textContent = '발송 완료!'; msgEl.style.color='#1a7a45'; }
         saveEmailLog({ from, to, cc, subject, body, sentAt: new Date().toISOString() });
+        _emailAttachments = [];
+        renderEmailAttachList();
         setTimeout(() => closeEmailCompose(), 1200);
       } else {
         if (msgEl) { msgEl.textContent = '발송 실패: ' + (data.message||''); msgEl.style.color='#c0392b'; }
