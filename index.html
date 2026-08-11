@@ -14605,8 +14605,9 @@ if ('serviceWorker' in navigator) {
       const senderPhone   = user ? (user.phone || '') : '';
       const senderEmail   = user ? (user.email || '') : '';
 
-      // ★ 첨부파일(base64)은 URL 파라미터로 못 실어보내므로(용량 제한) POST로 전송
-      const res  = await fetch(`${RESERVE_URL}`, {
+      // ★ Gmail 도메인 위임 발송(서비스 계정 자격증명)은 ERP스크립트 프로젝트에 있으므로 ERP_URL로 호출.
+      //   첨부파일(base64)은 URL 파라미터로 못 실어보내므로(용량 제한) POST로 전송.
+      const res  = await fetch(`${window.ERP_URL}`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         redirect: 'follow',
