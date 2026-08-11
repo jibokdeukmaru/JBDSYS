@@ -14091,8 +14091,9 @@ if ('serviceWorker' in navigator) {
       .map(cb => cb.getAttribute('data-gmail-id')).filter(Boolean);
   }
   function _emUpdateBulkState() {
-    const ids = _emCheckedIds();
-    const n = ids.length;
+    // ★ Gmail 폴더는 data-gmail-id, 보낸메일함/임시보관함은 data-idx를 쓰므로
+    //   전체선택/삭제버튼 활성화는 속성 종류와 무관하게 체크된 개수로만 판단해야 한다.
+    const n = document.querySelectorAll('.em-mail-check:checked').length;
     const cntEl = document.getElementById('emSelCount');
     if (cntEl) cntEl.textContent = n ? (n + '개 선택') : '';
     ['emBulkRead','emBulkUnread','emBulkSpam','emBulkTrash'].forEach(id => {
