@@ -820,7 +820,7 @@
       <button type="button" class="tab-btn" data-tab="emailTab" id="emailTabBtn">이메일</button>
     </div>
     <!-- 홈 버튼 (사용자 아이콘 좌측) -->
-    <div id="headerHomeBtn" onclick="setTab('myInfoTab')" style="display:none;cursor:pointer;margin-right:2px;color:var(--brand);" title="홈">
+    <div id="headerHomeBtn" onclick="goHomeTab()" style="display:none;cursor:pointer;margin-right:2px;color:var(--brand);" title="홈">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     </div>
     <!-- 관리자 버튼 (왕관, admin만 표시) -->
@@ -863,7 +863,7 @@
     <div class="hamburger-menu-header">
       <h3>전체 메뉴</h3>
       <div style="display:flex;align-items:center;gap:6px;">
-        <button id="hamburgerHomeBtn" onclick="closeHamburger(); setTab('myInfoTab');" title="홈 (내정보)"
+        <button id="hamburgerHomeBtn" onclick="closeHamburger(); goHomeTab();" title="홈"
           style="background:none;border:none;cursor:pointer;color:var(--brand);padding:6px;min-height:auto;display:flex;align-items:center;justify-content:center;border-radius:8px;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -5924,7 +5924,7 @@ function csDateInputValue(val) {
   <!-- 예약확정 -->
   <div class="sms-template-card">
     <div class="sms-template-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a7a45" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><polyline points="20 6 9 17 4 12"></polyline></svg>예약확정 문자</div>
-    <div class="sms-vars">사용 가능 변수: <span>{이름}</span><span>{일정}</span><span>{연락처}</span></div>
+    <div class="sms-vars">사용 가능 변수: <span>{이름}</span><span>{일정}</span></div>
     <textarea class="sms-textarea" id="smsTemplate_confirm" oninput="updateSmsCharCount('confirm')" placeholder="Firestore에 저장된 템플릿을 불러오는 중..."></textarea>
     <div class="sms-footer">
       <span class="sms-char-count" id="smsCount_confirm">0자</span>
@@ -5936,7 +5936,7 @@ function csDateInputValue(val) {
   <!-- 예약취소 -->
   <div class="sms-template-card">
     <div class="sms-template-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>예약취소 문자</div>
-    <div class="sms-vars">사용 가능 변수: <span>{이름}</span><span>{일정}</span><span>{연락처}</span></div>
+    <div class="sms-vars">사용 가능 변수: <span>{이름}</span><span>{일정}</span></div>
     <textarea class="sms-textarea" id="smsTemplate_cancel" oninput="updateSmsCharCount('cancel')" placeholder="Firestore에 저장된 템플릿을 불러오는 중..."></textarea>
     <div class="sms-footer">
       <span class="sms-char-count" id="smsCount_cancel">0자</span>
@@ -5948,7 +5948,7 @@ function csDateInputValue(val) {
   <!-- 당일예약안내 -->
   <div class="sms-template-card">
     <div class="sms-template-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>당일예약안내 문자 <span style="font-size:11px;background:#fff3cd;color:#856404;border-radius:4px;padding:2px 8px;font-weight:700;">매일 09:00 자동발송 (일요일 제외)</span></div>
-    <div class="sms-vars">사용 가능 변수: <span>{이름}</span><span>{일정}</span><span>{연락처}</span></div>
+    <div class="sms-vars">사용 가능 변수: <span>{이름}</span><span>{일정}</span></div>
     <textarea class="sms-textarea" id="smsTemplate_today" oninput="updateSmsCharCount('today')" placeholder="Firestore에 저장된 템플릿을 불러오는 중..."></textarea>
     <div class="sms-footer">
       <span class="sms-char-count" id="smsCount_today">0자</span>
@@ -5983,7 +5983,7 @@ function csDateInputValue(val) {
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       예약확정 수동발송 <span style="font-size:11px;background:var(--cream-2);color:var(--brand);border-radius:4px;padding:2px 8px;font-weight:700;">지정한 번호로 즉시 발송</span>
     </div>
-    <div class="sms-vars" style="margin-bottom:14px;">입력한 값이 각 템플릿의 변수(<span>{이름}</span><span>{일정}</span><span>{연락처}</span>)에 치환되어 발송됩니다. API 미연동 상태에서는 발송내역에 <b>API미연동</b>으로 기록됩니다.</div>
+    <div class="sms-vars" style="margin-bottom:14px;">입력한 값이 각 템플릿의 변수(<span>{이름}</span><span>{일정}</span>)에 치환되어 발송됩니다. API 미연동 상태에서는 발송내역에 <b>API미연동</b>으로 기록됩니다.</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
       <div>
@@ -8986,6 +8986,14 @@ async function downloadCardImage() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeCardViewer();
 });
+
+// ★ 헤더/햄버거의 "홈" 버튼 — 로그인 직후 이동 로직과 동일하게, 저장된 내 홈화면 설정을 따른다.
+//   (기존엔 setTab('myInfoTab')로 고정돼 있어 홈화면을 다른 탭으로 설정해도 항상 내 정보로만 이동했음)
+window.goHomeTab = function() {
+  const user = window._currentUser;
+  const target = (user && user.homeTab && document.getElementById(user.homeTab)) ? user.homeTab : 'myInfoTab';
+  setTab(target);
+};
 
 function setTab(tabId, fromPopstate) {
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -14382,6 +14390,7 @@ if ('serviceWorker' in navigator) {
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
         <p>${msgs[_currentFolder] || '메일이 없습니다.'}</p>
       </div>`;
+      if (typeof _emUpdateBulkState === 'function') _emUpdateBulkState();
       return;
     }
 
@@ -14413,6 +14422,7 @@ if ('serviceWorker' in navigator) {
       });
     });
     listEl.innerHTML = html;
+    if (typeof _emUpdateBulkState === 'function') _emUpdateBulkState();
   }
 
   window.filterEmailList = function() {
