@@ -5906,7 +5906,7 @@ function csDateInputValue(val) {
   }
   .sms-template-title { font-size:14px; font-weight:800; color:var(--brand); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
   .sms-vars { font-size:11.5px; color:#aaa; margin-bottom:10px; }
-  .sms-vars span { background:var(--cream-2); color:var(--brand); border-radius:4px; padding:2px 7px; margin-right:4px; font-weight:700; }
+  .sms-vars span { background:#FFF3B0; color:#7A5B00; border-radius:4px; padding:2px 7px; margin-right:4px; font-weight:700; }
   .sms-textarea { width:100%; min-height:120px; padding:12px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:vertical; box-sizing:border-box; line-height:1.7; }
   .sms-footer { display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-top:12px; }
   .sms-char-count { font-size:12px; color:#aaa; }
@@ -13600,6 +13600,7 @@ if ('serviceWorker' in navigator) {
 
     <!-- 메일쓰기 뷰 -->
     <div class="em-compose-panel" id="emComposePanel">
+     <div id="emComposeFormWrap" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
       <div class="em-compose-header">
         <span class="em-compose-title">메일쓰기</span>
         <div class="em-compose-actions">
@@ -13649,6 +13650,16 @@ if ('serviceWorker' in navigator) {
         <input class="em-compose-ai-input" id="emAiPrompt" placeholder="AI 메일 작성: 작성하고 싶은 내용을 입력하세요 (예: 견적 문의 답변 메일)">
         <button class="em-compose-ai-btn" onclick="aiWriteEmail()">AI 작성</button>
       </div>
+     </div>
+     <!-- 발송 완료 안내 화면 -->
+     <div id="emSendSuccessView" style="display:none;flex-direction:column;align-items:center;justify-content:center;flex:1;min-height:0;padding:40px 24px;text-align:center;">
+       <div style="width:72px;height:72px;border-radius:50%;background:#E8F5EC;display:flex;align-items:center;justify-content:center;margin-bottom:20px;">
+         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1a7a45" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+       </div>
+       <div style="font-size:17px;font-weight:800;color:#222;margin-bottom:8px;">메일이 발송되었습니다</div>
+       <div id="emSendSuccessDetail" style="font-size:13px;color:#888;margin-bottom:28px;"></div>
+       <button onclick="closeEmailCompose()" style="padding:10px 28px;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">확인</button>
+     </div>
     </div>
 
     <!-- 메일 미리보기 모달 -->
@@ -13729,12 +13740,18 @@ if ('serviceWorker' in navigator) {
     }
   };
 
+  // 이메일 서명에는 부서명을 영문 표기로 (내 정보 등 다른 화면의 한글 표기는 그대로 둠)
+  const EMAIL_DEPT_LABELS = { '영업': 'Sales', 'R&D': 'R&D', '물류': '물류SCM' };
+  function _emailDeptLabel(dept) {
+    return EMAIL_DEPT_LABELS[dept] || dept || '';
+  }
+
   // ── 발신자 시그니처 HTML 생성 ──
   function buildEmailSignature(user) {
     if (!user) return '';
     const name     = user.name    || '';
     const title    = user.title   || '';
-    const dept     = user.dept    || '';
+    const dept     = _emailDeptLabel(user.dept || '');
     const phone    = user.phone   || '';
     const email    = user.email   || '';
     return `
@@ -13749,7 +13766,7 @@ if ('serviceWorker' in navigator) {
         <tr><td style="color:var(--brand);font-weight:700;padding-right:10px;">W.</td><td><a href="https://jibokdeukmaru.com" style="color:var(--brand);text-decoration:none;">jibokdeukmaru.com</a></td></tr>
       </table>
       <div style="margin-top:10px;">
-        <img src="https://raw.githubusercontent.com/jibokdeukmaru/JBDSYS/main/%EB%A1%9C%EA%B3%A0.png" alt="지복득마루" style="height:18px;" onerror="this.style.display='none'">
+        <img src="https://raw.githubusercontent.com/jibokdeukmaru/JBDSYS/main/%EB%A1%9C%EA%B3%A0.png" alt="지복득마루" width="459" height="18" style="height:18px;width:459px;max-width:459px;" onerror="this.style.display='none'">
       </div>
     </td>
   </tr>
@@ -14464,6 +14481,11 @@ if ('serviceWorker' in navigator) {
     const cp = document.getElementById('emComposePanel');
     cp.style.display = 'flex';
     cp.classList.add('open');
+    // 발송완료 화면이 남아있을 수 있으니 작성폼으로 되돌려놓는다
+    const formWrap = document.getElementById('emComposeFormWrap');
+    const successView = document.getElementById('emSendSuccessView');
+    if (formWrap) formWrap.style.display = '';
+    if (successView) successView.style.display = 'none';
     if (prefill) {
       if (prefill.to) document.getElementById('emailTo').value = prefill.to;
       if (prefill.subject) document.getElementById('emailSubject').value = prefill.subject;
@@ -14547,6 +14569,16 @@ if ('serviceWorker' in navigator) {
     });
   };
 
+  // ── 발송 완료 안내 화면 표시 ──
+  function _showEmailSendSuccess(to, subject) {
+    const formWrap = document.getElementById('emComposeFormWrap');
+    const successView = document.getElementById('emSendSuccessView');
+    const detailEl = document.getElementById('emSendSuccessDetail');
+    if (detailEl) detailEl.textContent = `${to} 님께 "${subject}" 메일을 보냈습니다.`;
+    if (formWrap) formWrap.style.display = 'none';
+    if (successView) successView.style.display = 'flex';
+  }
+
   // ── 메일 발송 ──
   window.sendMailFromERP = async function() {
     const user    = window._currentUser;
@@ -14569,7 +14601,7 @@ if ('serviceWorker' in navigator) {
       // 발신자 정보 파라미터 추가
       const senderName    = user ? (user.name  || '') : '';
       const senderTitle   = user ? (user.title || '') : '';
-      const senderDept    = user ? (user.dept  || '') : '';
+      const senderDept    = user ? _emailDeptLabel(user.dept || '') : '';
       const senderPhone   = user ? (user.phone || '') : '';
       const senderEmail   = user ? (user.email || '') : '';
 
@@ -14590,7 +14622,7 @@ if ('serviceWorker' in navigator) {
         saveEmailLog({ from, to, cc, subject, body, sentAt: new Date().toISOString() });
         _emailAttachments = [];
         renderEmailAttachList();
-        setTimeout(() => closeEmailCompose(), 1200);
+        _showEmailSendSuccess(to, subject);
       } else {
         if (msgEl) { msgEl.textContent = '발송 실패: ' + (data.message||''); msgEl.style.color='#c0392b'; }
       }
