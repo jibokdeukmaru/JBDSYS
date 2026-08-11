@@ -3191,7 +3191,7 @@
     <div class="dw-field-row">
       <div class="dw-field">
         <label>연락처</label>
-        <input type="text" id="cfPhone" onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();saveConsultForm();}">
+        <input type="text" id="cfPhone" onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();saveConsultForm();}" onblur="formatSmsTestPhone(this)">
       </div>
       <div class="dw-field">
         <label>방문 인원</label>
@@ -9042,7 +9042,11 @@ function setTab(tabId, fromPopstate) {
       slider.addEventListener('input', function() { setUiDensity(this.value); });
       slider._scaleListenerAttached = true;
     }
-    if (typeof populateHomeTabSelect === 'function') populateHomeTabSelect();
+  }
+  // ★ 화면 밀도 기능(applyUiDensity)과 무관한 별개 기능이라 독립적으로 호출 — 예전엔 위 블록 안에
+  //   얹혀있어서 applyUiDensity가 아직 준비 안 된 시점엔 드롭다운이 안 채워지는 문제가 있었다.
+  if (tabId === 'myInfoTab' && typeof populateHomeTabSelect === 'function') {
+    populateHomeTabSelect();
   }
   if (tabId === 'adminTab' && typeof loadEmployees === 'function') {
     // 직원목록 + 수정신청목록 + 연차현황 병렬 로드
