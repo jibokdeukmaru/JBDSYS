@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<script type="module">
+  // ══════════════════════════════════════════════════════════════
+  //  Firebase 초기화 (Firestore 이전 1단계: 문자템플릿·
+  //  문자발송내역·예약접수·예약관리)
+  //  ※ 월별휴무안내/슬롯/공휴일/전사게시판: 저장은 여전히 구글시트에 하지만(직원용 원본),
+  //    조회는 Firestore에서 읽는다 — 저장 시 서버가 두 곳을 동기화해준다(신규 방문자 속도 개선용).
+  //  로그인 UI/절차는 기존 앱스스크립트 방식 그대로 유지하고,
+  //  로그인 성공 시점(unlock 함수)에서 조용히 Firebase 익명 인증을 함께 실행해
+  //  Firestore 보안 규칙이 "인증된 사용자만 허용"을 걸 수 있도록 한다.
+  // ══════════════════════════════════════════════════════════════
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
+    updateDoc, deleteDoc, query, orderBy, limit, where, writeBatch, serverTimestamp,
+    runTransaction, startAfter, getCountFromServer
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDz3MrnTnJodzl8tyjJkyfdUNBUPNv5Et8",
+    authDomain: "jibokdeukmaru-erp-504904.firebaseapp.com",
+    projectId: "jibokdeukmaru-erp-504904",
+    storageBucket: "jibokdeukmaru-erp-504904.firebasestorage.app",
+    messagingSenderId: "697700684649",
+    appId: "1:697700684649:web:8383f1886b989387f963f8"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getFirestore(fbApp);
+  const auth = getAuth(fbApp);
+
+  // 다른 <script>(모듈이 아닌 일반 스크립트)에서 window.FB.* 로 접근할 수 있도록 노출
+  window.FB = {
+    db, auth,
+    collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
+    query, orderBy, limit, where, writeBatch, serverTimestamp,
+    runTransaction, startAfter, getCountFromServer,
+    signInAnonymously, onAuthStateChanged
+  };
+
+  // 익명 인증 트리거 — 로그인(unlock) 시점에서 window.fbEnsureAuth() 호출
+  let _fbAuthPromise = null;
+  window.fbEnsureAuth = function() {
+    if (auth.currentUser) return Promise.resolve(auth.currentUser);
+    if (_fbAuthPromise) return _fbAuthPromise;
+    _fbAuthPromise = signInAnonymously(auth)
+      .then(cred => cred.user)
+      .catch(err => { console.error('Firebase 익명 인증 실패:', err); _fbAuthPromise = null; throw err; });
+    return _fbAuthPromise;
+  };
+
+  // ★ 이 스크립트는 type="module"이라 문서 파싱이 끝난 뒤 실행된다. 아래쪽 일반 스크립트 중
+  //   페이지 로드 즉시 실행되는 것들(예: 슬롯관리의 initSlotGrid IIFE)은 그보다 먼저 실행될 수 있어서,
+  //   window.FB/window.fbEnsureAuth가 아직 없는 채로 Firestore를 읽으려다 조용히 실패할 수 있다.
+  //   그런 코드는 이 헬퍼로 모듈 스크립트 실행을 먼저 기다린다.
+  window._waitForFirebase = function() {
+    if (window.fbEnsureAuth && window.FB) return Promise.resolve();
+    return new Promise(resolve => {
+      const iv = setInterval(() => {
+        if (window.fbEnsureAuth && window.FB) { clearInterval(iv); resolve(); }
+      }, 30);
+    });
+  };
+
+  // ★ 윅스 iframe 안에서 position:fixed 오버레이는 "iframe 자체의 맨 위" 기준으로 고정돼버려서,
+  //   바깥 윅스 페이지를 스크롤한 만큼 화면 밖으로 밀려 안 보이거나 잘리는 문제가 있었다
+  //   (게스트메뉴/허용메뉴 모달, 재고 상세 팝업 등). 모달을 여는 시점의 실제 스크롤 위치를 기준으로
+  //   절대 위치를 잡아, 이중스크롤 여부와 무관하게 항상 현재 보이는 화면에 뜨게 한다.
+  window._positionModalAtScroll = function(modalEl) {
+    if (!modalEl) return;
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    modalEl.style.position = 'absolute';
+    modalEl.style.top = scrollY + 'px';
+    modalEl.style.left = '0';
+    modalEl.style.right = '0';
+    modalEl.style.bottom = 'auto';
+    modalEl.style.height = (window.innerHeight || document.documentElement.clientHeight || 800) + 'px';
+    modalEl.style.display = 'flex';
+  };
+</script>
+
+<script>
+// ── 윅스(Wix) iframe 안 모바일 접속 시, 정상 화면으로 이동하는 버튼 표시 ──
+(function () {
+  try {
+    var isIframe = (window.self !== window.top);
+    if (!isIframe) return;
+    var isMobile = (window.screen && window.screen.width)
+      ? window.screen.width <= 768
+      : /Mobi|Android|iPhone/i.test(navigator.userAgent);
+    if (!isMobile) return;
+    var showButton = function () {
+      if (document.getElementById('wixExitOverlay')) return;
