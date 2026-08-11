@@ -107,11 +107,11 @@
       var _viewH = window.innerHeight || document.documentElement.clientHeight || 800;
       overlay.style.cssText = 'position:absolute;top:' + _scrollY + 'px;left:0;right:0;height:' + _viewH + 'px;z-index:999999;background:#FFFFFF;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;font-family:"Pretendard","Noto Sans KR",sans-serif;text-align:center;box-sizing:border-box;';
       overlay.innerHTML =
-        '<img src="https://github.com/chiwoo3292-sudo/JBDSTOCK/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="width:120px;height:auto;margin-bottom:22px;">' +
+        '<img src="https://github.com/jibokdeukmaru/JBDSYS/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="width:120px;height:auto;margin-bottom:22px;">' +
         '<div style="font-size:13.5px;color:#666;line-height:1.6;margin-bottom:28px;max-width:280px;">모바일에서는 더 넓고 편한 화면으로<br>보여드리기 위해 페이지를 이동합니다</div>' +
         '<button id="wixExitBtn" style="background:#000;color:#fff;border:none;padding:16px 36px;border-radius:12px;font-size:15px;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,0.2);cursor:pointer;font-family:inherit;">사내시스템에 접속합니다</button>';
       overlay.querySelector('#wixExitBtn').onclick = function () {
-        window.top.location.href = 'https://chiwoo3292-sudo.github.io/JBDSTOCK/';
+        window.top.location.href = 'https://jibokdeukmaru.github.io/JBDSYS/';
       };
       if (document.body) document.body.appendChild(overlay);
     };
@@ -7444,6 +7444,16 @@ function csDateInputValue(val) {
         const data = await res.json();
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
 
+        // ★ 시트 저장 성공 시 Firestore employees 사본도 즉시 갱신 — 로그인이 Firestore를 우선
+        //   조회하는 구조라, 이걸 안 하면 방금 고친 내용이 로그인에는 반영 안 된 채로 남는다.
+        try {
+          await window.fbEnsureAuth();
+          await window.FB.setDoc(window.FB.doc(window.FB.db, 'employees', id || _selectedEmpId), {
+            name, dept, title, joinDate, email, phone, birthday, cardUrl,
+            annualLeave: Number(annualLeave) || 0, isHead, isManager
+          }, { merge: true });
+        } catch (fsErr) { /* Firestore 갱신 실패해도 시트는 이미 저장됐으니 조용히 무시 */ }
+
         // 캐시 초기화
         if (window._allStaffMapCache) window._allStaffMapCache = null;
         if (window._staffListCache) window._staffListCache = null;
@@ -13705,7 +13715,7 @@ if ('serviceWorker' in navigator) {
         <tr><td style="color:var(--brand);font-weight:700;padding-right:10px;">W.</td><td><a href="https://jibokdeukmaru.com" style="color:var(--brand);text-decoration:none;">jibokdeukmaru.com</a></td></tr>
       </table>
       <div style="margin-top:10px;">
-        <img src="https://github.com/chiwoo3292-sudo/JBDSTOCK/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="height:28px;" onerror="this.style.display='none'">
+        <img src="https://github.com/jibokdeukmaru/JBDSYS/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="height:28px;" onerror="this.style.display='none'">
         <div style="font-size:11px;color:#bbb;margin-top:4px;">지복득마루</div>
       </div>
     </td>
