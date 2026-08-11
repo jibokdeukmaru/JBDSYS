@@ -13718,13 +13718,9 @@ if ('serviceWorker' in navigator) {
     const dept     = user.dept    || '';
     const phone    = user.phone   || '';
     const email    = user.email   || '';
-    const cardUrl  = user.cardUrl || '';
     return `
 <table style="margin-top:32px;padding-top:20px;border-top:2px solid var(--border);font-family:Arial,'Noto Sans KR',sans-serif;border-collapse:collapse;">
   <tr>
-    ${cardUrl ? `<td style="padding-right:20px;vertical-align:top;">
-      <img src="${cardUrl}" alt="명함" style="width:100px;height:auto;border-radius:6px;border:1px solid var(--border);">
-    </td>` : ''}
     <td style="vertical-align:top;">
       <div style="font-size:16px;font-weight:800;color:#2B2521;margin-bottom:2px;">${name}${title ? ' <span style="font-size:13px;font-weight:600;color:var(--brand);">' + title + '</span>' : ''}</div>
       ${dept ? `<div style="font-size:12px;color:#888;margin-bottom:6px;">${dept}</div>` : ''}
@@ -13734,8 +13730,7 @@ if ('serviceWorker' in navigator) {
         <tr><td style="color:var(--brand);font-weight:700;padding-right:10px;">W.</td><td><a href="https://jibokdeukmaru.com" style="color:var(--brand);text-decoration:none;">jibokdeukmaru.com</a></td></tr>
       </table>
       <div style="margin-top:10px;">
-        <img src="https://github.com/jibokdeukmaru/JBDSYS/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="height:28px;" onerror="this.style.display='none'">
-        <div style="font-size:11px;color:#bbb;margin-top:4px;">지복득마루</div>
+        <img src="https://github.com/jibokdeukmaru/JBDSYS/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="height:18px;" onerror="this.style.display='none'">
       </div>
     </td>
   </tr>
