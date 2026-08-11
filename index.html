@@ -4241,29 +4241,43 @@ function csDateInputValue(val) {
       const qRaw = (document.getElementById('cfRevisitInput').value || '').trim();
       const q = qRaw.toLowerCase();
       if (!q) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
         return;
       }
 
-      // ★ 재방문 검색: 이름 접두사(prefix) 검색으로 전환 — 전체 2000여건을 읽지 않고
-      //   Firestore에서 "이름이 q로 시작하는" 문서만 직접 조회한다 (읽기 최소화).
-      //   단, "~로 시작"만 지원되므로 이름 뒷부분 검색은 지원하지 않는다(합의됨).
-      tbody.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색 중...</td></tr>';
+      // ★ 재방문 검색: 이름/업체명/연락처/현장주소 4개 필드를 각각 접두사(prefix) 검색으로
+      //   전체 2000여건을 읽지 않고 Firestore에서 필요한 문서만 조회한 뒤 합쳐서 보여준다.
+      //   현장주소(addressLower)는 새로 추가된 파생 필드라 예전에 저장된 건은 검색되지 않을 수 있다.
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색 중...</td></tr>';
       await window.fbEnsureAuth();
-      const qy = window.FB.query(
-        window.FB.collection(window.FB.db, 'consults'),
-        window.FB.orderBy('nameLower'),
-        window.FB.where('nameLower', '>=', q),
-        window.FB.where('nameLower', '<=', q + '\uf8ff'),
-        window.FB.limit(4)
-      );
-      const snap = await window.FB.getDocs(qy);
-      const matched = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      const phoneQ = qRaw.replace(/[^0-9]/g, '');
+      const fields = [
+        ['nameLower', q],
+        ['companyLower', q],
+        ['addressLower', q],
+      ];
+      if (phoneQ) fields.push(['phoneDigits', phoneQ]);
+
+      const queries = fields.map(function(f) {
+        return window.FB.getDocs(window.FB.query(
+          window.FB.collection(window.FB.db, 'consults'),
+          window.FB.orderBy(f[0]),
+          window.FB.where(f[0], '>=', f[1]),
+          window.FB.where(f[0], '<=', f[1] + ''),
+          window.FB.limit(4)
+        ));
+      });
+      const snaps = await Promise.all(queries);
+      const byId = new Map();
+      snaps.forEach(function(snap) {
+        snap.docs.forEach(function(d) { if (!byId.has(d.id)) byId.set(d.id, { ...d.data(), _docId: d.id }); });
+      });
+      const matched = Array.from(byId.values());
 
       _revisitMatches = matched;
       window._revisitMatchesGlobal = matched;
       if (!matched.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색 결과 없음</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색 결과 없음</td></tr>';
         return;
       }
       const statusColor = (s) => {
@@ -4280,13 +4294,14 @@ function csDateInputValue(val) {
           <td style="padding:7px 8px;"><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;${statusColor(r.status||'')}">${r.status||'-'}</span></td>
           <td style="padding:7px 8px;font-weight:700;">${r.name||'-'}</td>
           <td style="padding:7px 8px;color:#666;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.company||'-'}</td>
+          <td style="padding:7px 8px;color:#666;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.address||'-'}</td>
           <td style="padding:7px 8px;color:#666;">${r.date||'-'}</td>
           <td style="padding:7px 8px;color:#666;">${r.phone||'-'}</td>
         </tr>
       `).join('');
     } catch (err) {
       // 예외가 나도 "검색 중..."에 멈추지 않도록 사용자 친화적 안내 표시 (상세 원인은 콘솔에만)
-      tbody.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#c0392b;">검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#c0392b;">검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
       console.error('searchRevisitOverlay 오류:', err);
     }
   };
@@ -4519,6 +4534,7 @@ function csDateInputValue(val) {
       const derived = {
         nameLower: String(payload.name||'').toLowerCase(),
         companyLower: String(payload.company||'').toLowerCase(),
+        addressLower: String(payload.address||'').toLowerCase(),
         phoneDigits: String(payload.phone||'').replace(/[^0-9]/g,''),
         createdAtMs: _consultDateToMs(payload.date, payload.time),
         updatedAtMs: Date.now(),
@@ -8638,7 +8654,8 @@ function csDateInputValue(val) {
         document.getElementById('loginId').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
     }
 
-    document.addEventListener('contextmenu', e => e.preventDefault());
+    // ★ 우클릭 메뉴 차단은 모바일에서 길게눌러 텍스트 선택/복사할 때 쓰는 것과 같은 이벤트
+    //   경로라서, 브라우저에 따라 복사 팝업이 간헐적으로 안 뜨는 원인이었다 — 제거함.
     document.addEventListener('keydown', function(e) {
         if (e.key === 'F12' ||
             (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
