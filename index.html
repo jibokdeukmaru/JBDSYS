@@ -4212,15 +4212,57 @@ function csDateInputValue(val) {
   // ── 쇼룸상담 목록 CSV 다운로드 ──
   window.downloadConsultCSV = function() {
     if (!allConsults.length) { alert('다운로드할 데이터가 없습니다.'); return; }
-    const headers = ['상담날짜','상담시간','처리상태','상담자','성함','연락처','업체명','현장주소','평수','시공예정일','선호제품','전달사항','지난상담이력'];
-    const keys = ['date','time','status','counselor','name','phone','company','address','size','workDate','products','memo','pastHistory'];
+    // ★ 예전에 쓰던 외부 사이트(구 상담관리 서비스)에서 받던 CSV와 컬럼 구성을 동일하게 맞춰서,
+    //   그쪽 양식이 필요한 곳에도 그대로 올릴 수 있게 했다. 그쪽 원본 양식엔 같은 항목이 여러 번
+    //   중복된 컬럼이 섞여있는데(폼 조건별 항목이 한 줄로 합쳐진 구조로 추정), 그런 중복 칸은
+    //   첫 번째 해당 칸에만 값을 채우고 나머지 중복 칸은 비워둔다.
+    const headers = ['*ID','상담자','일정','방문 여부','상태','유형','성함','연락처','업체명','방문 인원','현장 주소','평 형','공간유형','시공 예정일','시공 예정 시기','공사 기간','엘리베이터','관심 제품','기존 방문 검색','기존 방문일','시공예정일','현장 주소','공간유형','전달사항','연락처','업체명','평형','관심제품','엘리베이터','요청사항','현장 주소','평 형','시공 예정일','시공 예정 시기','공간 유형','단가 안내','요청사항','샘플  제공 목록','명함 ','전달사항 ','작성자','등록일','수정일','수정자'];
     const escapeCsv = (val) => {
       let v = val != null ? String(val) : '';
       v = v.replace(/"/g, '""');
       if (v.includes(',') || v.includes('"') || v.includes('\n')) v = `"${v}"`;
       return v;
     };
-    const rows = allConsults.map(r => keys.map(k => escapeCsv(r[k])).join(','));
+    const rows = allConsults.map(r => {
+      const schedule = `${r.date||''} ${r.time||''}`.trim();
+      const updatedStr = r.updatedAtMs ? new Date(r.updatedAtMs).toLocaleString('ko-KR') : '';
+      const cols = [
+        '',                      // *ID (외부 시스템 고유 ID — 대응값 없음)
+        r.counselor || '',       // 상담자
+        schedule,                // 일정
+        r.visitStatus || '',     // 방문 여부
+        r.status || '',          // 상태
+        r.visitorType || '',     // 유형
+        r.name || '',            // 성함
+        r.phone || '',           // 연락처
+        r.company || '',         // 업체명
+        r.visitCount || '',      // 방문 인원
+        r.address || '',         // 현장 주소
+        r.size || '',            // 평 형
+        r.spaceType || '',       // 공간유형
+        r.workDate || '',        // 시공 예정일
+        r.workTiming || '',      // 시공 예정 시기
+        r.workPeriod || '',      // 공사 기간
+        r.elevator || '',        // 엘리베이터
+        r.products || '',        // 관심 제품
+        '', '',                  // 기존 방문 검색 / 기존 방문일
+        '', '', '',              // (중복) 시공예정일 / 현장 주소 / 공간유형
+        r.content || '',         // 전달사항
+        '', '', '', '', '',      // (중복) 연락처 / 업체명 / 평형 / 관심제품 / 엘리베이터
+        '',                      // 요청사항
+        '', '', '', '', '',      // (중복) 현장 주소 / 평 형 / 시공 예정일 / 시공 예정 시기 / 공간 유형
+        r.priceInfo || '',       // 단가 안내
+        '',                      // (중복) 요청사항
+        r.sampleList || '',      // 샘플  제공 목록
+        r.cardStaff || '',       // 명함
+        '',                      // (중복) 전달사항
+        r.counselor || '',       // 작성자
+        r.receiptAt || '',       // 등록일
+        updatedStr,              // 수정일
+        '',                      // 수정자
+      ];
+      return cols.map(escapeCsv).join(',');
+    });
     const csv = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n'); // BOM: 엑셀에서 한글 깨짐 방지
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -6718,7 +6760,7 @@ function csDateInputValue(val) {
         if (ls) ls.style.display = 'none';
     }
 
-    function unlock(loginType, userData) {
+    function unlock(loginType, userData, isRestore) {
         // Firestore 이전 데이터 접근을 위한 Firebase 익명 인증 — 로그인 성공 시점에 조용히 실행
         // (모듈 스크립트 로드가 아직 안 끝났을 극히 드문 경우 대비, 잠깐 재시도)
         (function ensureFbAuthWithRetry(tries) {
@@ -6811,11 +6853,16 @@ function csDateInputValue(val) {
         }
 
         const lastTab = localStorage.getItem('baram_last_tab');
+        // ★ 새로고침(세션 복원)일 땐 마지막으로 보던 탭으로, 실제 로그인일 때만 홈화면 설정으로 이동.
+        //   예전엔 구분 없이 항상 홈화면으로 이동해서, "새로고침 시 마지막 탭 복귀" 기능이
+        //   200ms 뒤 이 로직에 덮어써져 무력화됐었다.
         if (loginType === 'user') {
             // setTab을 200ms 후 실행 — 초기 렌더링과 API 호출 분리
             setTimeout(() => {
               if (typeof setTab === 'function') {
-                const target = (userData.homeTab && document.getElementById(userData.homeTab)) ? userData.homeTab : 'myInfoTab';
+                const target = (isRestore && lastTab && document.getElementById(lastTab))
+                  ? lastTab
+                  : ((userData.homeTab && document.getElementById(userData.homeTab)) ? userData.homeTab : 'myInfoTab');
                 setTab(target);
               }
             }, 200);
@@ -6824,7 +6871,7 @@ function csDateInputValue(val) {
               if (typeof loadMonthlyNoticeEditor === 'function') loadMonthlyNoticeEditor();
             }, 2000);
         } else if (typeof setTab === 'function') {
-            setTab('myInfoTab');
+            setTab((isRestore && lastTab && document.getElementById(lastTab)) ? lastTab : 'myInfoTab');
         }
         // 예약 알림 체크는 가장 마지막에 (4초 후)
         setTimeout(() => {
@@ -8101,6 +8148,7 @@ function csDateInputValue(val) {
     const rec = { ...r };
     rec.nameLower = String(rec.name||'').toLowerCase();
     rec.companyLower = String(rec.company||'').toLowerCase();
+    rec.addressLower = String(rec.address||'').toLowerCase();
     rec.phoneDigits = String(rec.phone||'').replace(/[^0-9]/g,'');
     rec.createdAtMs = window._consultDateToMs(rec.date, rec.time) || Date.now();
     rec.updatedAtMs = Date.now();
@@ -8624,7 +8672,7 @@ function csDateInputValue(val) {
         const savedAuth = localStorage.getItem(SESSION_KEY);
         const userData = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
         if (userData && savedAuth && (Date.now() - parseInt(savedAuth, 10)) < AUTH_TIMEOUT) {
-            unlock('user', userData);
+            unlock('user', userData, true);
         } else {
             localStorage.removeItem(SESSION_KEY);
             localStorage.removeItem(LOGIN_TYPE_KEY);
@@ -8634,7 +8682,7 @@ function csDateInputValue(val) {
     } else if (loginType === 'guest') {
         const savedAuth = localStorage.getItem(SESSION_KEY);
         if (savedAuth && (Date.now() - parseInt(savedAuth, 10)) < AUTH_TIMEOUT) {
-            unlock('guest', null);
+            unlock('guest', null, true);
         } else {
             localStorage.removeItem(SESSION_KEY);
             localStorage.removeItem(LOGIN_TYPE_KEY);
@@ -10155,16 +10203,13 @@ function initExcelUpload() {
                     const pad = n => String(n).padStart(2, '0');
                     const str = `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
                     lastEl.textContent = `마지막 업로드: ${str}`;
-                    // 업로드 날짜 vs 오늘 날짜 비교
+                    // 업로드 날짜 vs 오늘 날짜 비교 — 팝업 대신 상단 "재고확인요망" 배너에 표시
                     const today = new Date();
                     const isSameDay = d.getFullYear() === today.getFullYear()
                         && d.getMonth() === today.getMonth()
                         && d.getDate() === today.getDate();
-                    if (!isSameDay) {
-                        setTimeout(() => {
-                            alert('당일 재고가 아닐 수 있습니다.\n업로드 시간을 확인해 주세요.\n\n마지막 업로드: ' + str);
-                        }, 500);
-                    }
+                    window._stockNotToday = !isSameDay;
+                    if (typeof _renderStockAlertBanner === 'function') _renderStockAlertBanner();
                 } else {
                     lastEl.textContent = '';
                 }
@@ -10809,11 +10854,35 @@ window.toggleStockSeries = function(headerTr, seriesGroupKey) {
 
 
 // ── 재고부족 배너 업데이트 (전광판 애니메이션 제거, 정적 표시) ──
-function updateStockAlertBanner(processedRows, orderRows, arrivalRows) {
+//   ★ "당일재고 아님" 알림도 이 배너에 같이 표시한다(예전엔 별도 alert() 팝업이었음).
+//     _stockNotToday는 initExcelUpload에서 업로드 시간을 확인해 설정한다.
+let _stockAlertCodes = [];
+window._stockNotToday = false;
+
+function _renderStockAlertBanner() {
     const banner   = document.getElementById('stockAlertBanner');
     const marquee  = document.getElementById('stockAlertMarquee');
     if (!banner || !marquee) return;
 
+    const parts = [];
+    if (window._stockNotToday) parts.push('당일재고 아님');
+    parts.push(..._stockAlertCodes.map(c => `【 ${c} 】`));
+
+    if (parts.length === 0) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    banner.style.display = 'block';
+
+    // 텍스트: "재고확인요망" + 알림 항목들. 애니메이션 없이 그대로 표시(길면 자동 줄바꿈).
+    const text = '재고확인요망 ▶ ' + parts.join('  ');
+    marquee.innerHTML = text.replace(/【 ([^】]+) 】/g, (m, code) => {
+        return `<span style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;" onclick="openItemDetail('${code.trim()}', event)">${m}</span>`;
+    });
+}
+
+function updateStockAlertBanner(processedRows, orderRows, arrivalRows) {
     // 품번별 총BOX 합산 후 음수 품번만 수집 (합산 기준)
     const sumByCode = {};
     processedRows.forEach(d => {
@@ -10832,18 +10901,8 @@ function updateStockAlertBanner(processedRows, orderRows, arrivalRows) {
         }
     });
 
-    if (alertCodes.length === 0) {
-        banner.style.display = 'none';
-        return;
-    }
-
-    banner.style.display = 'block';
-
-    // 텍스트: "재고확인요망" + 품번들. 애니메이션 없이 그대로 표시(길면 자동 줄바꿈).
-    const text = '재고확인요망 ▶ ' + alertCodes.map(c => `【 ${c} 】`).join('  ');
-    marquee.innerHTML = text.replace(/【 ([^】]+) 】/g, (m, code) => {
-        return `<span style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;" onclick="openItemDetail('${code.trim()}', event)">${m}</span>`;
-    });
+    _stockAlertCodes = alertCodes;
+    _renderStockAlertBanner();
 }
 
 // 재고 탭 클릭 시 데이터 로드 + 시계 + 업로드 초기화
