@@ -14150,6 +14150,17 @@ if ('serviceWorker' in navigator) {
   };
 
   function _emEsc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  // _formatFileSize/_fileIconSvg는 다른 <script> 블록(전사게시판, 다른 스코프)에 있어
+  // 여기서 직접 접근 불가하므로 자체적으로 둔다.
+  function _emFormatFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + 'KB';
+    return (bytes/1024/1024).toFixed(1) + 'MB';
+  }
+  function _emFileIconSvg() {
+    return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+  }
 
   // Gmail 메일 목록 렌더 (fetch 결과 전용)
   function _renderGmailList(items, folder) {
@@ -14465,7 +14476,7 @@ if ('serviceWorker' in navigator) {
     return `<div style="padding:0 24px 20px;display:flex;flex-direction:column;gap:6px;">
       ${list.map((f, i) => `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface-tint);border:1px solid var(--border-2);border-radius:8px;padding:8px 12px;">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${_fileIconSvg()}${_emEsc(f.filename)} <span style="color:#aaa;">${_formatFileSize(f.size)}</span></span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${_emFileIconSvg()}${_emEsc(f.filename)} <span style="color:#aaa;">${_emFormatFileSize(f.size)}</span></span>
           <button type="button" onclick="downloadGmailAttachment(${i})" style="border:1px solid var(--border);background:#fff;border-radius:7px;padding:5px 12px;font-size:11.5px;color:var(--brand-dark);cursor:pointer;flex-shrink:0;">다운로드</button>
         </div>`).join('')}
     </div>`;
@@ -14660,7 +14671,7 @@ if ('serviceWorker' in navigator) {
     if (!_emailAttachments.length) { el.innerHTML = ''; return; }
     el.innerHTML = _emailAttachments.map((f, i) => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:#FAF6EF;font-size:12px;">
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_fileIconSvg()}${_noticeEscHtml(f.name)} <span style="color:#aaa;">${_formatFileSize(f.size)}</span></span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_emFileIconSvg()}${_emEsc(f.name)} <span style="color:#aaa;">${_emFormatFileSize(f.size)}</span></span>
         <button type="button" onclick="removeEmailAttach(${i})" style="border:none;background:none;color:#e74c3c;cursor:pointer;font-size:13px;flex-shrink:0;padding:0 4px;">✕</button>
       </div>`).join('');
   }
