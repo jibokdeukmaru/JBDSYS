@@ -13573,9 +13573,9 @@ if ('serviceWorker' in navigator) {
     /* 메일 목록: 카드형 */
     .em-mail-check, .em-mail-flag, .em-mail-icon { display:none !important; }
     .em-mail-row { flex-wrap:wrap; padding:10px 12px; gap:2px; align-items:flex-start; }
-    .em-mail-sender { width:calc(100% - 70px); min-width:0; font-size:14px; font-weight:700; color:#222; }
-    .em-mail-subject { width:100%; font-size:13px; color:#666; margin-top:3px; white-space:normal; }
-    .em-mail-subject .em-mail-preview { display:block; margin-left:0; margin-top:2px; font-size:12px; }
+    .em-mail-sender { flex:0 0 100%; width:calc(100% - 70px); min-width:0; font-size:14px; font-weight:700; color:#222; }
+    .em-mail-subject { flex:0 0 100%; width:100%; font-size:13px; font-weight:700; color:#333; margin-top:3px; white-space:normal; }
+    .em-mail-subject .em-mail-preview { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin-left:0; margin-top:3px; font-size:12px; font-weight:400; color:#aaa; line-height:1.4; }
     .em-mail-time { width:70px; min-width:0; font-size:12px; text-align:right; flex-shrink:0; }
 
     /* 메일쓰기 헤더: 제목 + 버튼 2줄 */
