@@ -779,8 +779,8 @@
 
         <!-- 로그인 섹션 -->
         <div id="loginSection">
-          <input type="text" id="loginId" placeholder="아이디" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginPw').focus();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:8px; background:#f2f2f2; color:#111; outline:none;">
-          <input type="password" id="loginPw" placeholder="비밀번호" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginBtn').click();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none;">
+          <input type="text" id="loginId" placeholder="아이디" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginPw').focus();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:8px; background:#f2f2f2; color:#111; outline:none;">
+          <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginBtn').click();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none;">
           <button id="loginBtn" style="width:100%; height:44px; background:#1a1a1a; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);">로그인</button>
           <p id="loginError" style="margin:0 0 16px; font-size:12px; color:#ff6b6b; display:none; font-weight:bold;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>아이디 또는 비밀번호가 올바르지 않습니다.</p>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
@@ -792,7 +792,7 @@
 
         <!-- 게스트 비밀번호 섹션 -->
         <p style="margin:0 0 8px; font-size:12px; color:rgba(0,0,0,0.45);">게스트 접속 (비밀번호)</p>
-        <input type="password" id="authPassword" placeholder="••••" style="width:100%; height:44px; padding:0 16px; font-size:18px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; text-align:center; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none; letter-spacing:6px;">
+        <input type="password" id="authPassword" placeholder="••••" autocomplete="off" style="width:100%; height:44px; padding:0 16px; font-size:18px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; text-align:center; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none; letter-spacing:6px;">
         <button id="authBtn" style="width:100%; height:44px; background:transparent; color:#1a1a1a; border:1px solid rgba(0,0,0,0.35); border-radius:10px; font-size:15px; font-weight:700; cursor:pointer;">게스트 접속</button>
         <p id="authError" style="margin:10px 0 0; font-size:12px; color:#ff6b6b; display:none; font-weight:bold;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>비밀번호가 올바르지 않습니다.</p>
     </div>
@@ -3236,7 +3236,7 @@
 
     <div class="dw-field-row" style="grid-template-columns: 1fr 1.4fr 1fr;">
       <div class="dw-field">
-        <label>시공 예정일</label>
+        <label>시공 확정일</label>
         <div style="position:relative;display:inline-flex;align-items:center;border:1px solid #ddd;border-radius:8px;padding:0 10px;height:38px;background:#fff;gap:6px;width:100%;box-sizing:border-box;">
           <input type="text" id="cfWorkDate" placeholder="" maxlength="10"
             style="border:none;outline:none;font-size:13px;background:transparent;width:100%;min-width:0;"
@@ -3248,7 +3248,7 @@
         </div>
       </div>
       <div class="dw-field">
-        <label>시공 예정 시기</label>
+        <label>시공 예정일</label>
         <input type="text" id="cfWorkTiming">
       </div>
       <div class="dw-field">
@@ -4370,7 +4370,7 @@ function csDateInputValue(val) {
     if (r.address)   lines.push('[주소] ' + r.address);
     if (r.size)      lines.push('[평수] ' + r.size);
     if (r.spaceType) lines.push('[공간] ' + r.spaceType);
-    if (r.workDate)  lines.push('[시공예정] ' + r.workDate);
+    if (r.workDate)  lines.push('[시공확정] ' + r.workDate);
     if (r.workPeriod) lines.push('[시공기간] ' + r.workPeriod);
     if (r.products)  lines.push('[선호제품] ' + r.products);
     if (r.priceInfo) lines.push('[단가정보] ' + r.priceInfo);
@@ -6781,6 +6781,15 @@ function csDateInputValue(val) {
         if (mainSection) mainSection.style.display = 'block';
         unlockBody();
         window.scrollTo(0, 0);
+        // ★ 브라우저가 숨겨진 로그인 입력창에 자동완성으로 값을 채워둔 채 남아있으면,
+        //   화면 전환 시 크롬이 "비밀번호 저장" 팝업을 새로고침마다 다시 띄우는 경우가 있다.
+        //   세션 자동복원(새로고침) 시엔 입력값을 비워 이 오작동 소지를 없앤다.
+        if (isRestore) {
+          ['loginId','loginPw','authPassword'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+          });
+        }
         // iframe 환경에서 mainSection 노출 직후 높이 즉시 전송
         try {
           if (window.self !== window.top && typeof window._sendIframeHeight === 'function') {
@@ -11628,7 +11637,7 @@ function renderInvoice() {
     };
 
     makeTotal('SUB TOTAL', subTotal, 'subtotal');
-    makeTotal('Tax Vat 10%', vat);
+    makeTotal('VAT 10%', vat);
     // 계약금/중도금 차감 (금액 입력된 경우만) — 날짜가 있으면 라벨 괄호에 표시
     if (depositAmt > 0) makeTotal(depositDate ? `계약금 (${depositDate})` : '계약금', -depositAmt);
     if (interimAmt > 0) makeTotal(interimDate ? `중도금 (${interimDate})` : '중도금', -interimAmt);
@@ -13770,29 +13779,8 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
 
-    <!-- 메일 상세보기 뷰 -->
-    <div class="em-detail-panel" id="emDetailPanel">
-      <div class="em-detail-header">
-        <div class="em-detail-subject" id="emDetailSubject"></div>
-        <div class="em-detail-meta">
-          <span class="em-detail-sender" id="emDetailSender"></span>
-          <span id="emDetailTime"></span>
-          <span id="emDetailTo" style="color:#aaa;"></span>
-        </div>
-        <div class="em-detail-actions">
-          <button class="em-detail-action-btn" onclick="replyEmail()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>답장
-          </button>
-          <button class="em-detail-action-btn" onclick="forwardEmail()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>전달
-          </button>
-          <button class="em-detail-action-btn em-detail-close" onclick="closeEmailDetail()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>닫기
-          </button>
-        </div>
-      </div>
-      <div class="em-detail-body" id="emDetailBody"></div>
-    </div>
+    <!-- 메일 상세보기 뷰 — 내용은 openEmailDetail/_renderGmailDetail이 매번 새로 그린다 -->
+    <div class="em-detail-panel" id="emDetailPanel"></div>
 
   </div>
 </div>
@@ -13919,6 +13907,7 @@ if ('serviceWorker' in navigator) {
 
   let _currentFolder = 'inbox';
   let _allEmailItems = [];
+  let _currentGmailDetailMsg = null; // Gmail 상세 열람 중일 때만 채워짐 (답장/전달에서 사용)
   // Gmail 캐시: { '계정|폴더': { items, nextPageToken, at(ms) } }, 5분 유효
   const _gmailCache = {};
   const _GMAIL_CACHE_MS = 5 * 60 * 1000;
@@ -14406,12 +14395,23 @@ if ('serviceWorker' in navigator) {
   function _renderGmailDetail(msg) {
     const dp = document.getElementById('emDetailPanel');
     if (!dp) return;
+    _currentGmailDetailMsg = msg;
     const bodyHtml = msg.isHtml
       ? `<iframe id="emGmailFrame" style="width:100%;border:none;min-height:300px;" sandbox="allow-same-origin"></iframe>`
       : `<div style="white-space:pre-wrap;font-size:14px;color:#222;line-height:1.7;">${_emEsc(msg.body)}</div>`;
     dp.innerHTML = `
       <div style="padding:20px 24px;border-bottom:1px solid #eee;">
-        <button onclick="backToEmailList()" style="background:none;border:none;color:var(--brand);font-size:13px;cursor:pointer;margin-bottom:12px;">← 목록으로</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <button onclick="backToEmailList()" style="background:none;border:none;color:var(--brand);font-size:13px;cursor:pointer;">← 목록으로</button>
+          <div style="display:flex;gap:8px;">
+            <button class="em-detail-action-btn" onclick="replyEmail()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>답장
+            </button>
+            <button class="em-detail-action-btn" onclick="forwardEmail()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>전달
+            </button>
+          </div>
+        </div>
         <div style="font-size:18px;font-weight:800;color:#222;margin-bottom:12px;">${_emEsc(msg.subject)}</div>
         <div style="font-size:12.5px;color:#555;line-height:1.8;">
           <div><b>보낸사람:</b> ${_emEsc(msg.from)}</div>
@@ -14543,13 +14543,26 @@ if ('serviceWorker' in navigator) {
     if (!m) return;
     document.getElementById('emListView').style.display = 'none';
     const dp = document.getElementById('emDetailPanel');
+    if (!dp) return;
     dp.style.display = 'flex';
     dp.classList.add('open');
-    document.getElementById('emDetailSubject').textContent = m.subject || '(제목없음)';
-    document.getElementById('emDetailSender').textContent = m.from || '나';
-    document.getElementById('emDetailTime').textContent = m.sentAt || m.savedAt ? formatMailTime(new Date(m.sentAt || m.savedAt)) : '';
-    document.getElementById('emDetailTo').textContent = m.to ? '→ ' + m.to : '';
-    document.getElementById('emDetailBody').textContent = m.body || '(내용없음)';
+    _currentGmailDetailMsg = null; // 로컬(보낸메일함/임시보관함) 항목 — 답장/전달은 아래 내용을 직접 읽는다
+    const timeStr = m.sentAt || m.savedAt ? formatMailTime(new Date(m.sentAt || m.savedAt)) : '';
+    // ★ Gmail 상세(_renderGmailDetail)를 한 번이라도 열면 dp.innerHTML이 통째로 교체되어
+    //   emDetailSubject 등 고정 id가 사라지므로, 여기서도 매번 직접 새로 그린다.
+    dp.innerHTML = `
+      <div style="padding:20px 24px;border-bottom:1px solid #eee;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <button onclick="backToEmailList()" style="background:none;border:none;color:var(--brand);font-size:13px;cursor:pointer;">← 목록으로</button>
+        </div>
+        <div id="emDetailSubject" style="font-size:18px;font-weight:800;color:#222;margin-bottom:12px;">${_emEsc(m.subject || '(제목없음)')}</div>
+        <div style="font-size:12.5px;color:#555;line-height:1.8;">
+          <div><b>보낸사람:</b> <span id="emDetailSender">${_emEsc(m.from || '나')}</span></div>
+          <div id="emDetailTo">${m.to ? '받는사람: ' + _emEsc(m.to) : ''}</div>
+          <div id="emDetailTime" style="color:#999;">${_emEsc(timeStr)}</div>
+        </div>
+      </div>
+      <div id="emDetailBody" style="padding:20px 24px;white-space:pre-wrap;font-size:14px;color:#222;line-height:1.7;">${_emEsc(m.body || '(내용없음)')}</div>`;
   };
 
   window.closeEmailDetail = function() {
@@ -14635,22 +14648,48 @@ if ('serviceWorker' in navigator) {
   };
 
   // ── 답장 / 전달 ──
+  //   ★ 받은메일함(Gmail 연동) 상세는 _renderGmailDetail이 화면을 통째로 새로 그려서
+  //     emDetailSubject 등 고정 id가 사라진다 — 그때는 _currentGmailDetailMsg를 대신 쓴다.
+  function _emStripHtml(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    return tmp.textContent || tmp.innerText || '';
+  }
+  function _emExtractEmail(str) {
+    const m = String(str || '').match(/<([^>]+)>/);
+    return m ? m[1].trim() : String(str || '').trim();
+  }
   window.replyEmail = function() {
-    const subj = document.getElementById('emDetailSubject').textContent;
-    const sender = document.getElementById('emDetailSender').textContent;
-    const body = document.getElementById('emDetailBody').textContent;
+    let subj, sender, body;
+    if (_currentGmailDetailMsg) {
+      const m = _currentGmailDetailMsg;
+      subj = m.subject || '';
+      sender = m.from || '';
+      body = m.isHtml ? _emStripHtml(m.body) : (m.body || '');
+    } else {
+      subj = document.getElementById('emDetailSubject').textContent;
+      sender = document.getElementById('emDetailSender').textContent;
+      body = document.getElementById('emDetailBody').textContent;
+    }
     openEmailCompose({
-      to: sender,
-      subject: 'Re: ' + subj,
+      to: _emExtractEmail(sender),
+      subject: subj.startsWith('Re:') ? subj : 'Re: ' + subj,
       body: '\n\n------- 원본 메일 -------\n' + body
     });
   };
 
   window.forwardEmail = function() {
-    const subj = document.getElementById('emDetailSubject').textContent;
-    const body = document.getElementById('emDetailBody').textContent;
+    let subj, body;
+    if (_currentGmailDetailMsg) {
+      const m = _currentGmailDetailMsg;
+      subj = m.subject || '';
+      body = m.isHtml ? _emStripHtml(m.body) : (m.body || '');
+    } else {
+      subj = document.getElementById('emDetailSubject').textContent;
+      body = document.getElementById('emDetailBody').textContent;
+    }
     openEmailCompose({
-      subject: 'Fwd: ' + subj,
+      subject: subj.startsWith('Fwd:') ? subj : 'Fwd: ' + subj,
       body: '\n\n------- 전달된 메일 -------\n' + body
     });
   };
