@@ -2989,7 +2989,7 @@
     <button class="dw-toolbar-item" onclick="openManualRegister()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>등록</button>
     <button class="dw-toolbar-item" onclick="deleteCheckedConsults()" style="color:#c0392b;border-color:#e6b0aa;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제</button>
     <button class="dw-toolbar-item" id="myConsultsBtn" onclick="toggleMyConsults()" style="color:#2c5fc4;border-color:#b8cced;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>나의상담내역</button>
-    <button class="dw-toolbar-item" onclick="downloadConsultCSV()">↓ 목록 다운로드(CSV)</button>
+    <button class="dw-toolbar-item" id="csvDownloadBtn" onclick="downloadConsultCSV()">↓ 목록 다운로드(CSV)</button>
     <div class="dw-toolbar-spacer"></div>
     <select class="dw-toolbar-select" id="csPageSize" onchange="currentPage=1;renderConsultList()">
       <option value="10">10</option>
@@ -4210,8 +4210,23 @@ function csDateInputValue(val) {
   };
 
   // ── 쇼룸상담 목록 CSV 다운로드 ──
-  window.downloadConsultCSV = function() {
-    if (!allConsults.length) { alert('다운로드할 데이터가 없습니다.'); return; }
+  window.downloadConsultCSV = async function() {
+    // ★ 현재 화면(allConsults)은 검색/필터 상태에 따라 최근 100건이나 검색 결과처럼
+    //   일부만 담겨있을 수 있다. CSV는 "전체데이터" 다운로드가 목적이므로, 화면 상태와
+    //   무관하게 항상 Firestore 전체 데이터를 새로 받아와서 내보낸다.
+    const btn = document.getElementById('csvDownloadBtn');
+    const btnOrigText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '전체 데이터 조회 중...'; }
+    let data;
+    try {
+      data = await ensureFullConsults();
+    } catch(e) {
+      alert('전체 데이터 조회 실패: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = btnOrigText; }
+      return;
+    }
+    if (btn) { btn.disabled = false; btn.textContent = btnOrigText; }
+    if (!data.length) { alert('다운로드할 데이터가 없습니다.'); return; }
     // ★ 다우오피스 CSV 업로드는 컬럼명이 하나라도 중복되면 통째로 거부한다
     //   ("선택한 파일에 동일한 컬럼명이 존재합니다"). 원본 양식엔 같은 항목이 여러 칸에
     //   중복돼 있었는데 우리 쪽엔 그 중복 칸을 채울 데이터가 없으므로, 중복 없이
@@ -4223,7 +4238,7 @@ function csDateInputValue(val) {
       if (v.includes(',') || v.includes('"') || v.includes('\n')) v = `"${v}"`;
       return v;
     };
-    const rows = allConsults.map(r => {
+    const rows = data.map(r => {
       const schedule = `${r.date||''} ${r.time||''}`.trim();
       const updatedStr = r.updatedAtMs ? new Date(r.updatedAtMs).toLocaleString('ko-KR') : '';
       const cols = [
