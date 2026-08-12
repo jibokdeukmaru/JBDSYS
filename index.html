@@ -1154,9 +1154,9 @@
 <div id="stockTooltip" class="stock-tooltip"></div>
 
 <!-- 품번 상세 모달 -->
-<div id="itemDetailModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.45); align-items:center; justify-content:center;">
+<div id="itemDetailModal" onclick="if(event.target===this) closeItemDetailModal()" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.45); align-items:center; justify-content:center;">
   <div style="background:#fff; border-radius:16px; width:min(540px,95vw); max-height:85vh; overflow-y:auto; padding:28px 24px; position:relative; box-shadow:0 8px 40px rgba(0,0,0,.18);">
-    <button id="itemDetailClose" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#888;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    <button id="itemDetailClose" onclick="closeItemDetailModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#888;z-index:2;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
     <h2 id="itemDetailTitle" style="margin:0 0 20px; font-size:18px; font-weight:800; color:#2B2521;"></h2>
 
     <!-- 잔여 총재고 -->
@@ -3936,6 +3936,7 @@
             <td colspan="8" style="padding:0;border:none;">
               <div class="cs-card">
                 <div class="cs-card-top">
+                  <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
                   <span class="dw-status-pill ${status}">${status}</span>
                   ${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:4px;vertical-align:middle;">N</span>' : ''}
                   <span class="cs-card-name">${r.name||'-'}</span>
@@ -5133,7 +5134,7 @@ function csDateInputValue(val) {
     <div class="notice-modal-footer">
       <button class="notice-btn-cancel" id="noticeEditBtn" style="display:none;" onclick="startEditNotice()">수정</button>
       <button class="notice-btn-cancel" id="noticeDeleteBtn" style="display:none;color:#e74c3c;border-color:#e74c3c;" onclick="deleteNoticeConfirm()">삭제</button>
-      <button class="notice-btn-cancel" onclick="document.getElementById('noticeDetailModal').classList.remove('open');document.body.style.removeProperty('overflow');">닫기</button>
+      <button class="notice-btn-cancel" onclick="closeNoticeDetailModal()">닫기</button>
     </div>
   </div>
 </div>
@@ -5448,7 +5449,18 @@ function csDateInputValue(val) {
   window.closeNoticeWrite = function() {
     _editingNoticeId = null;
     document.getElementById('noticeWriteTitle').textContent = '전사게시판 글쓰기';
-    document.getElementById('noticeWriteModal').classList.remove('open');
+    const m = document.getElementById('noticeWriteModal');
+    m.classList.remove('open');
+    // ★ _positionModalAtScroll이 인라인 style.display='flex'를 남겨두는데, 클래스만 떼면
+    //   그 인라인 스타일이 우선해서 계속 화면에 남아있는다(모바일 "안 닫힘" 원인). 같이 지운다.
+    m.style.removeProperty('display');
+    document.body.style.removeProperty('overflow');
+  };
+
+  window.closeNoticeDetailModal = function() {
+    const m = document.getElementById('noticeDetailModal');
+    m.classList.remove('open');
+    m.style.removeProperty('display');
     document.body.style.removeProperty('overflow');
   };
 
@@ -5459,7 +5471,7 @@ function csDateInputValue(val) {
     if (!_canManageNotice(n)) { alert('본인이 작성한 글만 수정할 수 있습니다.'); return; }
     _editingNoticeId = n.id;
     // 상세 모달 닫고 글쓰기 모달 열기
-    document.getElementById('noticeDetailModal').classList.remove('open');
+    closeNoticeDetailModal();
     document.getElementById('noticeWriteTitle').textContent = '전사게시판 글 수정';
     document.getElementById('noticeWriteModal').classList.add('open');
     window._positionModalAtScroll(document.getElementById('noticeWriteModal'));
@@ -5489,8 +5501,7 @@ function csDateInputValue(val) {
       });
       const data = await res.json();
       if (data.status !== 'ok') { alert(data.message || '삭제 실패'); return; }
-      document.getElementById('noticeDetailModal').classList.remove('open');
-      document.body.style.removeProperty('overflow');
+      closeNoticeDetailModal();
       loadNotices();
     } catch(e) { alert('오류: ' + e.message); }
   };
@@ -10949,14 +10960,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 품번 상세 모달 닫기
-    document.getElementById('itemDetailClose')?.addEventListener('click', () => {
-        document.getElementById('itemDetailModal').style.display = 'none';
-    });
-    document.getElementById('itemDetailModal')?.addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
-    });
 });
+
+// 품번 상세 모달 닫기 — 인라인 onclick으로 직접 연결(모바일에서 addEventListener 타이밍 문제로
+// 닫기가 안 먹던 문제 대응). 배경 클릭으로도 닫힘(위 div의 onclick 참고).
+window.closeItemDetailModal = function() {
+    const modal = document.getElementById('itemDetailModal');
+    if (modal) modal.style.display = 'none';
+};
 
 // ============================================================
 //  견적서 탭
@@ -11399,7 +11410,8 @@ function getInvItemFromBox(box, splitCosts=false) {
         const size      = wrap.querySelector('.inv-manual-size')?.value.trim()  || '';
         const unit      = (wrap.querySelector('.inv-manual-unit')?.value || '').trim().toUpperCase();
         const qtyRaw    = (wrap.querySelector('.inv-manual-qty')?.value || '').replace(/[^0-9.]/g, '');
-        const qty       = qtyRaw === '' ? 1 : (parseFloat(qtyRaw) || 1);
+        const hasQty    = qtyRaw !== '';
+        const qty       = hasQty ? (parseFloat(qtyRaw) || 1) : '';
         const unitPrice = parseInt((wrap.querySelector('.inv-manual-price')?.value || '').replace(/[^0-9]/g, ''), 10) || 0;
         if (!name && !unitPrice) return null;
         return {
@@ -11408,7 +11420,7 @@ function getInvItemFromBox(box, splitCosts=false) {
             unit,
             qty,
             unitPrice: unitPrice || null,
-            total: Math.round(qty * (unitPrice || 0)),
+            total: Math.round((hasQty ? qty : 1) * (unitPrice || 0)),
         };
     }
 
@@ -12121,7 +12133,7 @@ async function saveInvoicePdf() {
             phoneRow.style.display = 'flex';
         } else { phoneRow.style.display = 'none'; }
 
-        document.getElementById('contactTooltip').style.display = 'block';
+        window._positionModalAtScroll(document.getElementById('contactTooltip'));
     };
 
     document.getElementById('contactsSearch').addEventListener('input', function() {
@@ -13561,9 +13573,10 @@ if ('serviceWorker' in navigator) {
     /* 메일 목록: 카드형 */
     .em-mail-check, .em-mail-flag, .em-mail-icon { display:none !important; }
     .em-mail-row { flex-wrap:wrap; padding:10px 12px; gap:2px; align-items:flex-start; }
-    .em-mail-sender { width:calc(100% - 70px); min-width:0; font-size:13px; font-weight:700; color:#222; }
-    .em-mail-subject { width:100%; font-size:12px; color:#666; margin-top:2px; }
-    .em-mail-time { width:70px; min-width:0; font-size:11px; text-align:right; flex-shrink:0; }
+    .em-mail-sender { width:calc(100% - 70px); min-width:0; font-size:14px; font-weight:700; color:#222; }
+    .em-mail-subject { width:100%; font-size:13px; color:#666; margin-top:3px; white-space:normal; }
+    .em-mail-subject .em-mail-preview { display:block; margin-left:0; margin-top:2px; font-size:12px; }
+    .em-mail-time { width:70px; min-width:0; font-size:12px; text-align:right; flex-shrink:0; }
 
     /* 메일쓰기 헤더: 제목 + 버튼 2줄 */
     .em-compose-header { flex-wrap:wrap; gap:6px; padding:8px 10px; }
@@ -13586,11 +13599,11 @@ if ('serviceWorker' in navigator) {
     .em-compose-ai-btn { padding:7px 10px; font-size:11px; white-space:nowrap; flex-shrink:0; }
 
     /* 상세보기 */
-    .em-detail-subject { font-size:13px; }
-    .em-detail-meta { flex-wrap:wrap; gap:4px; font-size:11px; }
+    .em-detail-subject { font-size:16px; }
+    .em-detail-meta { flex-wrap:wrap; gap:4px; font-size:12px; }
     .em-detail-actions { flex-wrap:wrap; gap:6px; }
-    .em-detail-action-btn { padding:6px 10px; font-size:11px; }
-    .em-detail-body { padding:12px 10px; font-size:13px; }
+    .em-detail-action-btn { padding:6px 10px; font-size:12px; }
+    .em-detail-body { padding:12px 10px; font-size:15px; }
   }
 </style>
 
@@ -14163,14 +14176,15 @@ if ('serviceWorker' in navigator) {
       html += `<div class="em-date-group">${label}</div>`;
       groups[label].forEach(m => {
         const timeStr = m.sentAt ? formatMailTime(new Date(m.sentAt)) : '-';
-        const sender = _emEsc(m.from || '(발신자 없음)');
+        const sender = _emEsc(_emExtractName(m.from) || '(발신자 없음)');
         const subjectDisplay = _emEsc(m.subject || '(제목없음)');
+        const previewDisplay = _emEsc(m.snippet || '');
         const weight = m.unread ? 'font-weight:800;' : '';
         html += `<div class="em-mail-row" onclick="openGmailDetailById('${m.gmailId}')">
           <input type="checkbox" class="em-mail-check" data-gmail-id="${m.gmailId}" onchange="emOnCheck()" onclick="event.stopPropagation()">
           <svg class="em-mail-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
           <span class="em-mail-sender" style="${weight}">${sender}</span>
-          <span class="em-mail-subject" style="${weight}">${subjectDisplay}</span>
+          <span class="em-mail-subject" style="${weight}">${subjectDisplay}${previewDisplay ? `<span class="em-mail-preview">${previewDisplay}</span>` : ''}</span>
           <span class="em-mail-time">${timeStr}</span>
         </div>`;
       });
@@ -14512,7 +14526,7 @@ if ('serviceWorker' in navigator) {
       html += `<div class="em-date-group">${label}</div>`;
       groups[label].forEach(m => {
         const timeStr = m.sentAt || m.savedAt ? formatMailTime(new Date(m.sentAt || m.savedAt)) : '-';
-        const sender = _emEsc(_currentFolder === 'sent' ? (m.to || '-') : (m.from || '나'));
+        const sender = _emEsc(_emExtractName(_currentFolder === 'sent' ? (m.to || '-') : (m.from || '나')));
         const subjectDisplay = _emEsc(m.subject || '(제목없음)');
         html += `<div class="em-mail-row" onclick="openEmailDetail(${m._idx})">
           <input type="checkbox" class="em-mail-check" data-idx="${m._idx}" onchange="emOnCheck()" onclick="event.stopPropagation()">
@@ -14658,6 +14672,12 @@ if ('serviceWorker' in navigator) {
   function _emExtractEmail(str) {
     const m = String(str || '').match(/<([^>]+)>/);
     return m ? m[1].trim() : String(str || '').trim();
+  }
+  function _emExtractName(str) {
+    const s = String(str || '').trim();
+    const m = s.match(/^(.*)<[^>]+>/);
+    const name = m ? m[1].trim().replace(/^"|"$/g, '') : '';
+    return name || s;
   }
   window.replyEmail = function() {
     let subj, sender, body;
