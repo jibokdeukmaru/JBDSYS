@@ -14434,7 +14434,8 @@ if ('serviceWorker' in navigator) {
           <div style="color:#999;">${_emEsc(msg.date)}</div>
         </div>
       </div>
-      <div style="padding:20px 24px;">${bodyHtml}</div>`;
+      <div style="padding:20px 24px;">${bodyHtml}</div>
+      ${_emAttachListHtml(msg.attachments)}`;
     if (msg.isHtml) {
       const frame = document.getElementById('emGmailFrame');
       if (frame) {
@@ -14456,6 +14457,43 @@ if ('serviceWorker' in navigator) {
       }
     }
   }
+
+  // 받은 메일 첨부파일 목록 HTML (다운로드 버튼 포함)
+  function _emAttachListHtml(attachments) {
+    const list = attachments || [];
+    if (!list.length) return '';
+    return `<div style="padding:0 24px 20px;display:flex;flex-direction:column;gap:6px;">
+      ${list.map((f, i) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface-tint);border:1px solid var(--border-2);border-radius:8px;padding:8px 12px;">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${_fileIconSvg()}${_emEsc(f.filename)} <span style="color:#aaa;">${_formatFileSize(f.size)}</span></span>
+          <button type="button" onclick="downloadGmailAttachment(${i})" style="border:1px solid var(--border);background:#fff;border-radius:7px;padding:5px 12px;font-size:11.5px;color:var(--brand-dark);cursor:pointer;flex-shrink:0;">다운로드</button>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  // 첨부파일 다운로드 — 서버에서 base64 데이터를 받아 브라우저 다운로드로 저장
+  window.downloadGmailAttachment = async function(i) {
+    const msg = _currentGmailDetailMsg;
+    const att = msg && msg.attachments && msg.attachments[i];
+    if (!att) return;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    try {
+      const params = new URLSearchParams({ action: 'getGmailAttachment', email, id: msg.id, attachmentId: att.attachmentId });
+      const res = await fetchWithRetry(`${window.ERP_URL}?${params}`, undefined, 0, 30000);
+      const data = await res.json();
+      if (data.status !== 'ok') { alert('첨부파일 다운로드 실패: ' + (data.message || '')); return; }
+      const byteChars = atob(data.data);
+      const byteNumbers = new Array(byteChars.length);
+      for (let j = 0; j < byteChars.length; j++) byteNumbers[j] = byteChars.charCodeAt(j);
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: att.mimeType || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = att.filename || 'attachment';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch(e) { alert('오류: ' + e.message); }
+  };
 
   window.backToEmailList = function() {
     const dp = document.getElementById('emDetailPanel');
