@@ -5294,37 +5294,51 @@ function csDateInputValue(val) {
     const colors = ['#B8860B','#C0392B','#8E44AD','#2E86C1','#16A085','#D35400','#2C3E50','#CA6F1E'];
     return colors[Math.abs(h) % colors.length];
   }
+  function _homeEmailItemsHtml(list) {
+    return list.map((m) => {
+      const name = _mailFromName(m.from);
+      const when = m.sentAt ? String(m.sentAt).slice(5,16).replace('T',' ') : '';
+      const color = _mailAvatarColor(name);
+      const initial = _noticeEscHtml(name.slice(0,2).toUpperCase());
+      const unreadDot = m.unread ? '<span class="home-mail-unread"></span>' : '';
+      const snippet = m.snippet ? `<div class="home-mail-snippet">${_noticeEscHtml(m.snippet)}</div>` : '';
+      return `<div class="home-mail-item" onclick="openMailFromHome('${_noticeEscHtml(m.gmailId||'')}')">
+        <div class="home-mail-top">
+          <span class="home-mail-avatar" style="background:${color};">${initial}</span>
+          <span class="home-mail-from">${_noticeEscHtml(name)}</span>
+          ${unreadDot}
+          <span class="home-mail-time">${_noticeEscHtml(when)}</span>
+        </div>
+        <div class="home-mail-subject">${_noticeEscHtml(m.subject||'(제목없음)')}</div>
+        ${snippet}
+      </div>`;
+    }).join('');
+  }
   async function _renderHomeEmails() {
     const el = document.getElementById('homeEmailList'); if (!el) return;
-    // 받은메일함(Gmail 연동) 최근 5건 — 카드형 표시
+    // 받은메일함(Gmail 연동) 최근 3건 — 카드형 표시
     const email = (window._currentUser && window._currentUser.email) || '';
     if (!email || !window.USE_GMAIL_API || typeof window._gmailFetchPage !== 'function') {
       el.innerHTML = '<div class="home-dash-empty">받은 메일이 없습니다.</div>'; return;
     }
+    // ★ 이메일 탭과 같은 캐시를 재사용 — 있으면 매번 구글에 새로 조회하지 않고 즉시 표시,
+    //   뒤에서 조용히 최신화(캐시가 없을 때만 "불러오는 중" 없이 대기).
+    const cacheKey = email + '|inbox';
+    const cache = window._gmailCache || {};
+    const cached = cache[cacheKey];
+    const isFresh = cached && (Date.now() - cached.at) < (window._GMAIL_CACHE_MS || 300000);
+    if (cached) {
+      const list = (cached.items || []).slice(0, 3);
+      el.innerHTML = list.length ? _homeEmailItemsHtml(list) : '<div class="home-dash-empty">받은 메일이 없습니다.</div>';
+      if (isFresh) return; // 최신 캐시면 조회 생략
+    }
     try {
-      const { msgs } = await window._gmailFetchPage(email, 'inbox');
+      const { msgs, nextPageToken } = await window._gmailFetchPage(email, 'inbox');
+      if (window._gmailCache) window._gmailCache[cacheKey] = { items: (msgs || []).slice(), nextPageToken, at: Date.now() };
       const list = (msgs || []).slice(0, 3);
-      if (!list.length) { el.innerHTML = '<div class="home-dash-empty">받은 메일이 없습니다.</div>'; return; }
-      el.innerHTML = list.map((m) => {
-        const name = _mailFromName(m.from);
-        const when = m.sentAt ? String(m.sentAt).slice(5,16).replace('T',' ') : '';
-        const color = _mailAvatarColor(name);
-        const initial = _noticeEscHtml(name.slice(0,2).toUpperCase());
-        const unreadDot = m.unread ? '<span class="home-mail-unread"></span>' : '';
-        const snippet = m.snippet ? `<div class="home-mail-snippet">${_noticeEscHtml(m.snippet)}</div>` : '';
-        return `<div class="home-mail-item" onclick="openMailFromHome('${_noticeEscHtml(m.gmailId||'')}')">
-          <div class="home-mail-top">
-            <span class="home-mail-avatar" style="background:${color};">${initial}</span>
-            <span class="home-mail-from">${_noticeEscHtml(name)}</span>
-            ${unreadDot}
-            <span class="home-mail-time">${_noticeEscHtml(when)}</span>
-          </div>
-          <div class="home-mail-subject">${_noticeEscHtml(m.subject||'(제목없음)')}</div>
-          ${snippet}
-        </div>`;
-      }).join('');
+      el.innerHTML = list.length ? _homeEmailItemsHtml(list) : '<div class="home-dash-empty">받은 메일이 없습니다.</div>';
     } catch(e) {
-      el.innerHTML = '<div class="home-dash-empty">받은 메일이 없습니다.</div>';
+      if (!cached) el.innerHTML = '<div class="home-dash-empty">받은 메일이 없습니다.</div>';
     }
   }
 
@@ -13924,6 +13938,9 @@ if ('serviceWorker' in navigator) {
   // Gmail 캐시: { '계정|폴더': { items, nextPageToken, at(ms) } }, 5분 유효
   const _gmailCache = {};
   const _GMAIL_CACHE_MS = 5 * 60 * 1000;
+  // ★ 홈 화면 메일 위젯(다른 <script> 블록)이 같은 캐시를 재사용할 수 있도록 노출
+  window._gmailCache = _gmailCache;
+  window._GMAIL_CACHE_MS = _GMAIL_CACHE_MS;
   let _gmailNextToken = '';   // 현재 폴더의 다음 페이지 토큰
   let _gmailLoadingMore = false;
   let _currentDraft = null;
