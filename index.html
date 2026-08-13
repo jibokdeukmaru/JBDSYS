@@ -11568,14 +11568,16 @@ function initInvoiceTab() {
   // REMARKS 직접입력 체크 시, 에디터가 비어있으면 지금 화면에 보이는 자동생성 문구를 그대로 채워서
   //   빈칸에서 다시 타이핑하지 않고 이어서 수정할 수 있게 한다.
   window.onInvRemarksEditToggle = function(checkbox) {
-    const editor = document.getElementById('invRemarksEditor');
-    if (checkbox.checked && editor && !editor.innerHTML.trim()) {
-      const remarksDiv = document.getElementById('pvRemarks');
-      const titleEl = remarksDiv ? remarksDiv.querySelector('.inv-remarks-title') : null;
-      if (remarksDiv && titleEl) {
-        editor.innerHTML = remarksDiv.innerHTML.replace(titleEl.outerHTML, '').trim();
+    try {
+      const editor = document.getElementById('invRemarksEditor');
+      if (checkbox.checked && editor && !editor.innerHTML.trim()) {
+        const remarksDiv = document.getElementById('pvRemarks');
+        const titleEl = remarksDiv ? remarksDiv.querySelector('.inv-remarks-title') : null;
+        if (remarksDiv && titleEl) {
+          editor.innerHTML = remarksDiv.innerHTML.replace(titleEl.outerHTML, '').trim();
+        }
       }
-    }
+    } catch(e) { console.warn('REMARKS 자동채움 실패:', e.message); }
     renderInvoice();
   };
 
