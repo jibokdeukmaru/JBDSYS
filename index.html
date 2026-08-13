@@ -19,7 +19,7 @@
   import {
     getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
     updateDoc, deleteDoc, query, orderBy, limit, where, writeBatch, serverTimestamp,
-    runTransaction, startAfter, getCountFromServer
+    runTransaction, startAfter, getCountFromServer, onSnapshot
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -41,7 +41,7 @@
     db, auth,
     collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
     query, orderBy, limit, where, writeBatch, serverTimestamp,
-    runTransaction, startAfter, getCountFromServer,
+    runTransaction, startAfter, getCountFromServer, onSnapshot,
     signInAnonymously, onAuthStateChanged
   };
 
@@ -411,7 +411,7 @@
   .calc-notice { font-size:12px; color:#666; line-height:1.6; }
 
 
-.stock-table-wrapper { overflow-x: auto; margin-top: 10px; border-radius: 12px; border: 1px solid #e0e0e0; }
+.stock-table-wrapper { overflow-x: auto; overflow-y: visible; margin-top: 10px; border-radius: 12px; border: 1px solid #e0e0e0; }
 #stockTable { width: 100%; border-collapse: collapse; font-size: 14px; }
 #stockTable th { background-color: var(--cream); color: #555; padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center; vertical-align: middle; position: sticky; top: 0; z-index: 10; }
 #stockTable td { padding: 11px 8px; border-bottom: 1px solid #eee; text-align: center; }
@@ -12381,47 +12381,42 @@ if ('serviceWorker' in navigator) {
 <script>
 (function(){
   // ── 5. 예약 알림 배너 ──
-  // lastKnownRsvCount: -1 = 아직 첫 체크 전 (기준값 미설정)
+  // ★ 예전엔 5분마다 getDocs로 다시 통째로 조회하는 폴링이라, 자동확정 등으로 상태가 바뀌어도
+  //   최대 5분간 뱃지가 그대로 남아있는 문제가 있었다 — Firestore 실시간 리스너(onSnapshot)로
+  //   바꿔서 컬렉션이 바뀌는 즉시(자동확정 트리거가 서버에서 상태를 바꾸는 순간 포함) 반영되게 한다.
+  // lastKnownRsvCount: -1 = 아직 첫 스냅샷 전 (기준값 미설정)
   let lastKnownRsvCount = -1;
   window._lastPendingCount = 0;
+  let _rsvUnsub = null;
 
-  async function checkNewReservations() {
-    try {
-      let pending = [];
-      await window.fbEnsureAuth();
-      const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, 'reservations'));
-      const rows = snap.docs.map(d => d.data());
-      pending = rows.filter(r => (r.status||'대기') === '대기');
-      const count = pending.length;
+  function _applyRsvSnapshot(count) {
+    // 전역 카운트 갱신 (setTab N뱃지 복원용)
+    window._lastPendingCount = count;
 
-      // 전역 카운트 갱신 (setTab N뱃지 복원용)
-      window._lastPendingCount = count;
-
-      // ── N뱃지: 대기 건 있고 예약관리 탭이 열려있지 않을 때만 표시 ──
-      const badge = document.getElementById('rsvPendingBadge');
-      if (badge) {
-        if (count > 0) {
-          const rsvTab = document.getElementById('reservationTab');
-          const isRsvOpen = rsvTab && rsvTab.style.display !== 'none';
-          badge.style.display = isRsvOpen ? 'none' : 'inline-flex';
-        } else {
-          badge.style.display = 'none';
-        }
-      }
-
-      // ── 첫 체크: 기준값만 저장, 알람 없음 ──
-      if (lastKnownRsvCount === -1) {
-        lastKnownRsvCount = count;
-        return;
-      }
-
-      // ── 배너: 5분 주기 체크 시 대기 건 있으면 통합 메시지로 표시 ──
+    // ── N뱃지: 대기 건 있고 예약관리 탭이 열려있지 않을 때만 표시 ──
+    const badge = document.getElementById('rsvPendingBadge');
+    if (badge) {
       if (count > 0) {
-        showRsvAlert(count);
+        const rsvTab = document.getElementById('reservationTab');
+        const isRsvOpen = rsvTab && rsvTab.style.display !== 'none';
+        badge.style.display = isRsvOpen ? 'none' : 'inline-flex';
+      } else {
+        badge.style.display = 'none';
       }
+    }
 
+    // ── 첫 스냅샷: 기준값만 저장, 알람 없음 ──
+    if (lastKnownRsvCount === -1) {
       lastKnownRsvCount = count;
-    } catch(e) { /* 네트워크 오류 무시 */ }
+      return;
+    }
+
+    // ── 배너: 대기 건수가 이전보다 늘었을 때만 (실시간이라 무관한 변경에도 매번 뜨는 것 방지) ──
+    if (count > lastKnownRsvCount) {
+      showRsvAlert(count);
+    }
+
+    lastKnownRsvCount = count;
   }
 
   function showRsvAlert(count) {
@@ -12435,10 +12430,19 @@ if ('serviceWorker' in navigator) {
     setTimeout(() => { banner.style.display = 'none'; }, 8000);
   }
 
-  // 5분마다 체크
-  setInterval(checkNewReservations, 5 * 60000);
-  // 로그인 후 즉시 첫 체크 (unlock 함수에서 호출) — 단 1회만 실행됨
-  window._triggerRsvCheck = checkNewReservations;
+  function _startRsvRealtimeListener() {
+    if (_rsvUnsub) return;
+    window.fbEnsureAuth().then(() => {
+      _rsvUnsub = window.FB.onSnapshot(window.FB.collection(window.FB.db, 'reservations'), (snap) => {
+        const rows = snap.docs.map(d => d.data());
+        const count = rows.filter(r => (r.status||'대기') === '대기').length;
+        _applyRsvSnapshot(count);
+      }, () => { /* 네트워크 오류 무시 — 재연결은 SDK가 자동 처리 */ });
+    }).catch(() => {});
+  }
+
+  // 로그인 후 실시간 감시 시작 (unlock 함수에서 호출)
+  window._triggerRsvCheck = _startRsvRealtimeListener;
 
   // ── 6. 삭제 기능 (Firestore) ──
   window.deleteCheckedConsults = async function() {
@@ -13104,11 +13108,29 @@ if ('serviceWorker' in navigator) {
     if (tabBadge) { tabBadge.style.display = count > 0 ? 'inline-flex' : 'none'; tabBadge.textContent = count; }
   }
 
+  // ★ window._currentUser는 로그인 시점에 한 번 저장된 값이라, 관리자가 그 사이 기사용연차를
+  //   수정해도 이 화면(재로그인 전까지)엔 반영되지 않는 문제가 있었다 — 휴가신청 탭을 열 때마다
+  //   본인 최신 정보를 서버에서 다시 받아와 갱신한다.
+  async function _refreshMyLeaveInfo() {
+    const user = window._currentUser;
+    if (!user) return;
+    try {
+      const res = await fetchWithRetry(`${RESERVE_URL}?action=getEmployees&nocache=1`);
+      const data = await res.json();
+      const mine = (data.rows || []).find(e => String(e.id) === String(user.id));
+      if (mine) {
+        user.usedLeave = mine.usedLeave;
+        user.annualLeave = mine.annualLeave;
+      }
+    } catch(e) {}
+  }
+
   // 휴가 데이터 로드
   async function loadLeaveData() {
     const user = window._currentUser;
     if (!user) return;
     try {
+      await _refreshMyLeaveInfo();
       const res = await fetchWithRetry(`${RESERVE_URL}?action=getLeaves&id=${user.id}&role=${user.role||'staff'}`);
       const data = await res.json();
       if (data.status === 'ok') _allLeaves = data.rows || [];
@@ -13497,7 +13519,10 @@ if ('serviceWorker' in navigator) {
   .em-toolbar-count { font-size:12px; color:#aaa; }
   .em-toolbar-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
   .em-search-box { display:flex; align-items:center; gap:6px; background:var(--cream-2); border-radius:8px; padding:6px 12px; }
-  .em-search-box input { border:none; background:transparent; font-size:12px; outline:none; width:140px; color:#333; }
+  .em-search-box input { border:none; background:transparent; font-size:12px; outline:none; width:190px; color:#333; }
+  /* ★ 모바일 터치용 전역 규칙(input[type="text"] 높이 확대)이 이 좁은 검색창까지 덮어서
+     너비 대비 너무 두꺼워 보이는 문제 — 여기서 더 높은 우선순위로 되돌린다. */
+  .em-search-box input[type="text"] { height:30px !important; font-size:12px !important; }
   .em-search-box svg { flex-shrink:0; opacity:.5; }
   .em-toolbar-btn { padding:6px 12px; border:1px solid var(--border); border-radius:7px; background:#fff; color:#555; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:5px; }
   .em-toolbar-btn:hover { background:var(--cream-2); color:var(--brand); }
@@ -13584,7 +13609,7 @@ if ('serviceWorker' in navigator) {
     .em-toolbar-count { display:none; }
     .em-toolbar-right { gap:6px; flex-shrink:0; }
     .em-search-box { min-width:0; flex:1; }
-    .em-search-box input { width:80px; min-width:0; }
+    .em-search-box input[type="text"] { width:auto; min-width:0; flex:1; height:30px !important; font-size:12px !important; }
     .em-toolbar-btn { padding:6px 8px; white-space:nowrap; font-size:0; gap:0; flex-shrink:0; }
     .em-toolbar-btn svg { display:block; width:16px; height:16px; }
 
