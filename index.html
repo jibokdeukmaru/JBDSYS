@@ -5430,20 +5430,11 @@ function csDateInputValue(val) {
   function _homeEmailItemsHtml(list) {
     return list.map((m) => {
       const name = _mailFromName(m.from);
-      const when = m.sentAt ? String(m.sentAt).slice(5,16).replace('T',' ') : '';
       const color = _mailAvatarColor(name);
       const initial = _noticeEscHtml(name.slice(0,2).toUpperCase());
-      const unreadDot = m.unread ? '<span class="home-mail-unread"></span>' : '';
-      const snippet = m.snippet ? `<div class="home-mail-snippet">${_noticeEscHtml(m.snippet)}</div>` : '';
       return `<div class="home-mail-item" onclick="openMailFromHome('${_noticeEscHtml(m.gmailId||'')}')">
-        <div class="home-mail-top">
-          <span class="home-mail-avatar" style="background:${color};">${initial}</span>
-          <span class="home-mail-from">${_noticeEscHtml(name)}</span>
-          ${unreadDot}
-          <span class="home-mail-time">${_noticeEscHtml(when)}</span>
-        </div>
-        <div class="home-mail-subject">${_noticeEscHtml(m.subject||'(제목없음)')}</div>
-        ${snippet}
+        <span class="home-mail-avatar" style="background:${color};">${initial}</span>
+        <span class="home-mail-subject-only">${_noticeEscHtml(m.subject||'(제목없음)')}</span>
       </div>`;
     }).join('');
   }
@@ -6039,16 +6030,11 @@ function csDateInputValue(val) {
     .home-dash-badge { font-size:10px; font-weight:800; padding:1px 6px; border-radius:5px; background:var(--cream-2); color:var(--brand); flex-shrink:0; }
     .home-dash-empty { font-size:12px; color:#bbb; padding:16px 0; text-align:center; }
     /* 받은메일함 카드형 항목 */
-    .home-mail-item { display:flex; flex-direction:column; gap:6px; padding:12px 14px; border-radius:10px; background:#f7f7f8; cursor:pointer; margin-top:10px; }
+    .home-mail-item { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; background:#f7f7f8; cursor:pointer; margin-top:10px; }
     .home-mail-item:first-child { margin-top:0; }
     .home-mail-item:hover { background:#f0efe9; }
-    .home-mail-top { display:flex; align-items:center; gap:9px; }
     .home-mail-avatar { width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:800; }
-    .home-mail-from { font-size:13px; font-weight:800; color:#222; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .home-mail-time { font-size:11px; color:#aaa; white-space:nowrap; flex-shrink:0; }
-    .home-mail-unread { width:7px; height:7px; border-radius:50%; background:var(--brand); flex-shrink:0; }
-    .home-mail-subject { font-size:12.5px; color:#333; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .home-mail-snippet { font-size:11.5px; color:#999; line-height:1.5; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .home-mail-subject-only { font-size:12.5px; color:#333; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
   </style>
   <div class="home-dash-grid" id="homeDashGrid">
 
