@@ -227,6 +227,38 @@
     --app-bg: #eaeff6; --header-bg: 238,242,247; --header-border: #d0dae6;
     --tab-bg: #FFFFFF; --tab-border: #d0dae6; --tab-text: #566b85; --tab-hover: #e2e9f1;
   }
+  /* 포레스트그린 (차분한 짙은 초록) */
+  body[data-theme="green"] {
+    --brand: #3B6E4F; --brand-dark: #2E5640; --brand-deep: #1F3D2C; --brand-light: #55916A;
+    --cream: #EEF4F0; --cream-2: #E3ECE6; --border: #CFE0D6; --border-2: #B9D2C2;
+    --muted: #7FA08D; --brand-soft: #8FB39D; --surface-tint: #F6FAF7;
+    --app-bg: #EBF2EE; --header-bg: 235,242,238; --header-border: #CFE0D6;
+    --tab-bg: #FFFFFF; --tab-border: #CFE0D6; --tab-text: #5C7B6A; --tab-hover: #E3ECE6;
+  }
+  /* 와인 (톤다운된 버건디) */
+  body[data-theme="wine"] {
+    --brand: #7C3048; --brand-dark: #62253A; --brand-deep: #451827; --brand-light: #9C4560;
+    --cream: #F7EEF1; --cream-2: #F0E2E7; --border: #E3CBD3; --border-2: #D3AFBC;
+    --muted: #A9758A; --brand-soft: #B8899C; --surface-tint: #FAF5F7;
+    --app-bg: #F4EAED; --header-bg: 244,234,237; --header-border: #E3CBD3;
+    --tab-bg: #FFFFFF; --tab-border: #E3CBD3; --tab-text: #8A5468; --tab-hover: #F0E2E7;
+  }
+  /* 틸 (차분한 청록) */
+  body[data-theme="teal"] {
+    --brand: #227C7C; --brand-dark: #1B6262; --brand-deep: #124444; --brand-light: #369999;
+    --cream: #EAF5F5; --cream-2: #DCEDED; --border: #C2DEDE; --border-2: #A6CDCD;
+    --muted: #6FA3A3; --brand-soft: #7FB5B5; --surface-tint: #F5FAFA;
+    --app-bg: #E6F2F2; --header-bg: 230,242,242; --header-border: #C2DEDE;
+    --tab-bg: #FFFFFF; --tab-border: #C2DEDE; --tab-text: #4B8888; --tab-hover: #DCEDED;
+  }
+  /* 플럼 (톤다운된 보라) */
+  body[data-theme="plum"] {
+    --brand: #5B4B8A; --brand-dark: #473A6C; --brand-deep: #322850; --brand-light: #7566A6;
+    --cream: #F1EEF7; --cream-2: #E7E1F1; --border: #D4CAE6; --border-2: #BFB0D8;
+    --muted: #9284B5; --brand-soft: #A296C0; --surface-tint: #F8F6FB;
+    --app-bg: #ECE8F5; --header-bg: 236,232,245; --header-border: #D4CAE6;
+    --tab-bg: #FFFFFF; --tab-border: #D4CAE6; --tab-text: #6B5C96; --tab-hover: #E7E1F1;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
   /* GmarketSans Bold(700) → font-weight:900으로 매핑하여 기존 CSS(font-weight:900) 그대로 사용 */
@@ -5025,7 +5057,7 @@ function csDateInputValue(val) {
     </div>
   <div class="myi-pw-card">
     <div class="myi-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>화면 표시 설정</div>
-    <p style="font-size:12.5px;color:#888;margin:0 0 18px;">여백·글자 크기를 조절해 더 많은 정보를 한눈에 볼 수 있어요. 이 기기에서 내 계정으로 로그인할 때마다 설정한 값이 그대로 유지됩니다.</p>
+    <p style="font-size:12.5px;color:#888;margin:0 0 18px;">여백·글자 크기를 조절해 더 많은 정보를 한눈에 볼 수 있어요. 계정에 저장되어 어느 기기에서 로그인해도 설정한 값이 그대로 적용됩니다.</p>
     <div style="display:flex;align-items:center;gap:12px;">
       <span style="font-size:12px;color:#999;white-space:nowrap;flex-shrink:0;">작게</span>
       <div style="flex:1;position:relative;">
@@ -5058,7 +5090,7 @@ function csDateInputValue(val) {
   <!-- 테마 색상 설정 -->
   <div class="myi-pw-card" id="myiThemeCard">
     <div class="myi-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>테마 색상</div>
-    <p style="font-size:12.5px;color:#888;margin:0 0 16px;">앱 전체의 색상 테마를 선택할 수 있어요. 이 기기에서 유지됩니다. (견적서 등 문서 화면은 변경되지 않습니다.)</p>
+    <p style="font-size:12.5px;color:#888;margin:0 0 16px;">앱 전체의 색상 테마를 선택할 수 있어요. 계정에 저장되어 어느 기기에서 로그인해도 그대로 적용됩니다. (견적서 등 문서 화면은 변경되지 않습니다.)</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button type="button" class="theme-opt" data-theme="brown" onclick="setAppTheme('brown')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
         <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#A2693E;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F7F1E7;border:1px solid #E5D9C6;"></span></span>
@@ -5075,6 +5107,22 @@ function csDateInputValue(val) {
       <button type="button" class="theme-opt" data-theme="navy" onclick="setAppTheme('navy')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
         <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#2c4a6e;"></span><span style="width:16px;height:16px;border-radius:50%;background:#eef2f7;border:1px solid #ddd;"></span></span>
         <span style="font-size:13px;font-weight:700;color:#333;">네이비</span>
+      </button>
+      <button type="button" class="theme-opt" data-theme="green" onclick="setAppTheme('green')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
+        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#3B6E4F;"></span><span style="width:16px;height:16px;border-radius:50%;background:#EEF4F0;border:1px solid #ddd;"></span></span>
+        <span style="font-size:13px;font-weight:700;color:#333;">포레스트그린</span>
+      </button>
+      <button type="button" class="theme-opt" data-theme="wine" onclick="setAppTheme('wine')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
+        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#7C3048;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F7EEF1;border:1px solid #ddd;"></span></span>
+        <span style="font-size:13px;font-weight:700;color:#333;">와인</span>
+      </button>
+      <button type="button" class="theme-opt" data-theme="teal" onclick="setAppTheme('teal')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
+        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#227C7C;"></span><span style="width:16px;height:16px;border-radius:50%;background:#EAF5F5;border:1px solid #ddd;"></span></span>
+        <span style="font-size:13px;font-weight:700;color:#333;">틸</span>
+      </button>
+      <button type="button" class="theme-opt" data-theme="plum" onclick="setAppTheme('plum')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
+        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#5B4B8A;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F1EEF7;border:1px solid #ddd;"></span></span>
+        <span style="font-size:13px;font-weight:700;color:#333;">플럼</span>
       </button>
     </div>
   </div>
@@ -7054,6 +7102,9 @@ function csDateInputValue(val) {
         const empData = await empRes.json();
         if (empData.rows) window._allEmployees = empData.rows;
       } catch(e) {}
+
+      // 개인 설정(테마/햄버거메뉴 표시·순서/화면밀도) — 다른 기기에서 로그인해도 내 설정 그대로 적용
+      if (typeof window.applyUserPrefsFromFirestore === 'function') window.applyUserPrefsFromFirestore();
 
       if (userData.isManager || userData.isHead) {
         const approvalDropdown = document.getElementById('userDropdownApproval');
@@ -9450,6 +9501,7 @@ window.setTabVisibility = function(tabId, visible) {
   const map = _getTabVisMap();
   map[tabId] = !!visible;
   localStorage.setItem(TAB_VIS_MAP_KEY, JSON.stringify(map));
+  _syncUserPrefs({ tabVisMap: map });
 };
 const setTabVisibility = window.setTabVisibility;
 
@@ -9458,6 +9510,7 @@ window.saveVisibleTabs = function(list) {
   const map = {};
   Object.keys(TAB_LABELS).forEach(id => { map[id] = list.includes(id); });
   localStorage.setItem(TAB_VIS_MAP_KEY, JSON.stringify(map));
+  _syncUserPrefs({ tabVisMap: map });
 };
 const saveVisibleTabs = window.saveVisibleTabs;
 
@@ -9587,6 +9640,7 @@ window.hamburgerDrop = function(e) {
     order.splice(si, 1);
     order.splice(ti, 0, _dragSrcId);
     localStorage.setItem('baram_tab_order', JSON.stringify(order));
+    _syncUserPrefs({ tabOrder: order });
     applyTabOrder();
     renderHamburgerItems();
   }
@@ -9650,6 +9704,7 @@ window.hamburgerTouchEnd = function(e) {
       order.splice(si, 1);
       order.splice(ti, 0, _touchDragSrcId);
       localStorage.setItem('baram_tab_order', JSON.stringify(order));
+      _syncUserPrefs({ tabOrder: order });
       applyTabOrder();
       renderHamburgerItems();
     }
@@ -11321,6 +11376,41 @@ function addDividerItem() {
     renderInvoice();
 }
 
+// ── 개인 설정(테마/햄버거메뉴 표시·순서/화면밀도) Firestore 동기화 ──
+//   기기(localStorage)에는 그대로 저장해서 즉시 반영은 유지하고, 로그인 계정에도 같이 저장해서
+//   다른 기기에서 로그인했을 때도 본인 설정이 그대로 적용되게 한다. 게스트는 계정이 없어 제외.
+function _syncUserPrefs(partial) {
+    if (window._isGuest) return;
+    const uid = window._currentUser && window._currentUser.id;
+    if (!uid || !window.FB) return;
+    window.fbEnsureAuth()
+        .then(() => window.FB.setDoc(window.FB.doc(window.FB.db, 'userPrefs', String(uid)), partial, { merge: true }))
+        .catch(e => console.warn('개인설정 동기화 실패:', e.message));
+}
+
+// 로그인 직후 1회 호출 — Firestore에 저장된 개인 설정을 불러와 기기(localStorage)에 반영하고 화면에 적용
+window.applyUserPrefsFromFirestore = async function() {
+    if (window._isGuest) return;
+    const uid = window._currentUser && window._currentUser.id;
+    if (!uid || !window.FB) return;
+    try {
+        await window.fbEnsureAuth();
+        const snap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'userPrefs', String(uid)));
+        if (!snap.exists()) return;
+        const prefs = snap.data() || {};
+        if (prefs.theme && typeof window.setAppTheme === 'function') window.setAppTheme(prefs.theme);
+        if (prefs.uiDensity !== undefined && typeof setUiDensity === 'function') setUiDensity(prefs.uiDensity);
+        if (Array.isArray(prefs.tabOrder)) {
+            localStorage.setItem('baram_tab_order', JSON.stringify(prefs.tabOrder));
+            if (typeof applyTabOrder === 'function') applyTabOrder();
+        }
+        if (prefs.tabVisMap && typeof prefs.tabVisMap === 'object') {
+            localStorage.setItem(TAB_VIS_MAP_KEY, JSON.stringify(prefs.tabVisMap));
+            if (typeof window.applyVisibleTabs === 'function') window.applyVisibleTabs();
+        }
+    } catch(e) { console.warn('개인설정 조회 실패:', e.message); }
+};
+
 // ── 화면 표시 설정 (모바일 정보 밀도: 촘촘하게/기본/넓게) ──
 const UI_DENSITY_KEY = 'baram_ui_density';
 function getUiDensityStorageKey() {
@@ -11350,6 +11440,7 @@ function setUiDensity(value) {
     applyUiDensity(value);
     try { localStorage.setItem(getUiDensityStorageKey(), String(value)); } catch(_) {}
     if (typeof updateInvoiceScale === 'function') setTimeout(updateInvoiceScale, 30);
+    _syncUserPrefs({ uiDensity: parseFloat(value) });
 }
 function resetUiScale() {
     setUiDensity(100);
@@ -11358,13 +11449,14 @@ function resetUiScale() {
 // ── 앱 테마 색상 (브라운/모노/그레이/네이비) ──
 var THEME_KEY = 'baram_app_theme';
 window.setAppTheme = function(theme) {
-    var valid = ['brown','mono','gray','navy'];
+    var valid = ['brown','mono','gray','navy','green','wine','teal','plum'];
     if (valid.indexOf(theme) === -1) theme = 'brown';
     // 브라운은 기본값이라 data-theme 없이 :root 사용
     if (theme === 'brown') document.body.removeAttribute('data-theme');
     else document.body.setAttribute('data-theme', theme);
     try { localStorage.setItem(THEME_KEY, theme); } catch(_) {}
     _highlightThemeButton(theme);
+    _syncUserPrefs({ theme: theme });
 };
 function _highlightThemeButton(theme) {
     document.querySelectorAll('.theme-opt').forEach(function(btn){
