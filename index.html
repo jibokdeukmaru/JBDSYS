@@ -5091,39 +5091,15 @@ function csDateInputValue(val) {
   <div class="myi-pw-card" id="myiThemeCard">
     <div class="myi-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>테마 색상</div>
     <p style="font-size:12.5px;color:#888;margin:0 0 16px;">앱 전체의 색상 테마를 선택할 수 있어요. 계정에 저장되어 어느 기기에서 로그인해도 그대로 적용됩니다. (견적서 등 문서 화면은 변경되지 않습니다.)</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <button type="button" class="theme-opt" data-theme="brown" onclick="setAppTheme('brown')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#A2693E;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F7F1E7;border:1px solid #E5D9C6;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">브라운</span>
-      </button>
-      <button type="button" class="theme-opt" data-theme="mono" onclick="setAppTheme('mono')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#222;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F4F4F4;border:1px solid #ddd;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">화이트 &amp; 블랙</span>
-      </button>
-      <button type="button" class="theme-opt" data-theme="gray" onclick="setAppTheme('gray')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#5B6472;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F2F3F5;border:1px solid #ddd;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">그레이</span>
-      </button>
-      <button type="button" class="theme-opt" data-theme="navy" onclick="setAppTheme('navy')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#2c4a6e;"></span><span style="width:16px;height:16px;border-radius:50%;background:#eef2f7;border:1px solid #ddd;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">네이비</span>
-      </button>
-      <button type="button" class="theme-opt" data-theme="green" onclick="setAppTheme('green')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#3B6E4F;"></span><span style="width:16px;height:16px;border-radius:50%;background:#EEF4F0;border:1px solid #ddd;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">포레스트그린</span>
-      </button>
-      <button type="button" class="theme-opt" data-theme="wine" onclick="setAppTheme('wine')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#7C3048;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F7EEF1;border:1px solid #ddd;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">와인</span>
-      </button>
-      <button type="button" class="theme-opt" data-theme="teal" onclick="setAppTheme('teal')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#227C7C;"></span><span style="width:16px;height:16px;border-radius:50%;background:#EAF5F5;border:1px solid #ddd;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">틸</span>
-      </button>
-      <button type="button" class="theme-opt" data-theme="plum" onclick="setAppTheme('plum')" style="flex:1;min-width:120px;display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;">
-        <span style="display:flex;gap:3px;"><span style="width:16px;height:16px;border-radius:50%;background:#5B4B8A;"></span><span style="width:16px;height:16px;border-radius:50%;background:#F1EEF7;border:1px solid #ddd;"></span></span>
-        <span style="font-size:13px;font-weight:700;color:#333;">플럼</span>
-      </button>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;">
+      <button type="button" class="theme-opt" data-theme="brown" onclick="setAppTheme('brown')" title="브라운" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#A2693E 50%,#F7F1E7 50%);"></button>
+      <button type="button" class="theme-opt" data-theme="mono" onclick="setAppTheme('mono')" title="화이트 & 블랙" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#222 50%,#F4F4F4 50%);"></button>
+      <button type="button" class="theme-opt" data-theme="gray" onclick="setAppTheme('gray')" title="그레이" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#5B6472 50%,#F2F3F5 50%);"></button>
+      <button type="button" class="theme-opt" data-theme="navy" onclick="setAppTheme('navy')" title="네이비" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#2c4a6e 50%,#eef2f7 50%);"></button>
+      <button type="button" class="theme-opt" data-theme="green" onclick="setAppTheme('green')" title="포레스트그린" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#3B6E4F 50%,#EEF4F0 50%);"></button>
+      <button type="button" class="theme-opt" data-theme="wine" onclick="setAppTheme('wine')" title="와인" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#7C3048 50%,#F7EEF1 50%);"></button>
+      <button type="button" class="theme-opt" data-theme="teal" onclick="setAppTheme('teal')" title="틸" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#227C7C 50%,#EAF5F5 50%);"></button>
+      <button type="button" class="theme-opt" data-theme="plum" onclick="setAppTheme('plum')" title="플럼" style="width:44px;height:44px;border-radius:50%;padding:0;box-sizing:border-box;cursor:pointer;border:3px solid #fff;background:linear-gradient(135deg,#5B4B8A 50%,#F1EEF7 50%);"></button>
     </div>
   </div>
 
@@ -9533,14 +9509,28 @@ function openHamburger() {
 
 let _hamburgerEditMode = false;
 
-function renderHamburgerItems() {
-  const visible = getVisibleTabs();
+// 권한 탭: 버튼이 존재하고 display가 ''(표시중)인 것만 포함
+// display:none이어도 권한 탭(approvalTab,smsTab)은 별도 처리
+const HAMBURGER_PERM_TABS = ['adminTab', 'approvalTab', 'smsTab', 'myInfoTab'];
+function _isHamburgerTabVisible(id) {
+  const tabBtn = document.querySelector(`.tab-btn[data-tab="${id}"]`);
+  if (!tabBtn) return false;
+  if (HAMBURGER_PERM_TABS.includes(id)) {
+    // 권한 탭은 display가 none이 아닐 때만 표시
+    return tabBtn.style.display !== 'none';
+  }
+  return true;
+}
+function _getHamburgerTabOrder() {
   const saved = JSON.parse(localStorage.getItem('baram_tab_order') || 'null');
   const allKeys = Object.keys(TAB_LABELS);
   // 저장된 순서에 없는 신규 탭은 뒤에 자동 추가
-  const tabOrder = saved
-    ? [...saved, ...allKeys.filter(k => !saved.includes(k))]
-    : allKeys;
+  return saved ? [...saved, ...allKeys.filter(k => !saved.includes(k))] : allKeys;
+}
+
+function renderHamburgerItems() {
+  const visible = getVisibleTabs();
+  const tabOrder = _getHamburgerTabOrder();
   const items = document.getElementById('hamburgerMenuItems');
   const editBtn = document.getElementById('hamburgerEditBtn');
   if (editBtn) {
@@ -9549,52 +9539,35 @@ function renderHamburgerItems() {
     editBtn.title = _hamburgerEditMode ? '편집 완료' : '메뉴 편집';
   }
 
-  // 권한 탭: 버튼이 존재하고 display가 ''(표시중)인 것만 포함
-  // display:none이어도 권한 탭(approvalTab,smsTab)은 별도 처리
-  const PERM_TABS = ['adminTab', 'approvalTab', 'smsTab', 'myInfoTab'];
-
-  function isTabVisible(id) {
-    const tabBtn = document.querySelector(`.tab-btn[data-tab="${id}"]`);
-    if (!tabBtn) return false;
-    if (PERM_TABS.includes(id)) {
-      // 권한 탭은 display가 none이 아닐 때만 표시
-      return tabBtn.style.display !== 'none';
-    }
-    return true;
-  }
-
   if (_hamburgerEditMode) {
-    items.innerHTML = tabOrder.map(id => {
+    // 드래그 대신 ▲▼ 버튼으로 순서 변경 — 데스크톱/모바일 어디서든 동일하게, 오작동 없이 동작
+    const visibleOrder = tabOrder.filter(id => TAB_LABELS[id] && _isHamburgerTabVisible(id));
+    items.innerHTML = visibleOrder.map((id, idx) => {
       const label = TAB_LABELS[id];
-      if (!label) return '';
-      if (!isTabVisible(id)) return '';
       const checked = visible.includes(id);
-      return `<div class="hamburger-menu-item hamburger-edit-item"
-        data-tabid="${id}"
-        ondragover="hamburgerDragOver(event)"
-        ondragleave="hamburgerDragLeave(event)"
-        ondrop="hamburgerDrop(event)"
-        style="transition:background .1s;">
+      const isFirst = idx === 0;
+      const isLast = idx === visibleOrder.length - 1;
+      const btnStyle = (disabled) => `width:30px;height:30px;border:1px solid var(--border);border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;color:#666;flex-shrink:0;${disabled ? 'opacity:.3;cursor:default;' : 'cursor:pointer;'}`;
+      return `<div class="hamburger-menu-item hamburger-edit-item" data-tabid="${id}">
         <span style="display:flex;align-items:center;gap:10px;">
           <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();toggleTabVisible('${id}',this.checked)">
           <span>${label}</span>
         </span>
-        <span class="hamburger-drag-handle" draggable="true" data-tabid="${id}"
-          ondragstart="hamburgerDragStart(event)"
-          ondragend="hamburgerDragEnd(event)"
-          ontouchstart="hamburgerTouchStart(event)"
-          ontouchmove="hamburgerTouchMove(event)"
-          ontouchend="hamburgerTouchEnd(event)"
-          style="cursor:grab;color:#bbb;padding:6px 8px;touch-action:none;display:flex;align-items:center;">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+        <span style="display:flex;gap:4px;">
+          <button type="button" onclick="event.stopPropagation();moveHamburgerItem('${id}',-1)" ${isFirst?'disabled':''} style="${btnStyle(isFirst)}" title="위로">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+          </button>
+          <button type="button" onclick="event.stopPropagation();moveHamburgerItem('${id}',1)" ${isLast?'disabled':''} style="${btnStyle(isLast)}" title="아래로">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
         </span>
       </div>`;
-    }).filter(Boolean).join('');
+    }).join('');
   } else {
     items.innerHTML = tabOrder.map(id => {
       const label = TAB_LABELS[id];
       if (!label) return '';
-      if (!isTabVisible(id)) return '';
+      if (!_isHamburgerTabVisible(id)) return '';
       return `<div class="hamburger-menu-item" onclick="setTab('${id}');closeHamburger();">
         <span>${label}</span>
       </div>`;
@@ -9607,110 +9580,23 @@ window.toggleHamburgerEdit = function() {
   renderHamburgerItems();
 };
 
-// 드래그 앤 드롭
-let _dragSrcId = null;
-window.hamburgerDragStart = function(e) {
-  _dragSrcId = e.currentTarget.dataset.tabid;
-  const row = e.currentTarget.closest('.hamburger-edit-item') || e.currentTarget;
-  row.style.opacity = '0.4';
-};
-window.hamburgerDragOver = function(e) {
-  e.preventDefault();
-  document.querySelectorAll('.hamburger-edit-item').forEach(el => {
-    el.style.background = '';
-    el.style.borderTop = '';
-  });
-  e.currentTarget.style.background = 'var(--cream-2)';
-  e.currentTarget.style.borderTop = '2px solid var(--brand)';
-};
-window.hamburgerDragLeave = function(e) {
-  e.currentTarget.style.background = '';
-  e.currentTarget.style.borderTop = '';
-};
-window.hamburgerDrop = function(e) {
-  e.preventDefault();
-  const targetId = e.currentTarget.dataset.tabid;
-  e.currentTarget.style.background = '';
-  e.currentTarget.style.borderTop = '';
-  if (!_dragSrcId || _dragSrcId === targetId) return;
-  let order = JSON.parse(localStorage.getItem('baram_tab_order') || 'null') || Object.keys(TAB_LABELS);
-  const si = order.indexOf(_dragSrcId);
-  const ti = order.indexOf(targetId);
-  if (si > -1 && ti > -1) {
-    order.splice(si, 1);
-    order.splice(ti, 0, _dragSrcId);
-    localStorage.setItem('baram_tab_order', JSON.stringify(order));
-    _syncUserPrefs({ tabOrder: order });
-    applyTabOrder();
-    renderHamburgerItems();
-  }
-};
-window.hamburgerDragEnd = function(e) {
-  document.querySelectorAll('.hamburger-edit-item').forEach(el => {
-    el.style.background = '';
-    el.style.borderTop = '';
-    el.style.opacity = '';
-  });
-  _dragSrcId = null;
-};
+// 메뉴 항목을 한 칸 위/아래로 이동 (화면에 실제 보이는 항목들 기준으로 이웃과 순서 교체)
+window.moveHamburgerItem = function(id, dir) {
+  const order = _getHamburgerTabOrder();
+  const visibleIds = order.filter(k => TAB_LABELS[k] && _isHamburgerTabVisible(k));
+  const vi = visibleIds.indexOf(id);
+  const vj = vi + dir;
+  if (vi < 0 || vj < 0 || vj >= visibleIds.length) return;
+  const otherId = visibleIds[vj];
 
-// 모바일 터치 드래그
-let _touchDragSrcId = null;
-let _touchDragEl = null;
-let _touchClone = null;
+  const oi = order.indexOf(id);
+  const oj = order.indexOf(otherId);
+  [order[oi], order[oj]] = [order[oj], order[oi]];
 
-window.hamburgerTouchStart = function(e) {
-  const handle = e.currentTarget;
-  const row = handle.closest('.hamburger-edit-item') || handle;
-  _touchDragSrcId = handle.dataset.tabid;
-  _touchDragEl = row;
-  row.style.opacity = '0.4';
-};
-
-window.hamburgerTouchMove = function(e) {
-  if (!_touchDragSrcId) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  const items = document.querySelectorAll('.hamburger-edit-item');
-  items.forEach(el => { el.style.background = ''; el.style.borderTop = ''; });
-  // 터치 위치 아래 요소 찾기
-  const target = document.elementFromPoint(touch.clientX, touch.clientY);
-  const item = target ? target.closest('.hamburger-edit-item') : null;
-  if (item && item.dataset.tabid !== _touchDragSrcId) {
-    item.style.background = 'var(--cream-2)';
-    item.style.borderTop = '2px solid var(--brand)';
-    item._isHovered = true;
-  }
-};
-
-window.hamburgerTouchEnd = function(e) {
-  if (!_touchDragSrcId) return;
-  const touch = e.changedTouches[0];
-  const target = document.elementFromPoint(touch.clientX, touch.clientY);
-  const item = target ? target.closest('.hamburger-edit-item') : null;
-
-  document.querySelectorAll('.hamburger-edit-item').forEach(el => {
-    el.style.background = '';
-    el.style.borderTop = '';
-    el.style.opacity = '';
-  });
-
-  if (item && item.dataset.tabid && item.dataset.tabid !== _touchDragSrcId) {
-    const targetId = item.dataset.tabid;
-    let order = JSON.parse(localStorage.getItem('baram_tab_order') || 'null') || Object.keys(TAB_LABELS);
-    const si = order.indexOf(_touchDragSrcId);
-    const ti = order.indexOf(targetId);
-    if (si > -1 && ti > -1) {
-      order.splice(si, 1);
-      order.splice(ti, 0, _touchDragSrcId);
-      localStorage.setItem('baram_tab_order', JSON.stringify(order));
-      _syncUserPrefs({ tabOrder: order });
-      applyTabOrder();
-      renderHamburgerItems();
-    }
-  }
-  _touchDragSrcId = null;
-  _touchDragEl = null;
+  localStorage.setItem('baram_tab_order', JSON.stringify(order));
+  _syncUserPrefs({ tabOrder: order });
+  applyTabOrder();
+  renderHamburgerItems();
 };
 
 // 탭 순서 상단에 반영
@@ -11459,10 +11345,10 @@ window.setAppTheme = function(theme) {
     _syncUserPrefs({ theme: theme });
 };
 function _highlightThemeButton(theme) {
+    // 버튼 자체가 색상 스와치(원형)라 배경은 건드리지 않고 테두리 바깥에 선택 표시 링만 추가/제거한다.
     document.querySelectorAll('.theme-opt').forEach(function(btn){
         var on = btn.getAttribute('data-theme') === theme;
-        btn.style.borderColor = on ? 'var(--brand)' : 'var(--border)';
-        btn.style.background = on ? 'var(--cream)' : '#fff';
+        btn.style.boxShadow = on ? '0 0 0 2px var(--brand)' : '0 0 0 1px var(--border-2)';
     });
 }
 function initAppTheme() {
