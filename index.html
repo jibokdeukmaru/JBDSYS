@@ -3338,10 +3338,14 @@
       </div>
     </div>
 
-    <div class="dw-field-row cols-1">
+    <div class="dw-field-row cols-2">
       <div class="dw-field">
         <label>작성자</label>
         <div class="dw-author-readonly" id="cfAuthor">자동입력</div>
+      </div>
+      <div class="dw-field" id="cfLastEditWrap" style="display:none;">
+        <label>최종수정</label>
+        <div class="dw-author-readonly" id="cfLastEdit">-</div>
       </div>
     </div>
 
@@ -3429,6 +3433,36 @@
   }
 
   // 이름에 직급 붙이기 (이미 직급 있으면 유지, 없으면 맵에서 찾아 추가)
+  // 알림 1건을 Firestore에 생성 (sent:false — 이후 실제 기기 발송(윈도우 실시간감지/안드로이드 푸시)은 별도 단계에서 처리)
+  async function _createNotification(n) {
+    try {
+      await window.fbEnsureAuth();
+      await window.FB.addDoc(window.FB.collection(window.FB.db, 'notifications'), {
+        toEmail: n.toEmail, type: n.type || '', title: n.title || '', body: n.body || '',
+        relatedId: n.relatedId || '', createdAtMs: Date.now(), read: false, sent: false
+      });
+    } catch(e) { console.warn('알림 생성 실패:', e.message); }
+  }
+
+  // 쇼룸상담 수정 시, 로그인한 사람과 그 건의 상담자가 다르면 상담자에게만 알림 생성
+  function _notifyCounselorsOnEdit(editorName, counselorStr, docId, summary) {
+    const myFirstName = String(editorName || '').trim().split(' ')[0];
+    const editorEmail = (window._currentUser && window._currentUser.email) || '';
+    const counselorNames = String(counselorStr || '').split(',').map(s => s.trim().split(' ')[0]).filter(Boolean);
+    counselorNames.forEach(name => {
+      if (name === myFirstName) return; // 본인이 곧 상담자면 알림 안 보냄
+      const emp = (window._allEmployees || []).find(e => e.name === name);
+      if (!emp || !emp.email || emp.email === editorEmail) return;
+      _createNotification({
+        toEmail: emp.email,
+        type: 'consult_edit',
+        title: '쇼룸상담 내역이 수정되었습니다',
+        body: `${editorName || '누군가'}님이 ${summary || '담당 상담 건'}을 수정했습니다.`,
+        relatedId: docId
+      });
+    });
+  }
+
   function attachTitle(nameStr, map) {
     if (!nameStr || !map) return nameStr || '';
     return nameStr.split(',').map(part => {
@@ -4215,6 +4249,7 @@ function csDateInputValue(val) {
     const _rrbReset = document.getElementById('cfRevisitResultsBody');
     if (_rrbReset) _rrbReset.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
     document.getElementById('cfMsg').textContent = '';
+    if (document.getElementById('cfLastEditWrap')) document.getElementById('cfLastEditWrap').style.display = 'none';
   }
 
   // ── 접수일시 포맷 ──
@@ -4530,6 +4565,19 @@ function csDateInputValue(val) {
     // 작성자 (직급 붙이기)
     document.getElementById('cfAuthor').textContent = attachTitle(r.counselor || '', map) || '자동입력';
 
+    // 최종수정자/시간 (수정 이력이 있는 건만 표시)
+    const lastEditWrap = document.getElementById('cfLastEditWrap');
+    if (lastEditWrap) {
+      if (r.updatedBy && r.updatedAtMs) {
+        const editedName = attachTitle(r.updatedBy, map) || r.updatedBy;
+        const editedTime = new Date(r.updatedAtMs).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false });
+        document.getElementById('cfLastEdit').textContent = `${editedName} · ${editedTime}`;
+        lastEditWrap.style.display = '';
+      } else {
+        lastEditWrap.style.display = 'none';
+      }
+    }
+
     // 지난 상담이력 복원 (이전에 재방문 검색으로 저장해둔 값이 있으면 계속 표시)
     const pastHistory = String(r.pastHistory||'').trim();
     if (document.getElementById('cfPastHistory')) document.getElementById('cfPastHistory').value = pastHistory;
@@ -4623,6 +4671,7 @@ function csDateInputValue(val) {
         phoneDigits: String(payload.phone||'').replace(/[^0-9]/g,''),
         createdAtMs: _consultDateToMs(payload.date, payload.time),
         updatedAtMs: Date.now(),
+        updatedBy: (window._currentUser && window._currentUser.name) || '',
       };
       const record = { ...payload, ...derived };
       delete record.action; delete record.rowIndex; // Firestore 문서엔 액션/행번호 불필요
@@ -4647,6 +4696,25 @@ function csDateInputValue(val) {
         // 현재 화면(allConsults)에도 반영
         const j = allConsults.findIndex(x => x._docId === docId);
         if (j !== -1) allConsults[j] = updated;
+
+        // ★ 로그인한 사람과 이 건의 상담자가 다르면, 상담자에게만 "수정됨" 알림 생성
+        _notifyCounselorsOnEdit(
+          derived.updatedBy,
+          payload.counselor,
+          docId,
+          `${payload.name || '고객'}님 상담(${payload.date || ''} ${payload.time || ''})`.trim()
+        );
+
+        // ★ 예약 상태 건의 일정(날짜/시간)이 실제로 바뀐 경우에만, 확인 후 예약변경안내 문자 발송
+        //   (다른 필드만 수정했거나 일정이 그대로면 발송 안 함)
+        const dateChanged = (selectedConsult.date||'') !== (payload.date||'') || (selectedConsult.time||'') !== (payload.time||'');
+        if (payload.status === '예약' && payload.phone && payload.date && dateChanged && typeof sendSMS === 'function') {
+          if (confirm('예약변경 문자를 발송하시겠습니까?')) {
+            const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(payload.date) : payload.date;
+            const schedule = `${dateFormatted} ${payload.time||''}`.trim();
+            sendSMS(payload.phone, payload.name||'', schedule, payload.counselor||'', 'change');
+          }
+        }
       } else {
         // 신규: 접수일시 기록 후 자동 ID로 생성
         record.receiptAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false });
@@ -6081,6 +6149,18 @@ function csDateInputValue(val) {
       <button class="sms-save-btn" onclick="saveSmsTemplate('today')">저장</button>
     </div>
   </div>
+
+  <!-- 예약변경 -->
+  <div class="sms-template-card">
+    <div class="sms-template-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A5A00" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>예약변경 문자</div>
+    <div class="sms-vars">사용 가능 변수: <span>{이름}</span><span>{일정}</span></div>
+    <textarea class="sms-textarea" id="smsTemplate_change" oninput="updateSmsCharCount('change')" placeholder="Firestore에 저장된 템플릿을 불러오는 중...">[지복득마루]{이름}님 {일정}으로 예약이 변경되셨습니다.문의:02-576-7736</textarea>
+    <div class="sms-footer">
+      <span class="sms-char-count" id="smsCount_change">0자</span>
+      <span class="sms-saved-msg" id="smsSaved_change"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a7a45" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><polyline points="20 6 9 17 4 12"></polyline></svg>저장됨</span>
+      <button class="sms-save-btn" onclick="saveSmsTemplate('change')">저장</button>
+    </div>
+  </div>
   </div>
 
   <!-- 발송 내역 -->
@@ -6132,6 +6212,7 @@ function csDateInputValue(val) {
       <button type="button" onclick="sendTestSms('confirm')" style="flex:1;min-width:120px;padding:11px 16px;border:none;border-radius:8px;background:#1a7a45;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">예약확정 발송</button>
       <button type="button" onclick="sendTestSms('cancel')" style="flex:1;min-width:120px;padding:11px 16px;border:none;border-radius:8px;background:#c0392b;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">예약취소 발송</button>
       <button type="button" onclick="sendTestSms('today')" style="flex:1;min-width:120px;padding:11px 16px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">당일예약안내 발송</button>
+      <button type="button" onclick="sendTestSms('change')" style="flex:1;min-width:120px;padding:11px 16px;border:none;border-radius:8px;background:#8A5A00;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">예약변경 발송</button>
     </div>
     <div id="smsTestResult" style="font-size:12.5px;margin-top:12px;min-height:18px;"></div>
   </div>
@@ -8005,7 +8086,7 @@ function csDateInputValue(val) {
         const ref = window.FB.doc(window.FB.db, 'settings', 'smsTemplates');
         const snap = await window.FB.getDoc(ref);
         const templates = snap.exists() ? (snap.data() || {}) : {};
-        ['confirm','cancel','today'].forEach(k => {
+        ['confirm','cancel','today','change'].forEach(k => {
           const el = document.getElementById(`smsTemplate_${k}`);
           if (el && templates[k]) el.value = templates[k];
           updateSmsCharCount(k);
@@ -8089,7 +8170,7 @@ function csDateInputValue(val) {
       }
 
       // 발송 내역 기록 — 화면 응답 속도를 위해 완료를 기다리지 않고 백그라운드로 처리(fire-and-forget)
-      const typeLabel = { confirm: '예약확정', cancel: '예약취소', today: '당일안내' }[templateKey] || templateKey;
+      const typeLabel = { confirm: '예약확정', cancel: '예약취소', today: '당일안내', change: '예약변경' }[templateKey] || templateKey;
       writeSmsLog(phone, name, typeLabel, result).catch(() => {});
 
       return { ok: result === '발송성공', msg, result, typeLabel };
@@ -8129,7 +8210,7 @@ function csDateInputValue(val) {
         return;
       }
 
-      const label = { confirm: '예약확정', cancel: '예약취소', today: '당일예약안내' }[templateKey] || templateKey;
+      const label = { confirm: '예약확정', cancel: '예약취소', today: '당일예약안내', change: '예약변경' }[templateKey] || templateKey;
       if (resultEl) { resultEl.style.color = '#888'; resultEl.textContent = `${label} 문자 발송 중...`; }
 
       window._smsTestSending = true;
