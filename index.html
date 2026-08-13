@@ -11570,7 +11570,9 @@ function initInvoiceTab() {
   window.onInvRemarksEditToggle = function(checkbox) {
     try {
       const editor = document.getElementById('invRemarksEditor');
-      if (checkbox.checked && editor && !editor.innerHTML.trim()) {
+      // ★ contenteditable은 포커스/블러 과정에서 빈 <br>만 남는 경우가 있어 innerHTML로는
+      //   "비어있음"을 정확히 판정 못 한다 — 태그를 뺀 실제 텍스트 기준으로 판단한다.
+      if (checkbox.checked && editor && !editor.textContent.trim()) {
         const remarksDiv = document.getElementById('pvRemarks');
         const titleEl = remarksDiv ? remarksDiv.querySelector('.inv-remarks-title') : null;
         if (remarksDiv && titleEl) {
