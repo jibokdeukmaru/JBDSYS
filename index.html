@@ -3416,6 +3416,12 @@
         <label>작성자</label>
         <div class="dw-author-readonly" id="cfAuthor">자동입력</div>
       </div>
+      <div class="dw-field" id="cfReceiptWrap" style="display:none;">
+        <label>등록일시</label>
+        <div class="dw-author-readonly" id="cfReceiptAt">-</div>
+      </div>
+    </div>
+    <div class="dw-field-row cols-2">
       <div class="dw-field" id="cfLastEditWrap" style="display:none;">
         <label>최종수정</label>
         <div class="dw-author-readonly" id="cfLastEdit">-</div>
@@ -4335,6 +4341,7 @@ function csDateInputValue(val) {
     if (_rrbReset) _rrbReset.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
     document.getElementById('cfMsg').textContent = '';
     if (document.getElementById('cfLastEditWrap')) document.getElementById('cfLastEditWrap').style.display = 'none';
+    if (document.getElementById('cfReceiptWrap')) document.getElementById('cfReceiptWrap').style.display = 'none';
   }
 
   // ── 접수일시 포맷 ──
@@ -4651,6 +4658,17 @@ function csDateInputValue(val) {
     // 작성자 (직급 붙이기)
     document.getElementById('cfAuthor').textContent = attachTitle(r.counselor || '', map) || '자동입력';
 
+    // 등록일시 (접수 시각 — 값이 있는 건만 표시. 이 필드가 생기기 전의 옛날 건은 없을 수 있음)
+    const receiptWrap = document.getElementById('cfReceiptWrap');
+    if (receiptWrap) {
+      if (r.receiptAt) {
+        document.getElementById('cfReceiptAt').textContent = csFormatSubmittedAt(r.receiptAt);
+        receiptWrap.style.display = '';
+      } else {
+        receiptWrap.style.display = 'none';
+      }
+    }
+
     // 최종수정자/시간 (수정 이력이 있는 건만 표시)
     const lastEditWrap = document.getElementById('cfLastEditWrap');
     if (lastEditWrap) {
@@ -4717,6 +4735,17 @@ function csDateInputValue(val) {
     const name = document.getElementById('cfName').value.trim();
     if (!name) { alert('성함을 입력해주세요.'); return; }
     _saveConsultBusy = true;
+
+    // ★ 일정(날짜/시간)을 안 채우고 저장하면 목록 정렬 기준(createdAtMs)이 0이 되어 맨 위/아래로
+    //   밀려버리는 문제가 있었다 — 비어있으면 저장 시점의 현재 날짜/시간으로 채운다.
+    const cfDateEl = document.getElementById('cfDate');
+    const cfTimeEl = document.getElementById('cfTime');
+    if (!cfDateEl.value) {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      cfDateEl.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+      if (!cfTimeEl.value) cfTimeEl.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
 
     const payload = {
       action: selectedConsult ? 'saveConsult' : 'createConsult',
