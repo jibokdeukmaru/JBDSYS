@@ -3465,13 +3465,14 @@
   }
 
   // 이름에 직급 붙이기 (이미 직급 있으면 유지, 없으면 맵에서 찾아 추가)
-  // 알림 1건을 Firestore에 생성 (sent:false — 이후 실제 기기 발송(윈도우 실시간감지/안드로이드 푸시)은 별도 단계에서 처리)
+  // 알림 1건을 Firestore에 생성. sent=윈도우(실시간감지) 표시여부, pushSent=안드로이드 푸시(FCM) 발송여부 —
+  //   두 채널이 독립된 필드를 써야 한쪽이 먼저 처리해도 다른 쪽 전달이 스킵되지 않는다.
   async function _createNotification(n) {
     try {
       await window.fbEnsureAuth();
       await window.FB.addDoc(window.FB.collection(window.FB.db, 'notifications'), {
         toEmail: n.toEmail, type: n.type || '', title: n.title || '', body: n.body || '',
-        relatedId: n.relatedId || '', createdAtMs: Date.now(), read: false, sent: false
+        relatedId: n.relatedId || '', createdAtMs: Date.now(), read: false, sent: false, pushSent: false
       });
     } catch(e) { console.warn('알림 생성 실패:', e.message); }
   }
@@ -15206,6 +15207,57 @@ if ('serviceWorker' in navigator) {
   document.addEventListener('mouseup', function() {
     _dragging = false;
   });
+})();
+</script>
+
+<!-- 안드로이드 앱(Capacitor) 전용 푸시 알림 등록 — 일반 웹/PC에서는 window.Capacitor가 없어 조용히 무시된다 -->
+<script>
+(function() {
+  if (!window.Capacitor || typeof window.Capacitor.isNativePlatform !== 'function' || !window.Capacitor.isNativePlatform()) return;
+  const PushNotifications = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+  if (!PushNotifications) return;
+
+  async function savePushToken(tokenValue) {
+    const trySave = async () => {
+      const email = window._currentUser && window._currentUser.email;
+      if (!email) { setTimeout(trySave, 2000); return; }
+      try {
+        await window.fbEnsureAuth();
+        await window.FB.setDoc(
+          window.FB.doc(window.FB.db, 'pushTokens', email),
+          { token: tokenValue, platform: 'android', updatedAtMs: Date.now() },
+          { merge: true }
+        );
+      } catch (e) { console.warn('푸시 토큰 저장 실패:', e.message); }
+    };
+    trySave();
+  }
+
+  PushNotifications.addListener('registration', (token) => {
+    savePushToken(token.value);
+  });
+  PushNotifications.addListener('registrationError', (err) => {
+    console.warn('푸시 등록 실패:', err);
+  });
+
+  async function initPush() {
+    try {
+      let perm = await PushNotifications.checkPermissions();
+      if (perm.receive !== 'granted') {
+        perm = await PushNotifications.requestPermissions();
+      }
+      if (perm.receive !== 'granted') return;
+      await PushNotifications.register();
+    } catch (e) { console.warn('푸시 초기화 실패:', e.message); }
+  }
+
+  // 로그인 완료(내 계정 정보 확인) 후 푸시 등록 시도
+  const waitLogin = setInterval(() => {
+    if (window._currentUser && window._currentUser.email) {
+      clearInterval(waitLogin);
+      initPush();
+    }
+  }, 2000);
 })();
 </script>
 
