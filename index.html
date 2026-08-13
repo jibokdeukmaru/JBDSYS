@@ -9541,10 +9541,10 @@ function renderHamburgerItems() {
         </span>
         <span style="display:flex;gap:4px;">
           <button type="button" onclick="event.stopPropagation();moveHamburgerItem('${id}',-1)" ${isFirst?'disabled':''} style="${btnStyle(isFirst)}" title="위로">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${isFirst ? '#ccc' : '#555'}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><path d="m18 15-6-6-6 6"/></svg>
           </button>
           <button type="button" onclick="event.stopPropagation();moveHamburgerItem('${id}',1)" ${isLast?'disabled':''} style="${btnStyle(isLast)}" title="아래로">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${isLast ? '#ccc' : '#555'}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><path d="m6 9 6 6 6-6"/></svg>
           </button>
         </span>
       </div>`;
