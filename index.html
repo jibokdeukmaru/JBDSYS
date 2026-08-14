@@ -1458,6 +1458,10 @@
         REMARKS 직접입력
       </label>
       <label class="check-chip">
+        <input type="checkbox" id="invTitleEditCheck" data-invoice-bound="1" onchange="onInvTitleEditToggle(this)" />
+        제목 직접입력
+      </label>
+      <label class="check-chip">
         <input type="checkbox" id="invMergeLaborCheck" onchange="renderInvoice()" />
         인건비+부자재비 합산 표시
       </label>
@@ -1485,6 +1489,22 @@
         <input type="checkbox" id="invFinalCheck" onchange="renderInvoice()" />
         정산서
       </label>
+    </div>
+
+    <!-- 제목(INVOICE 등) 직접입력 (체크 시 표시) -->
+    <div id="invTitleEditWrap" style="display:none; margin-bottom:12px;">
+      <div class="inv-label" style="margin-bottom:6px;">상단 제목 직접입력</div>
+      <input type="text" id="invTitleEditText" placeholder="예: INVOICE" oninput="renderInvoice()" style="width:100%; margin-bottom:8px;">
+      <div style="display:flex; gap:12px;">
+        <div style="flex:1;">
+          <div class="inv-label" style="margin-bottom:4px; font-size:11px; color:#888;">글자 크기(px)</div>
+          <input type="number" id="invTitleFontSize" value="50" min="10" max="150" oninput="renderInvoice()" style="width:100%;">
+        </div>
+        <div style="flex:1;">
+          <div class="inv-label" style="margin-bottom:4px; font-size:11px; color:#888;">자간(px)</div>
+          <input type="number" id="invTitleLetterSpacing" value="-1" min="-20" max="50" step="0.5" oninput="renderInvoice()" style="width:100%;">
+        </div>
+      </div>
     </div>
 
     <!-- REMARKS 직접입력 (체크 시 표시) — 리치에디터: 드래그 후 빨강 버튼으로 강조 -->
@@ -11380,6 +11400,20 @@ function initInvoiceTab() {
 
   // REMARKS 직접입력 체크 시, 에디터가 비어있으면 지금 화면에 보이는 자동생성 문구를 그대로 채워서
   //   빈칸에서 다시 타이핑하지 않고 이어서 수정할 수 있게 한다.
+  window.onInvTitleEditToggle = function(checkbox) {
+    try {
+      const textEl = document.getElementById('invTitleEditText');
+      // 체크했는데 비어있으면, 지금 화면에 보이는 제목(INVOICE/ESTIMATE 등)을 그대로 채워준다.
+      if (checkbox.checked && textEl && !textEl.value.trim()) {
+        const titleEl = document.querySelector('.inv-title');
+        if (titleEl && titleEl.childNodes[0]) {
+          textEl.value = (titleEl.childNodes[0].textContent || '').trim();
+        }
+      }
+    } catch(e) { console.warn('제목 자동채움 실패:', e.message); }
+    renderInvoice();
+  };
+
   window.onInvRemarksEditToggle = function(checkbox) {
     try {
       const editor = document.getElementById('invRemarksEditor');
@@ -11757,7 +11791,21 @@ function renderInvoice() {
     const subtitleEl = document.getElementById('pvInvoiceSubtitle');
     const titleEl    = document.querySelector('.inv-title');
     const brandEl    = document.querySelector('.inv-brand');
-    if (subtitleEl) {
+    // 제목 직접입력이 체크돼 있으면 항상 최우선 적용 (AS견적서/가견적서/정산서 무관 — REMARKS 직접입력과 동일한 우선순위 방식)
+    const titleEditCheck = !!document.getElementById('invTitleEditCheck')?.checked;
+    const titleEditWrap = document.getElementById('invTitleEditWrap');
+    if (titleEditWrap) titleEditWrap.style.display = titleEditCheck ? 'block' : 'none';
+    if (titleEditCheck && titleEl && titleEl.childNodes[0]) {
+        const customTitle = (document.getElementById('invTitleEditText')?.value || '').trim();
+        const customSize = parseFloat(document.getElementById('invTitleFontSize')?.value) || 50;
+        const customSpacing = document.getElementById('invTitleLetterSpacing')?.value;
+        titleEl.childNodes[0].textContent = customTitle || 'INVOICE';
+        titleEl.style.fontSize = customSize + 'px';
+        titleEl.style.letterSpacing = (customSpacing !== '' && customSpacing != null ? customSpacing : '-1') + 'px';
+        if (subtitleEl) subtitleEl.textContent = '';
+        if (brandEl) { brandEl.style.letterSpacing = '12.2px'; brandEl.style.marginRight = '0px'; }
+    } else if (subtitleEl) {
+        if (titleEl) { titleEl.style.fontSize = ''; titleEl.style.letterSpacing = ''; }
         const isDraft = document.getElementById('invDraftCheck')?.checked;
         if (isAs) {
             if (titleEl) titleEl.childNodes[0].textContent = 'AS견적서';
