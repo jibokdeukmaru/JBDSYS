@@ -71,7 +71,7 @@ exports.gmailPushHandler = async (message) => {
             toEmail: email,
             type: 'mail',
             title: '새 메일 도착',
-            body: `${headers.From || ''} — ${headers.Subject || '(제목없음)'}`,
+            body: headers.Subject || '(제목없음)',
             relatedId: msgId,
             createdAtMs: Date.now(),
             read: false,
