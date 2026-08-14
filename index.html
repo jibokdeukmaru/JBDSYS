@@ -1918,6 +1918,9 @@
   // ★ 실제 문자 발송(sendSolapi)만 Cloud Function으로 이전 — Apps Script 하루 urlfetch 한도를
   //   피하기 위함(2026-08-14). 설정 저장/조회(saveSolapiSettings 등)는 그대로 SMS_URL(Apps Script) 사용.
   var SMS_CF_URL = 'https://sendsms-qk3y5nxsda-du.a.run.app';
+  // ★ 이메일 탭 전체(목록/본문/읽음처리/첨부/발송)도 Cloud Function으로 이전 (2026-08-14).
+  var GMAIL_CF_URL = 'https://gmailapi-qk3y5nxsda-du.a.run.app';
+  window.GMAIL_CF_URL = GMAIL_CF_URL;
   // ★ 코드에 저장된 최신 기본값을 별도로 보존 (하위호환용 참조)
   window._DEFAULT_RESERVE_URL = RESERVE_URL;
   window._DEFAULT_ERP_URL = ERP_URL;
@@ -1942,7 +1945,7 @@
   //    이 키를 검사하므로 고객의 공개 예약 흐름에는 영향이 없다.
   // ════════════════════════════════════════════════════════════
   var _INTERNAL_API_KEY = '71e2619e71f3ec1b4087d4f4d5e1b6a52a540e8a598c953c';
-  var _INTERNAL_BACKENDS = [RESERVE_URL, ERP_URL, SMS_URL, BOOKING_URL, SMS_CF_URL];
+  var _INTERNAL_BACKENDS = [RESERVE_URL, ERP_URL, SMS_URL, BOOKING_URL, SMS_CF_URL, GMAIL_CF_URL];
   window.SMS_CF_URL = SMS_CF_URL;
   (function() {
     var _origFetch = window.fetch.bind(window);
@@ -14099,7 +14102,7 @@ if ('serviceWorker' in navigator) {
     const email = user && user.email ? user.email : '';
     if (!email) return;
     try {
-      const res = await fetchWithRetry(`${window.ERP_URL}?action=getGmailUnread&email=${encodeURIComponent(email)}`, undefined, 0, 20000);
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?action=getGmailUnread&email=${encodeURIComponent(email)}`, undefined, 0, 20000);
       const data = await res.json();
       if (data.status === 'ok' && data.unread > 0) {
         badge.textContent = data.unread > 999 ? '999+' : data.unread;
@@ -14118,7 +14121,7 @@ if ('serviceWorker' in navigator) {
     const params = new URLSearchParams({ action: 'getGmailMessages', email, folder, max: '20' });
     if (pageToken) params.set('pageToken', pageToken);
     if (q) params.set('q', q);
-    const res = await fetchWithRetry(`${window.ERP_URL}?${params}`, undefined, 0, 30000);
+    const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
     const data = await res.json();
     if (data.status !== 'ok') throw new Error(data.message || '메일 조회 실패');
     const msgs = (data.messages || []).map(m => ({
@@ -14432,7 +14435,7 @@ if ('serviceWorker' in navigator) {
     // ── 서버에는 백그라운드로 요청 (실패 시에만 알림+새로고침) ──
     try {
       const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: realOp, ids: ids.join(',') });
-      const res = await fetchWithRetry(`${window.ERP_URL}?${params}`, undefined, 0, 30000);
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
       if (data.status !== 'ok') {
         alert('작업 실패: ' + (data.message||'') + '\n목록을 새로고침합니다.');
@@ -14486,7 +14489,7 @@ if ('serviceWorker' in navigator) {
     }
     try {
       const params = new URLSearchParams({ action: 'getGmailMessage', email, id: m.gmailId });
-      const res = await fetchWithRetry(`${window.ERP_URL}?${params}`, undefined, 0, 30000);
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
       if (data.status !== 'ok') {
         if (dp) dp.innerHTML = `<div style="padding:30px;text-align:center;color:#c0392b;">본문 조회 실패: ${_emEsc(data.message||'')}<br><button onclick="backToEmailList()" style="margin-top:16px;background:none;border:1px solid #ddd;border-radius:8px;padding:8px 20px;cursor:pointer;">목록으로</button></div>`;
@@ -14508,7 +14511,7 @@ if ('serviceWorker' in navigator) {
     if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
     try {
       const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'read', ids: m.gmailId });
-      await fetchWithRetry(`${window.ERP_URL}?${params}`, undefined, 0, 30000);
+      await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
     } catch(e) { /* 자동 읽음처리 실패는 조용히 무시 */ }
   }
@@ -14587,7 +14590,7 @@ if ('serviceWorker' in navigator) {
     const email = user && user.email ? user.email : '';
     try {
       const params = new URLSearchParams({ action: 'getGmailAttachment', email, id: msg.id, attachmentId: att.attachmentId });
-      const res = await fetchWithRetry(`${window.ERP_URL}?${params}`, undefined, 0, 30000);
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
       if (data.status !== 'ok') { alert('첨부파일 다운로드 실패: ' + (data.message || '')); return; }
       const byteChars = atob(data.data);
@@ -14895,9 +14898,9 @@ if ('serviceWorker' in navigator) {
       const senderPhone   = user ? (user.phone || '') : '';
       const senderEmail   = user ? (user.email || '') : '';
 
-      // ★ Gmail 도메인 위임 발송(서비스 계정 자격증명)은 ERP스크립트 프로젝트에 있으므로 ERP_URL로 호출.
-      //   첨부파일(base64)은 URL 파라미터로 못 실어보내므로(용량 제한) POST로 전송.
-      const res  = await fetch(`${window.ERP_URL}`, {
+      // ★ 첨부파일(base64)은 URL 파라미터로 못 실어보내므로(용량 제한) POST로 전송.
+      //   2026-08-14: Gmail 발송도 Cloud Function으로 이전.
+      const res  = await fetch(`${window.GMAIL_CF_URL}`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         redirect: 'follow',
