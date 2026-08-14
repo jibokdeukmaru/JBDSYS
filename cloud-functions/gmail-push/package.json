@@ -1,0 +1,9 @@
+{
+  "name": "gmail-push",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "googleapis": "^128.0.0",
+    "@google-cloud/firestore": "^7.6.0"
+  }
+}
