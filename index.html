@@ -7296,7 +7296,7 @@ function csDateInputValue(val) {
           generated = Math.min(15 + Math.floor((years - 1) / 2), 25);
         }
 
-        const used = parseInt(u.annualLeave || 0);
+        const used = parseInt(u.usedLeave || 0);
         const remaining = Math.max(generated - used, 0);
 
         set('myiLeaveLeft', remaining);
@@ -7543,7 +7543,7 @@ function csDateInputValue(val) {
                     style="background:#fff;border:1px solid #eee;border-radius:12px;padding:14px 16px;margin:6px 0;cursor:pointer;transition:all .1s;">
                     <div id="emp-card-${ri}" class="emp-card"
                       data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
-                      data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.annualLeave||''}"
+                      data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}"
                       data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}">
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                         <div>
@@ -7576,7 +7576,7 @@ function csDateInputValue(val) {
                 const allowed = resolveAllowed(r.allowedTabs);
                 return `<tr id="emp-row-${ri}" onclick="selectEmp(${ri},\'${r.id}\')" style="cursor:pointer;"
                     data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
-                    data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.annualLeave||''}"
+                    data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}"
                     data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}">
                     <td><strong>${r.name||''}</strong></td>
                     <td style="color:#aaa;font-size:12px;">${r.id||''}</td>
@@ -7747,7 +7747,10 @@ function csDateInputValue(val) {
       const phone = document.getElementById('empModalPhone').value.trim();
       const birthday = document.getElementById('empModalBirthday').value;
       const cardUrl  = document.getElementById('empModalCardUrl').value.trim();
-      const annualLeave = document.getElementById('empModalAnnualLeave').value;
+      // ★ 이 입력창 라벨은 "사용 연차"인데 예전엔 엉뚱하게 annualLeave(총 부여연차, 실제로는 안 쓰이는
+      //   죽은 필드)로 읽고 저장해서, 목록의 기사용연차 인라인 수정과 서로 다른 값을 가리키는
+      //   불일치가 있었다 — 진짜 usedLeave 필드로 통일한다.
+      const usedLeave = document.getElementById('empModalAnnualLeave').value;
       const isHead    = document.getElementById('empModalIsHead').checked;
       const isManager = document.getElementById('empModalIsManager').checked;
       const msg = document.getElementById('empModalMsg');
@@ -7757,10 +7760,10 @@ function csDateInputValue(val) {
 
       msg.style.color='#888'; msg.textContent='저장 중...';
       try {
-        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, annualLeave: Number(annualLeave)||0, isHead, isManager };
+        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: Number(usedLeave)||0, isHead, isManager };
 
         const action = _empModalMode === 'add' ? 'addEmployee' : 'updateEmployeeInfo';
-        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, annualLeave, isHead, isManager });
+        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave, isHead, isManager });
         const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
         const data = await res.json();
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
@@ -7773,7 +7776,7 @@ function csDateInputValue(val) {
           await window.fbEnsureAuth();
           const fsUpdate = {
             name, dept, title, joinDate, email, phone,
-            annualLeave: Number(annualLeave) || 0, isHead, isManager
+            usedLeave: Number(usedLeave) || 0, isHead, isManager
           };
           if (birthday) fsUpdate.birthday = birthday;
           if (cardUrl) fsUpdate.cardUrl = cardUrl;
