@@ -4108,6 +4108,7 @@
         if (timeStart) scheduleDisplay += ` ${timeStart}`;
       }
       const counselorDisplay = attachTitle(r.counselor || '', map);
+      const isRevisit = (r.visitStatus === '재방문' || r.revisit === '재방문');
 
       // 모바일: 카드형 (iframe 환경에서 innerWidth가 좁게 찍히는 오판 방지 — screen.width 우선)
       const _isMobileCard = (window.screen && window.screen.width) ? window.screen.width <= 768 : window.innerWidth <= 768;
@@ -4120,6 +4121,7 @@
                   <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
                   <span class="dw-status-pill ${status}">${status}</span>
                   ${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:4px;vertical-align:middle;">N</span>' : ''}
+                  ${isRevisit ? '<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;background:#e8f5e9;color:#2e7d32;font-size:10.5px;font-weight:700;margin-left:5px;vertical-align:middle;">재방문</span>' : ''}
                   <span class="cs-card-name">${r.name||'-'}</span>
                   <span class="cs-card-arrow">›</span>
                 </div>
@@ -4137,7 +4139,6 @@
       }
 
       // PC: 기존 테이블 행
-      const isRevisit = (r.visitStatus === '재방문' || r.revisit === '재방문');
       return `
         <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
           <td>${i + 1 + start}</td>
