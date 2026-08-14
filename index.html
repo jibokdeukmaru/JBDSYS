@@ -4144,7 +4144,7 @@
           <td>${i + 1 + start}</td>
           <td onclick="event.stopPropagation()"><input type="checkbox" class="dw-checkbox"></td>
           <td><span class="dw-status-pill ${status}">${status}</span>${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:3px;vertical-align:middle;">N</span>' : ''}</td>
-          <td style="text-align:center;">${isRevisit ? '<span style="color:#2e7d32;font-weight:700;">✓</span>' : ''}</td>
+          <td style="text-align:center;">${isRevisit ? '<span style="display:inline-block;padding:3px 10px;border-radius:6px;background:#2e7d32;color:#fff;font-size:11px;font-weight:700;">재방문</span>' : ''}</td>
           <td>${counselorDisplay}</td>
           <td class="dw-td-name">${r.name||''} <span style="color:#ccc;font-size:11px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span></td>
           <td>${r.company||''}</td>
@@ -4634,7 +4634,7 @@ function csDateInputValue(val) {
     document.getElementById('cfTime').value = timeStart;
 
     // 방문여부
-    const revisitVal = String(r.revisit||'').trim();
+    const revisitVal = String(r.visitStatus || r.revisit || '').trim();
     document.getElementById('cfVisitStatus').value = (revisitVal === '재방문') ? '재방문' : '신규';
 
     // 고객정보
