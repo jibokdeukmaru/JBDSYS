@@ -7544,7 +7544,7 @@ function csDateInputValue(val) {
                     <div id="emp-card-${ri}" class="emp-card"
                       data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
                       data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.annualLeave||''}"
-                      data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}">
+                      data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}">
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                         <div>
                           <span class="emp-card-name" style="font-size:15px;font-weight:800;color:#222;">${r.name||''}</span>
@@ -7577,7 +7577,7 @@ function csDateInputValue(val) {
                 return `<tr id="emp-row-${ri}" onclick="selectEmp(${ri},\'${r.id}\')" style="cursor:pointer;"
                     data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
                     data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.annualLeave||''}"
-                    data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}">
+                    data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}">
                     <td><strong>${r.name||''}</strong></td>
                     <td style="color:#aaa;font-size:12px;">${r.id||''}</td>
                     <td>${r.dept||''}</td>
@@ -7767,12 +7767,17 @@ function csDateInputValue(val) {
 
         // ★ 시트 저장 성공 시 Firestore employees 사본도 즉시 갱신 — 로그인이 Firestore를 우선
         //   조회하는 구조라, 이걸 안 하면 방금 고친 내용이 로그인에는 반영 안 된 채로 남는다.
+        //   ★ birthday/cardUrl은 빈 값이면 아예 필드를 안 보내서(merge라 기존값 유지) — 수정 모달이
+        //   생일을 못 채운 채로 저장돼도 Firestore에 저장된 기존 생일이 지워지지 않게 방어.
         try {
           await window.fbEnsureAuth();
-          await window.FB.setDoc(window.FB.doc(window.FB.db, 'employees', id || _selectedEmpId), {
-            name, dept, title, joinDate, email, phone, birthday, cardUrl,
+          const fsUpdate = {
+            name, dept, title, joinDate, email, phone,
             annualLeave: Number(annualLeave) || 0, isHead, isManager
-          }, { merge: true });
+          };
+          if (birthday) fsUpdate.birthday = birthday;
+          if (cardUrl) fsUpdate.cardUrl = cardUrl;
+          await window.FB.setDoc(window.FB.doc(window.FB.db, 'employees', id || _selectedEmpId), fsUpdate, { merge: true });
         } catch (fsErr) { /* Firestore 갱신 실패해도 시트는 이미 저장됐으니 조용히 무시 */ }
 
         // 캐시 초기화
