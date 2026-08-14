@@ -11,19 +11,27 @@ const PROJECT_ID = 'jibokdeukmaru-erp-504904';
 const firestore = new Firestore({ projectId: PROJECT_ID });
 
 exports.sendPush = async (cloudEvent) => {
-  const name = cloudEvent.data && cloudEvent.data.value && cloudEvent.data.value.name;
-  const docId = name ? name.split('/').pop() : null;
-  if (!docId) return;
+  // ★ subject는 CloudEvent 봉투 자체의 평문 문자열 필드라 항상 안전하게 읽을 수 있다
+  //   (data 안의 프로토버프 디코딩이 혹시 실패해도 subject는 영향받지 않음).
+  const dataName = cloudEvent.data && cloudEvent.data.value && cloudEvent.data.value.name;
+  const subjectPath = cloudEvent.subject; // "documents/notifications/{docId}"
+  const docId = (dataName && dataName.split('/').pop())
+    || (subjectPath && subjectPath.split('/').pop())
+    || null;
+  console.log('[sendPush] 트리거 수신 — subject=' + subjectPath + ' dataName=' + dataName + ' → docId=' + docId);
+  if (!docId) { console.error('[sendPush] docId를 못 찾음 — 종료'); return; }
 
   const ref = firestore.collection('notifications').doc(docId);
   const snap = await ref.get();
-  if (!snap.exists) return;
+  if (!snap.exists) { console.error('[sendPush] 문서 없음(docId=' + docId + ') — 종료'); return; }
   const n = snap.data();
-  if (n.pushSent === true) return; // 재전달(at-least-once) 시 중복 발송 방지
+  if (n.pushSent === true) { console.log('[sendPush] 이미 발송됨(docId=' + docId + ') — 종료'); return; }
+  console.log('[sendPush] toEmail=' + n.toEmail + ' title=' + n.title);
 
   try {
     const tokenSnap = await firestore.collection('pushTokens').doc(n.toEmail || '').get();
     const token = tokenSnap.exists ? (tokenSnap.data() || {}).token : null;
+    console.log('[sendPush] pushTokens 조회 결과 — exists=' + tokenSnap.exists + ' token=' + (token ? token.slice(0, 12) + '...' : '(없음)'));
 
     if (token) {
       const auth = new google.auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/firebase.messaging'] });
@@ -48,10 +56,13 @@ exports.sendPush = async (cloudEvent) => {
         })
       });
       const data = await res.json();
-      if (data.error) console.error('FCM 발송 실패:', JSON.stringify(data.error));
+      if (data.error) console.error('[sendPush] FCM 발송 실패:', JSON.stringify(data.error));
+      else console.log('[sendPush] FCM 발송 성공:', JSON.stringify(data));
+    } else {
+      console.error('[sendPush] pushTokens/' + n.toEmail + ' 문서에 토큰이 없어 발송 못함');
     }
   } catch (e) {
-    console.error('푸시 발송 실패(docId=' + docId + '):', e.message);
+    console.error('[sendPush] 예외 발생(docId=' + docId + '):', e.message, e.stack);
   }
 
   await ref.update({ pushSent: true });
