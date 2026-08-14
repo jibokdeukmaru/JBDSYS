@@ -61,6 +61,12 @@ exports.sendPush = async () => {
     } catch (e) {
       console.error('[sendPush] 예외(docId=' + doc.id + '):', e.message);
     }
-    await doc.ref.update({ pushSent: true });
+    // ★ 발송 성공/실패와 무관하게 반드시 표시 — 이 update 자체가 실패해서 예외가 나가버리면
+    //   같은 알림이 pushSent=false로 계속 남아 다음 트리거 때마다 또 몰려서 재발송된다.
+    try {
+      await doc.ref.update({ pushSent: true });
+    } catch (e) {
+      console.error('[sendPush] pushSent 표시 실패(docId=' + doc.id + '):', e.message);
+    }
   }
 };
