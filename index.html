@@ -3138,6 +3138,7 @@
           <th style="width:46px;">No.<span class="dw-col-resizer"></span></th>
           <th style="width:34px;"><input type="checkbox" class="dw-checkbox" disabled><span class="dw-col-resizer"></span></th>
           <th style="width:90px; cursor:pointer;" onclick="toggleSort('status')">상태 <span id="sort-status"></span><span class="dw-col-resizer"></span></th>
+          <th style="width:70px;">재방문<span class="dw-col-resizer"></span></th>
           <th style="width:110px; cursor:pointer;" onclick="toggleSort('counselor')">상담자 <span id="sort-counselor"></span><span class="dw-col-resizer"></span></th>
           <th style="width:90px; cursor:pointer;" onclick="toggleSort('name')">성함 <span id="sort-name"></span><span class="dw-col-resizer"></span></th>
           <th style="width:200px; cursor:pointer;" onclick="toggleSort('company')">업체명 <span id="sort-company"></span><span class="dw-col-resizer"></span></th>
@@ -3146,7 +3147,7 @@
         </tr>
       </thead>
       <tbody id="csTableBody">
-        <tr class="dw-empty-row"><td colspan="8">불러오는 중...</td></tr>
+        <tr class="dw-empty-row"><td colspan="9">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -3765,7 +3766,7 @@
     const q = (document.getElementById('csSearch').value || '').trim();
     if (q) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="8">검색 중...</td></tr>';
+      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">검색 중...</td></tr>';
     }
     currentPage = 1;
     await renderConsultList();
@@ -3796,7 +3797,7 @@
     }
     // 캐시가 없거나 강제 새로고침: 로딩 표시 후 받아오기
     const bodyEl = document.getElementById('csTableBody');
-    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="8">불러오는 중...</td></tr>';
+    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">불러오는 중...</td></tr>';
     await _fetchConsults();
   };
 
@@ -3866,7 +3867,7 @@
     } catch(e) {
       if (!_consultsCache) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="8">오류: ${e.message}</td></tr>`;
+        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="9">오류: ${e.message}</td></tr>`;
       }
     } finally {
       _consultsLoading = false;
@@ -3925,7 +3926,7 @@
     currentPage = 1;
     if (_myConsultsOnly) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="8">나의 상담내역 조회 중...</td></tr>';
+      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">나의 상담내역 조회 중...</td></tr>';
     }
     renderConsultList();
   };
@@ -4067,7 +4068,7 @@
     document.getElementById('csCount').textContent = list.length;
 
     if (!list.length) {
-      document.getElementById('csTableBody').innerHTML = '<tr class="dw-empty-row"><td colspan="8">데이터가 없습니다.</td></tr>';
+      document.getElementById('csTableBody').innerHTML = '<tr class="dw-empty-row"><td colspan="9">데이터가 없습니다.</td></tr>';
       return;
     }
 
@@ -4113,7 +4114,7 @@
       if (_isMobileCard) {
         return `
           <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
-            <td colspan="8" style="padding:0;border:none;">
+            <td colspan="9" style="padding:0;border:none;">
               <div class="cs-card">
                 <div class="cs-card-top">
                   <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
@@ -4136,11 +4137,13 @@
       }
 
       // PC: 기존 테이블 행
+      const isRevisit = (r.visitStatus === '재방문' || r.revisit === '재방문');
       return `
         <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
           <td>${i + 1 + start}</td>
           <td onclick="event.stopPropagation()"><input type="checkbox" class="dw-checkbox"></td>
           <td><span class="dw-status-pill ${status}">${status}</span>${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:3px;vertical-align:middle;">N</span>' : ''}</td>
+          <td style="text-align:center;">${isRevisit ? '<span style="color:#2e7d32;font-weight:700;">✓</span>' : ''}</td>
           <td>${counselorDisplay}</td>
           <td class="dw-td-name">${r.name||''} <span style="color:#ccc;font-size:11px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span></td>
           <td>${r.company||''}</td>
@@ -4191,7 +4194,7 @@
       const curTotalPages = Math.ceil((allConsults || []).length / pageSize);
       if (p > curTotalPages) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="8">전체 상담내역 불러오는 중...</td></tr>';
+        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">전체 상담내역 불러오는 중...</td></tr>';
         let full = [];
         try {
           full = await ensureFullConsults();
@@ -4203,7 +4206,7 @@
           if (typeof _syncConsultRefs === 'function') _syncConsultRefs();
         } else {
           // 전체 불러오기 실패/빈손: 무반응 방지 — 안내 후 현재 페이지 유지
-          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="8">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
+          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
           alert('전체 상담내역을 불러오지 못했습니다.\n네트워크 상태를 확인한 뒤 다시 시도해주세요.');
           renderConsultList();
           return;
