@@ -276,7 +276,15 @@ exports.gmailApi = async (req, res) => {
   res.set('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).send('');
 
-  const params = Object.assign({}, req.query, req.body || {});
+  // ★ 클라이언트가 CORS 프리플라이트를 피하려고 Content-Type: text/plain으로 JSON을 보내는 경우가
+  //   있어서(예: 이메일 발송), 그럴 땐 프레임워크가 req.body를 자동 파싱 안 해주고 문자열/버퍼로
+  //   넘어온다 — 여기서 방어적으로 직접 파싱한다.
+  let bodyObj = req.body;
+  if (Buffer.isBuffer(bodyObj)) bodyObj = bodyObj.toString('utf8');
+  if (typeof bodyObj === 'string') {
+    try { bodyObj = JSON.parse(bodyObj); } catch (e) { bodyObj = {}; }
+  }
+  const params = Object.assign({}, req.query, bodyObj || {});
   if (params._appKey !== INTERNAL_KEY) {
     return res.status(403).json({ status: 'error', message: '인증 실패' });
   }
