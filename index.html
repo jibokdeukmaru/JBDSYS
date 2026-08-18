@@ -848,6 +848,11 @@ window.fetchEmployeesFS = async function() {
           <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginBtn').click();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none;">
           <button id="loginBtn" style="width:100%; height:44px; background:#1a1a1a; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);">로그인</button>
           <p id="loginError" style="margin:0 0 16px; font-size:12px; color:#ff6b6b; display:none; font-weight:bold;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>아이디 또는 비밀번호가 올바르지 않습니다.</p>
+          <div style="text-align:right; margin:0 0 16px; font-size:12px;">
+            <a href="javascript:void(0)" onclick="openFindIdModal()" style="color:rgba(0,0,0,0.5); text-decoration:none;">아이디 찾기</a>
+            <span style="color:rgba(0,0,0,0.25); margin:0 6px;">|</span>
+            <a href="javascript:void(0)" onclick="openFindPwModal()" style="color:rgba(0,0,0,0.5); text-decoration:none;">비밀번호 찾기</a>
+          </div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
             <div style="flex:1; height:1px; background:rgba(0,0,0,0.15);"></div>
             <span style="font-size:12px; color:rgba(0,0,0,0.4);">또는</span>
@@ -860,8 +865,39 @@ window.fetchEmployeesFS = async function() {
         <input type="password" id="authPassword" placeholder="••••" autocomplete="off" style="width:100%; height:44px; padding:0 16px; font-size:18px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; text-align:center; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none; letter-spacing:6px;">
         <button id="authBtn" style="width:100%; height:44px; background:transparent; color:#1a1a1a; border:1px solid rgba(0,0,0,0.35); border-radius:10px; font-size:15px; font-weight:700; cursor:pointer;">게스트 접속</button>
         <p id="authError" style="margin:10px 0 0; font-size:12px; color:#ff6b6b; display:none; font-weight:bold;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>비밀번호가 올바르지 않습니다.</p>
+
+        <div style="margin-top:26px;">
+          <button type="button" onclick="openDownloadPage()" title="앱 다운로드" style="background:none; border:none; cursor:pointer; color:rgba(0,0,0,0.35); padding:8px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+        </div>
     </div>
 </section>
+
+<!-- 아이디 찾기 -->
+<div id="findIdModal" onclick="if(event.target===this)closeFindIdModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;width:90%;max-width:340px;padding:26px 24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <button type="button" onclick="closeFindIdModal()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;line-height:1;color:#999;cursor:pointer;">&times;</button>
+    <h3 style="margin:0 0 18px;font-size:16px;font-weight:800;color:#222;">아이디 찾기</h3>
+    <input type="text" id="findIdName" placeholder="이름" autocomplete="off" style="width:100%;height:42px;padding:0 14px;font-size:13px;border:1px solid #ddd;border-radius:9px;box-sizing:border-box;margin-bottom:8px;">
+    <input type="tel" id="findIdPhone" placeholder="연락처 (- 없이 숫자만)" autocomplete="off" style="width:100%;height:42px;padding:0 14px;font-size:13px;border:1px solid #ddd;border-radius:9px;box-sizing:border-box;margin-bottom:14px;">
+    <button type="button" onclick="submitFindId()" id="findIdSubmitBtn" style="width:100%;height:42px;background:#1a1a1a;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;">확인</button>
+    <div id="findIdResult" style="margin-top:14px;font-size:13px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- 비밀번호 찾기 -->
+<div id="findPwModal" onclick="if(event.target===this)closeFindPwModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;width:90%;max-width:340px;padding:26px 24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <button type="button" onclick="closeFindPwModal()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;line-height:1;color:#999;cursor:pointer;">&times;</button>
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:800;color:#222;">비밀번호 찾기</h3>
+    <div style="font-size:12px;color:#999;margin-bottom:16px;">비밀번호를 저장된 연락처로 발송해드립니다.</div>
+    <input type="text" id="findPwId" placeholder="아이디" autocomplete="off" style="width:100%;height:42px;padding:0 14px;font-size:13px;border:1px solid #ddd;border-radius:9px;box-sizing:border-box;margin-bottom:8px;">
+    <input type="tel" id="findPwPhone" placeholder="연락처 (- 없이 숫자만)" autocomplete="off" style="width:100%;height:42px;padding:0 14px;font-size:13px;border:1px solid #ddd;border-radius:9px;box-sizing:border-box;margin-bottom:14px;">
+    <button type="button" onclick="submitFindPw()" id="findPwSubmitBtn" style="width:100%;height:42px;background:#1a1a1a;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;">비밀번호 발송</button>
+    <div id="findPwResult" style="margin-top:14px;font-size:13px;text-align:center;"></div>
+  </div>
+</div>
 
 <section id="mainSection" style="display:none;">
   <div class="tabs-wrap no-capture">
@@ -9367,6 +9403,9 @@ function setTab(tabId, fromPopstate) {
   if (tabId === 'wikiTab' && typeof loadWikiTab === 'function') {
     loadWikiTab();
   }
+  if (tabId === 'stockTab' && typeof window.fixStockHeaderTop === 'function') {
+    window.fixStockHeaderTop();
+  }
   if (tabId === 'approvalTab') {
     loadApprovalList();
   }
@@ -11338,6 +11377,7 @@ function applyUiDensity(value) {
         slider.style.background = `linear-gradient(to right,var(--brand) 0%,var(--brand) ${ratio}%,#e0e0e0 ${ratio}%,#e0e0e0 100%)`;
     }
     if (label) label.textContent = pct;
+    if (typeof window.fixStockHeaderTop === 'function') window.fixStockHeaderTop();
 }
 function setUiDensity(value) {
     applyUiDensity(value);
@@ -15844,6 +15884,91 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   };
 })();
+</script>
+
+<!-- 재고현황 표 헤더 고정 위치 보정 — 상단 메뉴바(.tabs-wrap)도 sticky top:0라서, 재고표
+     헤더를 top:0으로 두면 메뉴바 뒤에 완전히 가려진다. 메뉴바 실제 높이를 재서 그 아래로 붙인다. -->
+<script>
+window.fixStockHeaderTop = function() {
+  const nav = document.querySelector('.tabs-wrap');
+  const ths = document.querySelectorAll('#stockTable th');
+  if (!nav || !ths.length) return;
+  const h = nav.getBoundingClientRect().height;
+  ths.forEach(function(th) { th.style.top = h + 'px'; });
+};
+window.addEventListener('resize', window.fixStockHeaderTop);
+document.addEventListener('DOMContentLoaded', window.fixStockHeaderTop);
+</script>
+
+<!-- ── 로그인 화면: 아이디 찾기 / 비밀번호 찾기 ── -->
+<script>
+window.openFindIdModal = function() {
+  document.getElementById('findIdName').value = '';
+  document.getElementById('findIdPhone').value = '';
+  document.getElementById('findIdResult').textContent = '';
+  document.getElementById('findIdModal').style.display = 'flex';
+};
+window.closeFindIdModal = function() {
+  document.getElementById('findIdModal').style.display = 'none';
+};
+window.submitFindId = async function() {
+  const name = document.getElementById('findIdName').value.trim();
+  const phone = document.getElementById('findIdPhone').value.replace(/[^0-9]/g, '');
+  const resultEl = document.getElementById('findIdResult');
+  const btn = document.getElementById('findIdSubmitBtn');
+  if (!name || !phone) { resultEl.style.color = '#c0392b'; resultEl.textContent = '이름과 연락처를 입력해주세요.'; return; }
+  btn.disabled = true; btn.textContent = '확인 중...';
+  try {
+    const res = await fetch(`${RESERVE_URL}?action=findIdByNamePhone&name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      resultEl.style.color = '#1a7a45';
+      resultEl.textContent = `아이디: ${data.id}`;
+    } else {
+      resultEl.style.color = '#c0392b';
+      resultEl.textContent = data.message || '일치하는 정보를 찾을 수 없습니다.';
+    }
+  } catch(e) {
+    resultEl.style.color = '#c0392b';
+    resultEl.textContent = '오류: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '확인';
+  }
+};
+
+window.openFindPwModal = function() {
+  document.getElementById('findPwId').value = '';
+  document.getElementById('findPwPhone').value = '';
+  document.getElementById('findPwResult').textContent = '';
+  document.getElementById('findPwModal').style.display = 'flex';
+};
+window.closeFindPwModal = function() {
+  document.getElementById('findPwModal').style.display = 'none';
+};
+window.submitFindPw = async function() {
+  const id = document.getElementById('findPwId').value.trim();
+  const phone = document.getElementById('findPwPhone').value.replace(/[^0-9]/g, '');
+  const resultEl = document.getElementById('findPwResult');
+  const btn = document.getElementById('findPwSubmitBtn');
+  if (!id || !phone) { resultEl.style.color = '#c0392b'; resultEl.textContent = '아이디와 연락처를 입력해주세요.'; return; }
+  btn.disabled = true; btn.textContent = '발송 중...';
+  try {
+    const res = await fetch(`${RESERVE_URL}?action=resetPasswordBySms&id=${encodeURIComponent(id)}&phone=${encodeURIComponent(phone)}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      resultEl.style.color = '#1a7a45';
+      resultEl.textContent = '새 비밀번호를 문자로 발송했습니다.';
+    } else {
+      resultEl.style.color = '#c0392b';
+      resultEl.textContent = data.message || '일치하는 정보를 찾을 수 없습니다.';
+    }
+  } catch(e) {
+    resultEl.style.color = '#c0392b';
+    resultEl.textContent = '오류: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '비밀번호 발송';
+  }
+};
 </script>
 
 </body>
