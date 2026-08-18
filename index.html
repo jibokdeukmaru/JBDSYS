@@ -14050,8 +14050,9 @@ if ('serviceWorker' in navigator) {
   };
 
   const COMPANY_EMAILS = [
-    { address: 'info@jibokdeukmaru.com', label: '대표 (info)', adminOnly: false },
-    { address: 'sales@jibokdeukmaru.com', label: '영업 (sales)', adminOnly: true },
+    { address: 'info@jibokdeukmaru.com', label: '대표 (info)', allowedDepts: ['R&D', '영업', '회계'] },
+    { address: 'sales@jibokdeukmaru.com', label: '영업 (sales)', allowedDepts: ['영업'] },
+    { address: 'rnd@jibokdeukmaru.com', label: 'R&D', allowedDepts: ['R&D'] },
   ];
 
   const FOLDER_LABELS = {
@@ -14114,15 +14115,15 @@ if ('serviceWorker' in navigator) {
         opt.textContent = user.email + ' (내 메일)';
         sel.appendChild(opt);
       }
-      const canCompany = user.role === 'admin' || user.isHead;
-      if (canCompany) {
-        COMPANY_EMAILS.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.address;
-          opt.textContent = m.address + ' (' + m.label + ')';
-          sel.appendChild(opt);
-        });
-      }
+      const isHead = !!user.isHead;
+      const userDept = user.dept || '';
+      COMPANY_EMAILS.forEach(m => {
+        if (!isHead && !(m.allowedDepts || []).includes(userDept)) return;
+        const opt = document.createElement('option');
+        opt.value = m.address;
+        opt.textContent = m.address + ' (' + m.label + ')';
+        sel.appendChild(opt);
+      });
     }
 
     _currentFolder = 'inbox';
