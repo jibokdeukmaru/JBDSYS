@@ -45,6 +45,45 @@ function extractBody(payload) {
   return out;
 }
 
+// 본문 HTML에 <img src="cid:xxx">로 참조되는 인라인 이미지 파트만 골라낸다.
+function extractInlineImageParts(payload) {
+  const out = [];
+  function walk(part) {
+    if (!part) return;
+    const cidHeader = (part.headers || []).find((h) => (h.name || '').toLowerCase() === 'content-id');
+    if (cidHeader && part.body && part.body.attachmentId) {
+      const cid = String(cidHeader.value || '').replace(/^<|>$/g, '');
+      if (cid) out.push({ cid, attachmentId: part.body.attachmentId, mimeType: part.mimeType || 'application/octet-stream' });
+    }
+    (part.parts || []).forEach(walk);
+  }
+  walk(payload);
+  return out;
+}
+
+function base64UrlToStd(s) {
+  s = String(s || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return s;
+}
+
+// 본문 HTML 안의 cid: 참조를 실제 이미지 데이터(base64 data URI)로 치환 —
+// 안 하면 인라인 이미지가 브라우저에서 깨진 아이콘으로만 보인다.
+async function inlineCidImages(gmail, messageId, payload, html) {
+  if (!html || html.indexOf('cid:') === -1) return html;
+  const parts = extractInlineImageParts(payload);
+  for (const part of parts) {
+    const marker = 'cid:' + part.cid;
+    if (html.indexOf(marker) === -1) continue;
+    try {
+      const attRes = await gmail.users.messages.attachments.get({ userId: 'me', messageId, id: part.attachmentId });
+      const dataUri = 'data:' + part.mimeType + ';base64,' + base64UrlToStd(attRes.data.data);
+      html = html.split(marker).join(dataUri);
+    } catch (e) { /* 개별 이미지 변환 실패는 무시하고 나머지는 계속 진행 */ }
+  }
+  return html;
+}
+
 function extractAttachments(payload) {
   const out = [];
   function walk(part) {
@@ -110,6 +149,7 @@ async function getGmailMessage(p) {
     (m.payload && m.payload.headers || []).forEach((x) => { h[x.name] = x.value; });
     const body = extractBody(m.payload);
     const attachments = extractAttachments(m.payload);
+    if (body.html) body.html = await inlineCidImages(gmail, id, m.payload, body.html);
     return {
       status: 'ok',
       message: {

@@ -14698,6 +14698,9 @@ if ('serviceWorker' in navigator) {
             <button class="em-detail-action-btn" onclick="forwardEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>전달
             </button>
+            <button class="em-detail-action-btn" onclick="deleteCurrentEmail()" style="color:#c0392b;border-color:#e6b8b3;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제
+            </button>
           </div>
         </div>
         <div style="font-size:18px;font-weight:800;color:#222;margin-bottom:12px;">${_emEsc(msg.subject)}</div>
@@ -14767,6 +14770,32 @@ if ('serviceWorker' in navigator) {
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch(e) { alert('오류: ' + e.message); }
+  };
+
+  // 상세보기에서 지금 보고 있는 메일 하나를 휴지통으로 이동
+  window.deleteCurrentEmail = async function() {
+    const msg = _currentGmailDetailMsg;
+    if (!msg || !msg.id) return;
+    if (!confirm('이 메일을 휴지통으로 옮기시겠습니까?')) return;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    try {
+      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'trash', ids: msg.id });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
+      const data = await res.json();
+      if (data.status !== 'ok') { alert('삭제 실패: ' + (data.message||'')); return; }
+    } catch(e) {
+      alert('삭제 오류: ' + e.message);
+      return;
+    }
+    // 목록에서도 제거하고 목록 화면으로 복귀
+    _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id);
+    const cacheKey = email + '|' + _currentFolder;
+    if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    backToEmailList();
+    _renderGmailList(_allEmailItems, _currentFolder);
+    _appendMoreButton();
+    if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
   };
 
   window.backToEmailList = function() {
