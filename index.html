@@ -448,8 +448,13 @@ window.fetchEmployeesFS = async function() {
 
 .stock-table-wrapper { overflow-x: auto; overflow-y: visible; margin-top: 10px; border-radius: 12px; border: 1px solid #e0e0e0; }
 #stockTable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
-#stockTable th { background-color: var(--cream); color: #555; padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center; vertical-align: middle; position: sticky; top: 0; z-index: 10; }
+#stockTable th { background-color: var(--cream); color: #555; padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center; vertical-align: middle; }
 #stockTable td { padding: 11px 8px; border-bottom: 1px solid #eee; text-align: center; }
+
+/* 재고표 헤더 고정 오버레이(복제본) — 실제 #stockTable th와 같은 모양을 유지 */
+#stockTableHeaderClone { font-size: 14px; }
+#stockTableHeaderClone th { background-color: var(--cream); color: #555; padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center; vertical-align: middle; white-space: nowrap; box-sizing: border-box; }
+#stockTableHeaderClone th:first-child { border-right: 2px solid #ccc; z-index: 2; }
 
 /* 품번 열 좌측 고정 (모바일 가로스크롤 시 품번 고정) */
 #stockTable th:first-child,
@@ -544,6 +549,7 @@ window.fetchEmployeesFS = async function() {
     /* 재고현황 모바일 — 품번 구분선 유지 */
     #stockTable tr.group-first td { border-top: 2px solid #b0b8c8 !important; }
     #stockTable th, #stockTable td { font-size: calc(var(--ui-scale) * 12px) !important; padding: calc(var(--ui-scale) * 9px) calc(var(--ui-scale) * 6px) !important; }
+    #stockTableHeaderClone th { font-size: calc(var(--ui-scale) * 12px) !important; padding: calc(var(--ui-scale) * 9px) calc(var(--ui-scale) * 6px) !important; }
 }
 
 /* 잠금 오버레이 */
@@ -1227,12 +1233,16 @@ window.fetchEmployeesFS = async function() {
   <div class="card" style="display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
       <h2 class="title" style="margin-bottom:0;">지복득위키</h2>
-      <div id="wikiToolbar" style="display:flex;gap:8px;position:sticky;z-index:50;background:var(--app-bg);padding:6px 0;">
-        <button type="button" id="wikiHistoryBtn" onclick="openWikiHistory()" style="background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정기록</button>
-        <button type="button" id="wikiEditBtn" onclick="startWikiEdit()" style="background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정</button>
-        <button type="button" id="wikiSaveBtn" onclick="saveWikiEdit()" style="display:none;background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
-        <button type="button" id="wikiCancelBtn" onclick="cancelWikiEdit()" style="display:none;background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;">취소</button>
-      </div>
+    </div>
+    <!-- ★ 버튼줄의 부모를 .card 바로 아래로 옮김 — 예전엔 h2와 한 줄짜리 짧은 flex 박스 안에
+         있어서, sticky가 붙어있을 수 있는 범위(containing block)가 그 짧은 박스 높이뿐이라
+         본문을 스크롤하면 부모 박스째로 화면 밖으로 사라져버렸다. .card는 본문 전체를 담고
+         있을 만큼 크므로, 이제 스크롤 내내 제대로 따라온다. -->
+    <div id="wikiToolbar" style="display:flex;gap:8px;position:sticky;z-index:50;background:var(--app-bg);padding:6px 0;margin-bottom:6px;">
+      <button type="button" id="wikiHistoryBtn" onclick="openWikiHistory()" style="background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정기록</button>
+      <button type="button" id="wikiEditBtn" onclick="startWikiEdit()" style="background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정</button>
+      <button type="button" id="wikiSaveBtn" onclick="saveWikiEdit()" style="display:none;background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
+      <button type="button" id="wikiCancelBtn" onclick="cancelWikiEdit()" style="display:none;background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;">취소</button>
     </div>
     <div id="wikiMeta" style="font-size:11.5px;color:#999;margin-bottom:12px;"></div>
     <div id="wikiViewArea" style="white-space:pre-wrap;font-size:14.5px;line-height:1.8;color:#222;min-height:calc(100dvh - 260px);padding:4px 2px;">불러오는 중...</div>
@@ -1245,7 +1255,10 @@ window.fetchEmployeesFS = async function() {
   <div style="background:#fff;border-radius:12px;width:min(520px,92vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div style="font-size:15px;font-weight:800;">수정기록</div>
-      <button type="button" onclick="closeWikiHistory()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" id="wikiHistoryResetBtn" onclick="resetWikiHistory()" style="display:none;background:none;border:1px solid #e0483e;color:#e0483e;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:700;">기록 초기화</button>
+        <button type="button" onclick="closeWikiHistory()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
+      </div>
     </div>
     <div id="wikiHistoryList" style="overflow-y:auto;padding:8px 0;flex:1;"></div>
   </div>
@@ -1256,7 +1269,10 @@ window.fetchEmployeesFS = async function() {
   <div style="background:#fff;border-radius:12px;width:min(640px,92vw);max-height:82vh;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div id="wikiRevisionMeta" style="font-size:13px;color:#666;"></div>
-      <button type="button" onclick="closeWikiRevision()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" id="wikiDiffToggleBtn" onclick="toggleWikiDiffView()" style="background:none;border:1px solid var(--border);color:#666;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap;">전체 내용 보기</button>
+        <button type="button" onclick="closeWikiRevision()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
+      </div>
     </div>
     <div id="wikiRevisionBody" style="white-space:pre-wrap;font-size:14px;line-height:1.8;color:#222;padding:18px 20px;overflow-y:auto;flex:1;"></div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;text-align:right;">
@@ -1303,6 +1319,14 @@ window.fetchEmployeesFS = async function() {
         </div>
 
         <!-- 재고 테이블 -->
+        <!-- 헤더가 스크롤을 따라오도록 만드는 고정 오버레이 — wrapper의 overflow-x:auto 때문에
+             #stockTable th의 position:sticky가 페이지 스크롤을 기준으로 못 붙어서(아래 스크립트
+             주석 참고), JS로 헤더 행을 복제해 별도 고정 레이어로 띄운다. -->
+        <div id="stockHeaderFixed" style="display:none;position:fixed;overflow:hidden;z-index:20;">
+            <table id="stockTableHeaderClone" style="border-collapse:separate;border-spacing:0;">
+                <thead><tr id="stockHeaderCloneRow"></tr></thead>
+            </table>
+        </div>
         <div class="stock-table-wrapper">
             <table id="stockTable">
                 <thead>
@@ -15660,7 +15684,84 @@ document.addEventListener('DOMContentLoaded', function() {
 
   let _wikiCurrentContent = '';
   let _wikiRevisionCache = null;
+  let _wikiRevisionOrder = null; // 최신순으로 정렬된 문서 id 배열 — "바로 이전 버전" 찾을 때 사용
   let _wikiViewingRevId = null;
+  let _wikiViewingRevPrevContent = '';
+  let _wikiDiffViewActive = true;
+
+  // ── 두 텍스트 비교(diff) — 외부 라이브러리 없이 LCS(최장 공통 부분수열) 기반으로 직접 계산.
+  //   줄 단위로 먼저 비교하고, 바뀐 줄끼리는 다시 단어/숫자 단위로 비교해서 실제로
+  //   달라진 부분만 강조 표시한다(예: "40,000원" → "39,000원"). ──
+  function _wikiLCSOps(a, b) {
+    const n = a.length, m = b.length;
+    const dp = new Array(n + 1);
+    for (let i = 0; i <= n; i++) dp[i] = new Uint32Array(m + 1);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) { ops.push({ type: 'same', value: a[i] }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ type: 'del', value: a[i] }); i++; }
+      else { ops.push({ type: 'add', value: b[j] }); j++; }
+    }
+    while (i < n) { ops.push({ type: 'del', value: a[i] }); i++; }
+    while (j < m) { ops.push({ type: 'add', value: b[j] }); j++; }
+    return ops;
+  }
+
+  function _wikiTokenizeLine(line) {
+    return line.match(/[0-9][0-9,.]*(?:천|만|억)?원?|[A-Za-z]+|[가-힣]+|[ \t]+|./g) || [];
+  }
+
+  function _wikiRenderLineDiffHtml(oldLine, newLine) {
+    const ops = _wikiLCSOps(_wikiTokenizeLine(oldLine), _wikiTokenizeLine(newLine));
+    return ops.map(op => {
+      const esc = _wikiEsc(op.value);
+      if (op.type === 'same') return esc;
+      if (op.type === 'del') return `<span style="text-decoration:line-through;color:#c0392b;background:#fdeceb;">${esc}</span>`;
+      return `<span style="color:#1a7f37;background:#eaf7ec;font-weight:800;">${esc}</span>`;
+    }).join('');
+  }
+
+  // 변경된 줄만 골라서 렌더링 — 안 바뀐 줄은 아예 표시하지 않는다.
+  function _wikiRenderDiffHtml(oldContent, newContent) {
+    const lineOps = _wikiLCSOps((oldContent || '').split('\n'), (newContent || '').split('\n'));
+    const blocks = [];
+    let i = 0;
+    while (i < lineOps.length) {
+      if (lineOps[i].type === 'same') { i++; continue; }
+      const dels = [], adds = [];
+      while (i < lineOps.length && lineOps[i].type === 'del') { dels.push(lineOps[i].value); i++; }
+      while (i < lineOps.length && lineOps[i].type === 'add') { adds.push(lineOps[i].value); i++; }
+      const pairCount = Math.min(dels.length, adds.length);
+      for (let k = 0; k < pairCount; k++) blocks.push({ type: 'changed', oldLine: dels[k], newLine: adds[k] });
+      for (let k = pairCount; k < dels.length; k++) blocks.push({ type: 'removed', line: dels[k] });
+      for (let k = pairCount; k < adds.length; k++) blocks.push({ type: 'added', line: adds[k] });
+    }
+    if (!blocks.length) return '<span style="color:#aaa;">이전 버전과 달라진 내용이 없습니다.</span>';
+    return blocks.map(b => {
+      if (b.type === 'changed') return `<div style="padding:3px 0;">${_wikiRenderLineDiffHtml(b.oldLine, b.newLine)}</div>`;
+      if (b.type === 'added') return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;color:#1a7f37;background:#eaf7ec;">+ ${_wikiEsc(b.line)}</div>`;
+      return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;color:#c0392b;background:#fdeceb;text-decoration:line-through;">- ${_wikiEsc(b.line)}</div>`;
+    }).join('');
+  }
+
+  function _renderWikiRevisionBody() {
+    const data = _wikiRevisionCache && _wikiRevisionCache[_wikiViewingRevId];
+    const bodyEl = document.getElementById('wikiRevisionBody');
+    if (!data || !bodyEl) return;
+    if (_wikiDiffViewActive) {
+      bodyEl.innerHTML = _wikiRenderDiffHtml(_wikiViewingRevPrevContent, data.content || '');
+    } else {
+      bodyEl.innerHTML = data.content
+        ? _wikiHighlightMoney(_wikiEsc(data.content))
+        : '<span style="color:#aaa;">(빈 내용)</span>';
+    }
+  }
 
   window.loadWikiTab = async function() {
     const viewEl = document.getElementById('wikiViewArea');
@@ -15740,6 +15841,8 @@ document.addEventListener('DOMContentLoaded', function() {
   window.openWikiHistory = async function() {
     const modal = document.getElementById('wikiHistoryModal');
     const listEl = document.getElementById('wikiHistoryList');
+    const resetBtn = document.getElementById('wikiHistoryResetBtn');
+    if (resetBtn) resetBtn.style.display = (window._currentUser && window._currentUser.role === 'admin') ? 'inline-block' : 'none';
     modal.style.display = 'flex';
     listEl.innerHTML = '<div style="padding:20px;text-align:center;color:#999;font-size:13px;">불러오는 중...</div>';
     try {
@@ -15751,10 +15854,12 @@ document.addEventListener('DOMContentLoaded', function() {
       );
       const snap = await window.FB.getDocs(q);
       _wikiRevisionCache = {};
+      _wikiRevisionOrder = [];
       const rows = [];
       snap.forEach(d => {
         const data = d.data();
         _wikiRevisionCache[d.id] = data;
+        _wikiRevisionOrder.push(d.id);
         rows.push(`<div class="hamburger-menu-item" style="cursor:pointer;display:flex;justify-content:space-between;" onclick="viewWikiRevision('${d.id}')">
           <span>${_wikiFormatTime(data.editedAt)}</span>
           <span style="color:#999;font-size:12px;">${_wikiEsc(data.editedBy || '')}</span>
@@ -15770,15 +15875,53 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('wikiHistoryModal').style.display = 'none';
   };
 
+  // 관리자 전용 — 위키 수정기록을 통째로 삭제(초기화). 현재 위키 본문은 그대로 둔다.
+  window.resetWikiHistory = async function() {
+    if (!window._currentUser || window._currentUser.role !== 'admin') { alert('관리자만 사용할 수 있습니다.'); return; }
+    if (!confirm('위키 수정기록을 전부 삭제하시겠습니까?\n삭제하면 되돌릴 수 없습니다.')) return;
+    if (!confirm('정말 진행할까요? 지금까지 쌓인 모든 수정기록이 영구적으로 사라집니다.')) return;
+    const resetBtn = document.getElementById('wikiHistoryResetBtn');
+    if (resetBtn) { resetBtn.disabled = true; resetBtn.textContent = '삭제 중...'; }
+    try {
+      await window.fbEnsureAuth();
+      const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, 'wikiHistory'));
+      const ids = [];
+      snap.forEach(d => ids.push(d.id));
+      for (let i = 0; i < ids.length; i += 400) {
+        const batch = window.FB.writeBatch(window.FB.db);
+        ids.slice(i, i + 400).forEach(id => batch.delete(window.FB.doc(window.FB.db, 'wikiHistory', id)));
+        await batch.commit();
+      }
+      alert('수정기록을 초기화했습니다.');
+      openWikiHistory();
+    } catch(e) {
+      alert('초기화 실패: ' + e.message);
+    } finally {
+      if (resetBtn) { resetBtn.disabled = false; resetBtn.textContent = '기록 초기화'; }
+    }
+  };
+
   window.viewWikiRevision = function(id) {
     const data = _wikiRevisionCache && _wikiRevisionCache[id];
     if (!data) return;
     _wikiViewingRevId = id;
+    const order = _wikiRevisionOrder || [];
+    const idx = order.indexOf(id);
+    const prevId = (idx >= 0 && idx < order.length - 1) ? order[idx + 1] : null;
+    _wikiViewingRevPrevContent = prevId ? (_wikiRevisionCache[prevId].content || '') : '';
+    _wikiDiffViewActive = true;
+    const toggleBtn = document.getElementById('wikiDiffToggleBtn');
+    if (toggleBtn) toggleBtn.textContent = '전체 내용 보기';
     document.getElementById('wikiRevisionMeta').textContent = `${_wikiFormatTime(data.editedAt)} · ${data.editedBy || ''}`;
-    document.getElementById('wikiRevisionBody').innerHTML = data.content
-      ? _wikiHighlightMoney(_wikiEsc(data.content))
-      : '<span style="color:#aaa;">(빈 내용)</span>';
+    _renderWikiRevisionBody();
     document.getElementById('wikiRevisionModal').style.display = 'flex';
+  };
+
+  window.toggleWikiDiffView = function() {
+    _wikiDiffViewActive = !_wikiDiffViewActive;
+    const toggleBtn = document.getElementById('wikiDiffToggleBtn');
+    if (toggleBtn) toggleBtn.textContent = _wikiDiffViewActive ? '전체 내용 보기' : '변경 내용만 보기';
+    _renderWikiRevisionBody();
   };
 
   window.closeWikiRevision = function() {
@@ -15938,18 +16081,92 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 </script>
 
-<!-- 재고현황 표 헤더 고정 위치 보정 — 상단 메뉴바(.tabs-wrap)도 sticky top:0라서, 재고표
-     헤더를 top:0으로 두면 메뉴바 뒤에 완전히 가려진다. 메뉴바 실제 높이를 재서 그 아래로 붙인다. -->
+<!-- 재고현황 표 헤더 고정 — position:sticky를 못 쓰는 이유: .stock-table-wrapper가
+     overflow-x:auto라서, CSS 스펙상 overflow-y도 자동으로 auto가 되어버리고(둘 중 하나라도
+     visible이 아니면 나머지도 auto로 강제 전환됨), 그러면 헤더의 sticky 기준이 페이지 스크롤이
+     아니라 이 wrapper가 되어버려 전혀 안 따라온다. wrapper의 overflow-x:auto는 좁은 화면에서
+     표를 옆으로 볼 수 있게 하는 필수 기능이라 뺄 수도 없다(body는 overflow-x:hidden이라
+     대안이 없음). 그래서 헤더 행을 복제해 별도의 position:fixed 오버레이로 띄우고,
+     표가 메뉴바 아래를 지나는 스크롤 구간에서만 보여주는 방식으로 대체한다. -->
 <script>
-window.fixStockHeaderTop = function() {
-  const nav = document.querySelector('.tabs-wrap');
-  const ths = document.querySelectorAll('#stockTable th');
-  if (!nav || !ths.length) return;
-  const h = nav.getBoundingClientRect().height;
-  ths.forEach(function(th) { th.style.top = h + 'px'; });
-};
-window.addEventListener('resize', window.fixStockHeaderTop);
-document.addEventListener('DOMContentLoaded', window.fixStockHeaderTop);
+(function() {
+  let cloneSynced = false;
+
+  function syncStockHeaderClone() {
+    const table = document.getElementById('stockTable');
+    const realRow = table && table.querySelector('thead tr');
+    const cloneRow = document.getElementById('stockHeaderCloneRow');
+    const cloneTable = document.getElementById('stockTableHeaderClone');
+    if (!table || !realRow || !cloneRow || !cloneTable) return;
+    cloneRow.innerHTML = '';
+    realRow.querySelectorAll('th').forEach(function(th) {
+      const clone = th.cloneNode(true);
+      clone.style.width = th.getBoundingClientRect().width + 'px';
+      clone.style.boxSizing = 'border-box';
+      cloneRow.appendChild(clone);
+    });
+    cloneTable.style.width = table.getBoundingClientRect().width + 'px';
+    cloneSynced = true;
+  }
+
+  function updateStockHeaderFixed() {
+    const stockTab = document.getElementById('stockTab');
+    const fixedBox = document.getElementById('stockHeaderFixed');
+    const wrapper = document.querySelector('.stock-table-wrapper');
+    const nav = document.querySelector('.tabs-wrap');
+    const table = document.getElementById('stockTable');
+    if (!fixedBox || !wrapper || !nav || !table) return;
+    if (!stockTab || stockTab.style.display === 'none') { fixedBox.style.display = 'none'; return; }
+
+    const thead = table.querySelector('thead');
+    const navHeight = nav.getBoundingClientRect().height;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const headerHeight = thead.getBoundingClientRect().height;
+    const shouldStick = wrapperRect.top < navHeight && wrapperRect.bottom > navHeight + headerHeight;
+
+    if (!shouldStick) { fixedBox.style.display = 'none'; return; }
+
+    if (!cloneSynced) syncStockHeaderClone();
+    fixedBox.style.display = 'block';
+    fixedBox.style.top = navHeight + 'px';
+    fixedBox.style.left = wrapperRect.left + 'px';
+    fixedBox.style.width = wrapperRect.width + 'px';
+
+    // 품번(첫 열)은 wrapper 가로 스크롤 중에도 왼쪽에 고정된 것처럼 보이도록,
+    // 행 전체는 -scrollLeft만큼, 첫 셀만 그 반대(+scrollLeft)로 되돌려 상쇄시킨다.
+    const cloneRow = document.getElementById('stockHeaderCloneRow');
+    const scrollLeft = wrapper.scrollLeft;
+    if (cloneRow) {
+      cloneRow.style.transform = 'translateX(' + (-scrollLeft) + 'px)';
+      const firstTh = cloneRow.children[0];
+      if (firstTh) {
+        firstTh.style.position = 'relative';
+        firstTh.style.transform = 'translateX(' + scrollLeft + 'px)';
+      }
+    }
+  }
+
+  function invalidateStockHeaderClone() {
+    cloneSynced = false;
+    updateStockHeaderFixed();
+  }
+
+  // 탭 전환/데이터 로드 시 기존에 호출하던 이름을 그대로 재사용(다른 코드 수정 불필요)
+  window.fixStockHeaderTop = invalidateStockHeaderClone;
+
+  let scrollTicking = false;
+  window.addEventListener('scroll', function() {
+    if (scrollTicking) return;
+    scrollTicking = true;
+    requestAnimationFrame(function() { updateStockHeaderFixed(); scrollTicking = false; });
+  });
+  window.addEventListener('resize', invalidateStockHeaderClone);
+  document.addEventListener('DOMContentLoaded', function() {
+    const wrapper = document.querySelector('.stock-table-wrapper');
+    if (wrapper) wrapper.addEventListener('scroll', updateStockHeaderFixed);
+    invalidateStockHeaderClone();
+  });
+})();
 </script>
 
 <!-- 지복득위키 수정/수정기록 버튼 줄도 같은 이유로 상단 메뉴바 높이만큼 아래로 고정 -->
