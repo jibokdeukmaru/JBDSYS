@@ -854,6 +854,13 @@ window.fetchEmployeesFS = async function() {
         <div id="loginSection">
           <input type="text" id="loginId" placeholder="아이디" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginPw').focus();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:8px; background:#f2f2f2; color:#111; outline:none;">
           <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginBtn').click();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:12px;">
+            <label style="display:flex;align-items:center;gap:6px;color:rgba(0,0,0,0.6);cursor:pointer;">
+              <input type="checkbox" id="loginSaveCheck" style="margin:0;">
+              아이디/비밀번호 저장(자동 로그인)
+            </label>
+            <a href="javascript:void(0)" id="loginForgetLink" onclick="forgetSavedLogin()" style="display:none;color:rgba(0,0,0,0.4);text-decoration:underline;">저장정보 삭제</a>
+          </div>
           <button id="loginBtn" style="width:100%; height:44px; background:#1a1a1a; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);">로그인</button>
           <p id="loginError" style="margin:0 0 16px; font-size:12px; color:#ff6b6b; display:none; font-weight:bold;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>아이디 또는 비밀번호가 올바르지 않습니다.</p>
           <div style="text-align:right; margin:0 0 16px; font-size:12px;">
@@ -7168,6 +7175,56 @@ function csDateInputValue(val) {
     const AUTH_TIMEOUT = 8 * 60 * 60 * 1000;
     // RESERVE_URL은 전역으로 선언됨 (상단 참조)
 
+    // ★ 아이디/비밀번호 저장(자동 로그인) — 사용자가 명시적으로 이 기기에 저장하기로 선택한
+    //   경우에만 사용한다. 비밀번호를 기기에 그대로 남기는 방식이라 보안 트레이드오프가 있다는
+    //   점을 안내했고, 사용자가 그 방식을 선택했다.
+    const SAVED_LOGIN_KEY = 'baram_saved_login';
+
+    function _fillSavedLoginFields() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
+            if (saved && saved.id) {
+                const idEl = document.getElementById('loginId');
+                const pwEl = document.getElementById('loginPw');
+                const checkEl = document.getElementById('loginSaveCheck');
+                const forgetLink = document.getElementById('loginForgetLink');
+                if (idEl) idEl.value = saved.id;
+                if (pwEl) pwEl.value = saved.pw || '';
+                if (checkEl) checkEl.checked = true;
+                if (forgetLink) forgetLink.style.display = 'inline';
+                return saved;
+            }
+        } catch(e) {}
+        return null;
+    }
+
+    window.forgetSavedLogin = function() {
+        localStorage.removeItem(SAVED_LOGIN_KEY);
+        const idEl = document.getElementById('loginId');
+        const pwEl = document.getElementById('loginPw');
+        const checkEl = document.getElementById('loginSaveCheck');
+        const forgetLink = document.getElementById('loginForgetLink');
+        if (idEl) idEl.value = '';
+        if (pwEl) pwEl.value = '';
+        if (checkEl) checkEl.checked = false;
+        if (forgetLink) forgetLink.style.display = 'none';
+    };
+
+    // 저장된 정보가 있으면 채워두고, 방금 로그아웃한 직후가 아니면 바로 자동 로그인까지 실행.
+    // ★ 로그아웃 직후에는 자동 재로그인하지 않는다 — 안 그러면 로그아웃 버튼이 아예 동작하지
+    //   않는 것처럼 보인다(눌러도 바로 다시 로그인됨). 이땐 정보만 채워두고 사용자가 직접
+    //   버튼을 눌러야 한다. 앱을 완전히 닫았다 새로 여는 경우(sessionStorage가 비어있음)엔
+    //   이 플래그가 없으므로 정상적으로 자동 로그인된다.
+    function _tryAutoLoginFromSaved() {
+        const saved = _fillSavedLoginFields();
+        if (!saved) return;
+        if (sessionStorage.getItem('baram_just_logged_out')) {
+            sessionStorage.removeItem('baram_just_logged_out');
+            return;
+        }
+        if (typeof window.doLogin === 'function') window.doLogin();
+    }
+
     const lockSection = document.getElementById('lockSection');
     const mainSection = document.getElementById('mainSection');
     const authBtn = document.getElementById('authBtn');
@@ -7593,6 +7650,12 @@ function csDateInputValue(val) {
                 localStorage.setItem(SESSION_KEY, String(Date.now()));
                 sessionStorage.removeItem(LOGIN_TYPE_KEY);
                 sessionStorage.removeItem(USER_KEY);
+                const saveCheck = document.getElementById('loginSaveCheck');
+                if (saveCheck && saveCheck.checked) {
+                    localStorage.setItem(SAVED_LOGIN_KEY, JSON.stringify({ id, pw }));
+                } else {
+                    localStorage.removeItem(SAVED_LOGIN_KEY);
+                }
                 unlock('user', data.user);
             } else {
                 errEl.style.display = 'block';
@@ -7642,6 +7705,8 @@ function csDateInputValue(val) {
         sessionStorage.removeItem(LOGIN_TYPE_KEY);
         sessionStorage.removeItem(USER_KEY);
         sessionStorage.removeItem('baram_last_tab');
+        // 저장된 로그인정보가 있어도 로그아웃 직후엔 자동 재로그인하지 않도록 표시
+        sessionStorage.setItem('baram_just_logged_out', '1');
         location.reload();
     };
 
@@ -8979,6 +9044,7 @@ function csDateInputValue(val) {
             localStorage.removeItem(LOGIN_TYPE_KEY);
             localStorage.removeItem(USER_KEY);
             lockBody();
+            _tryAutoLoginFromSaved();
         }
     } else if (loginType === 'guest') {
         const savedAuth = localStorage.getItem(SESSION_KEY);
@@ -8988,9 +9054,11 @@ function csDateInputValue(val) {
             localStorage.removeItem(SESSION_KEY);
             localStorage.removeItem(LOGIN_TYPE_KEY);
             lockBody();
+            _tryAutoLoginFromSaved();
         }
     } else {
         lockBody();
+        _tryAutoLoginFromSaved();
     }
 
     // 이벤트 연결
@@ -12667,6 +12735,7 @@ if ('serviceWorker' in navigator) {
     <div id="consultTrashList" style="display:flex;flex-direction:column;gap:8px;margin:14px 0;"></div>
     <div class="csv-modal-footer">
       <button class="csv-btn-import" id="consultTrashRestoreBtn" onclick="restoreCheckedConsults()" disabled>복원</button>
+      <button id="consultTrashPurgeBtn" onclick="purgeCheckedConsultsTrash()" disabled style="background:#fff;border:1px solid #e74c3c;color:#e74c3c;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">영구삭제</button>
       <button class="csv-btn-cancel" onclick="closeConsultTrash()">닫기</button>
     </div>
     <div class="csv-msg" id="consultTrashMsg"></div>
@@ -12839,6 +12908,7 @@ if ('serviceWorker' in navigator) {
   window._updateConsultTrashRestoreBtn = function() {
     const checked = document.querySelectorAll('.consult-trash-check:checked');
     document.getElementById('consultTrashRestoreBtn').disabled = checked.length === 0;
+    document.getElementById('consultTrashPurgeBtn').disabled = checked.length === 0;
   };
 
   window.closeConsultTrash = function() {
@@ -12870,6 +12940,28 @@ if ('serviceWorker' in navigator) {
     } catch(e) {
       msgEl.textContent = '복원 실패: ' + e.message;
       restoreBtn.disabled = false;
+    }
+  };
+
+  window.purgeCheckedConsultsTrash = async function() {
+    const checked = Array.from(document.querySelectorAll('.consult-trash-check:checked')).map(cb => cb.value);
+    if (!checked.length || !_consultTrashCache) return;
+    if (!confirm(`선택한 ${checked.length}건을 영구 삭제하시겠습니까?\n삭제하면 복원할 수 없습니다.`)) return;
+    const msgEl = document.getElementById('consultTrashMsg');
+    const restoreBtn = document.getElementById('consultTrashRestoreBtn');
+    const purgeBtn = document.getElementById('consultTrashPurgeBtn');
+    restoreBtn.disabled = true; purgeBtn.disabled = true;
+    msgEl.textContent = '영구 삭제 중...';
+    try {
+      await window.fbEnsureAuth();
+      const batch = window.FB.writeBatch(window.FB.db);
+      checked.forEach(id => batch.delete(window.FB.doc(window.FB.db, 'consultsTrash', id)));
+      await batch.commit();
+      msgEl.textContent = '';
+      openConsultTrash();
+    } catch(e) {
+      msgEl.textContent = '영구 삭제 실패: ' + e.message;
+      restoreBtn.disabled = false; purgeBtn.disabled = false;
     }
   };
 
