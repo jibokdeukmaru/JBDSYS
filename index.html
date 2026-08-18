@@ -948,7 +948,7 @@ window.fetchEmployeesFS = async function() {
       <button type="button" class="tab-btn" data-tab="floorplanTab">면적분석</button>
       <button type="button" class="tab-btn" data-tab="memoTab">메모장</button>
       <button type="button" class="tab-btn" data-tab="noticeTab">전사게시판</button>
-      <button type="button" class="tab-btn" id="wikiTabBtn" data-tab="wikiTab">지복득위키</button>
+      <button type="button" class="tab-btn" id="wikiTabBtn" data-tab="wikiTab">지복득마루위키</button>
       <button type="button" class="tab-btn" data-tab="leaveTab" id="leaveTabBtn" style="display:none;">휴가신청</button>
       <button type="button" class="tab-btn" data-tab="smsTab" id="smsTabBtn" style="display:none;">문자발송</button>
       <button type="button" class="tab-btn" data-tab="emailTab" id="emailTabBtn">이메일</button>
@@ -1232,13 +1232,13 @@ window.fetchEmployeesFS = async function() {
 <section id="wikiTab" class="tab-panel" style="display:none;">
   <div class="card" style="display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
-      <h2 class="title" style="margin-bottom:0;">지복득위키</h2>
+      <h2 class="title" style="margin-bottom:0;">지복득마루위키</h2>
     </div>
     <!-- ★ 버튼줄의 부모를 .card 바로 아래로 옮김 — 예전엔 h2와 한 줄짜리 짧은 flex 박스 안에
          있어서, sticky가 붙어있을 수 있는 범위(containing block)가 그 짧은 박스 높이뿐이라
          본문을 스크롤하면 부모 박스째로 화면 밖으로 사라져버렸다. .card는 본문 전체를 담고
          있을 만큼 크므로, 이제 스크롤 내내 제대로 따라온다. -->
-    <div id="wikiToolbar" style="display:flex;gap:8px;position:sticky;z-index:50;padding:6px 0;margin-bottom:6px;">
+    <div id="wikiToolbar" style="display:flex;justify-content:flex-end;gap:8px;position:sticky;z-index:50;padding:6px 0;margin-bottom:6px;">
       <button type="button" id="wikiHistoryBtn" onclick="openWikiHistory()" style="background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정기록</button>
       <button type="button" id="wikiEditBtn" onclick="startWikiEdit()" style="background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정</button>
       <button type="button" id="wikiSaveBtn" onclick="saveWikiEdit()" style="display:none;background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
@@ -3284,6 +3284,7 @@ window.fetchEmployeesFS = async function() {
     <button class="dw-toolbar-item" onclick="deleteCheckedConsults()" style="color:#c0392b;border-color:#e6b0aa;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제</button>
     <button class="dw-toolbar-item" id="myConsultsBtn" onclick="toggleMyConsults()" style="color:#2c5fc4;border-color:#b8cced;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>나의상담내역</button>
     <button class="dw-toolbar-item" id="csvDownloadBtn" onclick="downloadConsultCSV()">↓ 목록 다운로드(CSV)</button>
+    <button class="dw-toolbar-item" onclick="openConsultTrash()">삭제목록 복원</button>
     <div class="dw-toolbar-spacer"></div>
     <select class="dw-toolbar-select" id="csPageSize" onchange="currentPage=1;renderConsultList()">
       <option value="10">10</option>
@@ -7289,7 +7290,13 @@ function csDateInputValue(val) {
             })();
         }
 
-        const lastTab = localStorage.getItem('baram_last_tab');
+        // ★ baram_last_tab은 sessionStorage에 저장한다(localStorage 금지) — sessionStorage는
+        //   "같은 창/프로세스를 유지한 채 새로고침"에서는 남아있지만, 창을 완전히 닫거나
+        //   앱을 완전종료했다가 재실행하면 사라진다. 그래서 "새로고침 시 마지막 화면 유지"와
+        //   "재접속 시엔 항상 홈화면 설정" 두 요구를 동시에 만족시킬 수 있다.
+        //   (localStorage였을 때는 8시간 자동로그인 세션 동안 항상 남아있어서, 앱을 완전히
+        //   껐다 켜도 매번 마지막 화면으로 가버리고 홈화면 설정이 무시되는 문제가 있었다.)
+        const lastTab = sessionStorage.getItem('baram_last_tab');
         // ★ 새로고침(세션 복원)일 땐 마지막으로 보던 탭으로, 실제 로그인일 때만 홈화면 설정으로 이동.
         //   예전엔 구분 없이 항상 홈화면으로 이동해서, "새로고침 시 마지막 탭 복귀" 기능이
         //   200ms 뒤 이 로직에 덮어써져 무력화됐었다.
@@ -7634,7 +7641,7 @@ function csDateInputValue(val) {
         localStorage.removeItem(LOGIN_TYPE_KEY);
         sessionStorage.removeItem(LOGIN_TYPE_KEY);
         sessionStorage.removeItem(USER_KEY);
-        localStorage.removeItem('baram_last_tab');
+        sessionStorage.removeItem('baram_last_tab');
         location.reload();
     };
 
@@ -7680,7 +7687,7 @@ function csDateInputValue(val) {
       {id:'consultTab',label:'쇼룸상담'},{id:'reservationTab',label:'예약관리'},
       {id:'cardScanTab',label:'명함스캐닝'},{id:'contactsTab',label:'연락처'},
       {id:'floorplanTab',label:'면적분석'},{id:'memoTab',label:'메모장'},
-      {id:'noticeTab',label:'전사게시판'},{id:'leaveTab',label:'휴가신청'},{id:'emailTab',label:'이메일'},{id:'smsTab',label:'문자발송'},{id:'wikiTab',label:'지복득위키'}
+      {id:'noticeTab',label:'전사게시판'},{id:'leaveTab',label:'휴가신청'},{id:'emailTab',label:'이메일'},{id:'smsTab',label:'문자발송'},{id:'wikiTab',label:'지복득마루위키'}
     ];
 
     window.toggleEmpListVisible = function() {
@@ -9371,7 +9378,7 @@ function setTab(tabId, fromPopstate) {
   document.querySelectorAll('.tab-panel').forEach(panel => {
     panel.style.display = panel.id === tabId ? 'block' : 'none';
   });
-  localStorage.setItem('baram_last_tab', tabId);
+  sessionStorage.setItem('baram_last_tab', tabId);
   // 뒤로가기 시 직전 화면(탭)으로 돌아가도록 브라우저 히스토리에 현재 탭 기록
   // (popstate 이벤트로 호출된 경우는 이미 히스토리가 이동한 상태이므로 다시 쌓지 않음)
   if (!fromPopstate) {
@@ -9504,7 +9511,7 @@ window.addEventListener('popstate', function(e) {
     setTab(tabId, true);
   } else {
     // 히스토리 시작 지점까지 돌아온 경우: 직전 저장된 탭 또는 기본 탭으로 유지
-    const lastTab = localStorage.getItem('baram_last_tab');
+    const lastTab = sessionStorage.getItem('baram_last_tab');
     const fallback = (lastTab && document.getElementById(lastTab)) ? lastTab : 'pricingTab';
     setTab(fallback, true);
   }
@@ -9515,7 +9522,7 @@ const TAB_LABELS = {
   pricingTab:'단가표', calculatorTab:'계산기', stockTab:'재고현황',
   invoiceTab:'견적서', consultTab:'쇼룸상담', reservationTab:'예약관리',
   cardScanTab:'명함스캐닝', contactsTab:'연락처', floorplanTab:'면적분석',
-  memoTab:'메모장', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득위키'
+  memoTab:'메모장', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득마루위키'
 };
 
 // ── 내 홈 화면 설정 ──
@@ -10140,7 +10147,7 @@ function initApp() {
   })();
   document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>setTab(btn.dataset.tab)));
   // 새로고침 시 마지막 탭 복귀
-  const lastTab = localStorage.getItem('baram_last_tab');
+  const lastTab = sessionStorage.getItem('baram_last_tab');
   if (lastTab && document.getElementById(lastTab)) {
     setTab(lastTab);
     if (lastTab === 'reservationTab') {
@@ -12652,6 +12659,20 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- 쇼룸상담 삭제목록 복원 팝업 -->
+<div class="csv-modal-overlay" id="consultTrashOverlay">
+  <div class="csv-modal">
+    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제목록 복원</h3>
+    <div class="csv-modal-info">최근 삭제된 항목 중 최대 5건까지 복원할 수 있습니다.<br>그 이전에 삭제된 건은 자동으로 영구 삭제되어 목록에 나타나지 않습니다.</div>
+    <div id="consultTrashList" style="display:flex;flex-direction:column;gap:8px;margin:14px 0;"></div>
+    <div class="csv-modal-footer">
+      <button class="csv-btn-import" id="consultTrashRestoreBtn" onclick="restoreCheckedConsults()" disabled>복원</button>
+      <button class="csv-btn-cancel" onclick="closeConsultTrash()">닫기</button>
+    </div>
+    <div class="csv-msg" id="consultTrashMsg"></div>
+  </div>
+</div>
+
 <script>
 (function(){
   // ── 5. 예약 알림 배너 ──
@@ -12719,32 +12740,137 @@ if ('serviceWorker' in navigator) {
   window._triggerRsvCheck = _startRsvRealtimeListener;
 
   // ── 6. 삭제 기능 (Firestore) ──
+  // ★ 삭제 전에 원본 데이터를 consultsTrash에 백업해둔다(최근 5건만 유지, 실수 삭제 복구용).
+  //   백업 문서 id를 원본 문서 id와 동일하게 써서, 복원할 때 같은 id로 그대로 되살릴 수 있다.
   window.deleteCheckedConsults = async function() {
     const checkboxes = document.querySelectorAll('#csTableBody .dw-checkbox:checked');
     if (!checkboxes.length) { alert('삭제할 항목을 선택해주세요.'); return; }
 
-    const docIds = [];
+    const records = [];
     checkboxes.forEach(cb => {
       const tr = cb.closest('tr');
       if (tr) {
         const origIdx = parseInt(tr.dataset.origIdx);
         const r = window._allConsultsRef && !isNaN(origIdx) ? window._allConsultsRef[origIdx] : null;
-        if (r && r._docId) docIds.push(r._docId);
+        if (r && r._docId) records.push(r);
       }
     });
 
-    if (!docIds.length) { alert('삭제할 항목을 찾을 수 없습니다.'); return; }
-    if (!confirm(`${docIds.length}건을 삭제하시겠습니까?`)) return;
+    if (!records.length) { alert('삭제할 항목을 찾을 수 없습니다.'); return; }
+    if (!confirm(`${records.length}건을 삭제하시겠습니까?`)) return;
 
     try {
       await window.fbEnsureAuth();
+      const user = window._currentUser;
+      const now = Date.now();
       const batch = window.FB.writeBatch(window.FB.db);
-      docIds.forEach(id => batch.delete(window.FB.doc(window.FB.db, 'consults', id)));
+      records.forEach(r => {
+        const data = Object.assign({}, r);
+        delete data._docId;
+        const trashRef = window.FB.doc(window.FB.db, 'consultsTrash', r._docId);
+        batch.set(trashRef, { data, deletedAtMs: now, deletedBy: (user && user.name) || '' });
+        batch.delete(window.FB.doc(window.FB.db, 'consults', r._docId));
+      });
       await batch.commit();
       _consultsFullCache = null; window._allConsultsGlobal = null;
+      await _pruneConsultTrash();
       alert('삭제 완료!');
       if (typeof loadConsults === 'function') loadConsults(true);
     } catch(e) { alert('삭제 오류: ' + e.message); }
+  };
+
+  // 최근 5건만 남기고 그보다 오래된 휴지통 항목은 영구 삭제
+  async function _pruneConsultTrash() {
+    try {
+      const snap = await window.FB.getDocs(window.FB.query(
+        window.FB.collection(window.FB.db, 'consultsTrash'),
+        window.FB.orderBy('deletedAtMs', 'desc')
+      ));
+      const ids = [];
+      snap.forEach(d => ids.push(d.id));
+      const excess = ids.slice(5);
+      if (!excess.length) return;
+      const batch = window.FB.writeBatch(window.FB.db);
+      excess.forEach(id => batch.delete(window.FB.doc(window.FB.db, 'consultsTrash', id)));
+      await batch.commit();
+    } catch(e) { console.error('휴지통 정리 실패:', e); }
+  }
+
+  let _consultTrashCache = null;
+
+  window.openConsultTrash = async function() {
+    const overlay = document.getElementById('consultTrashOverlay');
+    const listEl = document.getElementById('consultTrashList');
+    const restoreBtn = document.getElementById('consultTrashRestoreBtn');
+    const msgEl = document.getElementById('consultTrashMsg');
+    overlay.classList.add('open');
+    msgEl.textContent = '';
+    restoreBtn.disabled = true;
+    listEl.innerHTML = '<div style="text-align:center;color:#999;font-size:13px;padding:16px 0;">불러오는 중...</div>';
+    try {
+      await window.fbEnsureAuth();
+      const snap = await window.FB.getDocs(window.FB.query(
+        window.FB.collection(window.FB.db, 'consultsTrash'),
+        window.FB.orderBy('deletedAtMs', 'desc'),
+        window.FB.limit(5)
+      ));
+      _consultTrashCache = {};
+      const rows = [];
+      snap.forEach(d => {
+        const t = d.data();
+        _consultTrashCache[d.id] = t;
+        const info = (t.data && (t.data.name || t.data.company)) || '(이름 없음)';
+        const schedule = (t.data && `${t.data.date||''} ${t.data.time||''}`.trim()) || '';
+        const when = t.deletedAtMs ? new Date(t.deletedAtMs).toLocaleString('ko-KR') : '';
+        rows.push(`<label style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;">
+          <input type="checkbox" class="consult-trash-check" value="${d.id}" onchange="_updateConsultTrashRestoreBtn()">
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;">${info}${schedule ? ' · ' + schedule : ''}</div>
+            <div style="font-size:11px;color:#999;">삭제됨: ${when}${t.deletedBy ? ' · ' + t.deletedBy : ''}</div>
+          </div>
+        </label>`);
+      });
+      listEl.innerHTML = rows.length ? rows.join('') : '<div style="text-align:center;color:#999;font-size:13px;padding:16px 0;">최근 삭제된 항목이 없습니다.</div>';
+    } catch(e) {
+      listEl.innerHTML = `<div style="text-align:center;color:#c0392b;font-size:13px;padding:16px 0;">불러오기 실패: ${e.message}</div>`;
+    }
+  };
+
+  window._updateConsultTrashRestoreBtn = function() {
+    const checked = document.querySelectorAll('.consult-trash-check:checked');
+    document.getElementById('consultTrashRestoreBtn').disabled = checked.length === 0;
+  };
+
+  window.closeConsultTrash = function() {
+    document.getElementById('consultTrashOverlay').classList.remove('open');
+  };
+
+  window.restoreCheckedConsults = async function() {
+    const checked = Array.from(document.querySelectorAll('.consult-trash-check:checked')).map(cb => cb.value);
+    if (!checked.length || !_consultTrashCache) return;
+    const msgEl = document.getElementById('consultTrashMsg');
+    const restoreBtn = document.getElementById('consultTrashRestoreBtn');
+    restoreBtn.disabled = true;
+    msgEl.textContent = '복원 중...';
+    try {
+      await window.fbEnsureAuth();
+      const batch = window.FB.writeBatch(window.FB.db);
+      checked.forEach(id => {
+        const t = _consultTrashCache[id];
+        if (!t) return;
+        batch.set(window.FB.doc(window.FB.db, 'consults', id), t.data);
+        batch.delete(window.FB.doc(window.FB.db, 'consultsTrash', id));
+      });
+      await batch.commit();
+      _consultsFullCache = null; window._allConsultsGlobal = null;
+      msgEl.textContent = '';
+      closeConsultTrash();
+      alert('복원했습니다.');
+      if (typeof loadConsults === 'function') loadConsults(true);
+    } catch(e) {
+      msgEl.textContent = '복원 실패: ' + e.message;
+      restoreBtn.disabled = false;
+    }
   };
 
   // ── 다우 시트 변환 (구글시트 '다우import' 탭 → 쇼룸상담) ──
@@ -13003,6 +13129,7 @@ if ('serviceWorker' in navigator) {
   let _leaveSchedYear = new Date().getFullYear();
   let _leaveSchedMon  = new Date().getMonth();
   let _selectedDates  = []; // 'YYYY-MM-DD' 배열
+  let _leaveChangeRowIdx = null; // 변경 요청 중인 신청 건의 rowIdx (null이면 일반 신규 신청)
   let _leaveType  = '연차';
   let _halfDayPeriod = '오전'; // 반차/반반차일 때 오전/오후 (기본 오전)
   let _isDragging = false;
@@ -13280,6 +13407,7 @@ if ('serviceWorker' in navigator) {
 
   // 신청 제출
   window.submitLeave = async function() {
+    if (_leaveChangeRowIdx) { return submitLeaveChange(); }
     const user = window._currentUser;
     if (!user) return;
     if (_selectedDates.length === 0) { alert('날짜를 선택해주세요.'); return; }
@@ -13349,12 +13477,69 @@ if ('serviceWorker' in navigator) {
     } catch(e) { msg.textContent = '오류: ' + e.message; }
   };
 
+  // "변경" 버튼으로 진입 — 신청 달력을 새 날짜 선택용으로 재사용한다.
+  window.startChangeLeaveReq = function(rowIdx) {
+    _leaveChangeRowIdx = rowIdx;
+    _selectedDates = [];
+    switchLeaveTab('apply');
+    const notice = document.getElementById('leaveChangeModeNotice');
+    if (notice) notice.style.display = 'block';
+    const btn = document.getElementById('leaveSubmitBtn');
+    if (btn) btn.textContent = '변경 신청하기';
+    renderLeaveCal();
+  };
+
+  window.cancelLeaveChangeMode = function() {
+    _leaveChangeRowIdx = null;
+    _selectedDates = [];
+    const notice = document.getElementById('leaveChangeModeNotice');
+    if (notice) notice.style.display = 'none';
+    const btn = document.getElementById('leaveSubmitBtn');
+    if (btn) btn.textContent = '신청하기';
+    renderLeaveCal();
+  };
+
+  // 변경 요청 제출 — 이미 결재가 진행된 건이면 서버에서 '대기'로 되돌려 재결재를 받는다.
+  async function submitLeaveChange() {
+    const user = window._currentUser;
+    if (!user) return;
+    if (_selectedDates.length === 0) { alert('새 날짜를 선택해주세요.'); return; }
+    const sorted = [..._selectedDates].sort();
+    const days = _selectedDates.length * _leavePerDay();
+    const reason = document.getElementById('leaveReason').value.trim();
+    const msg = document.getElementById('leaveApplyMsg');
+    msg.textContent = '변경 신청 중...';
+    try {
+      const params = new URLSearchParams({
+        action: 'requestChangeLeave',
+        rowIdx: _leaveChangeRowIdx, id: user.id,
+        startDate: sorted[0], endDate: sorted[sorted.length-1],
+        days, leaveType: _leaveSaveType(), reason
+      });
+      const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        msg.textContent = '';
+        document.getElementById('leaveReason').value = '';
+        cancelLeaveChangeMode();
+        loadLeaveData();
+        switchLeaveTab('history');
+        alert('변경 신청이 완료됐습니다.');
+      } else { msg.textContent = '실패: ' + (data.message||''); }
+    } catch(e) { msg.textContent = '오류: ' + e.message; }
+  }
+
   window.cancelLeaveReq = async function(docId) {
     const user = window._currentUser;
     if (!user) return;
-    if (!confirm('휴가 신청을 취소하시겠습니까?')) return;
+    const row = _allLeaves.find(r => r.rowIdx === docId);
+    const needsReapproval = row && row.status !== '대기';
+    if (!confirm(needsReapproval
+      ? '이미 결재가 진행된 휴가입니다. 취소 요청을 보내면 상위 결재자의 재승인이 필요합니다.\n계속할까요?'
+      : '휴가 신청을 취소하시겠습니까?')) return;
     try {
-      const params = new URLSearchParams({ action:'cancelLeave', rowIdx: docId, id: user.id });
+      const action = needsReapproval ? 'requestCancelLeave' : 'cancelLeave';
+      const params = new URLSearchParams({ action, rowIdx: docId, id: user.id });
       const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
       const data = await res.json();
       if (data.status !== 'ok') { alert('취소 실패: ' + (data.message||'')); return; }
@@ -13421,8 +13606,11 @@ if ('serviceWorker' in navigator) {
     const list = document.getElementById('leaveHistoryList');
     const mine = _allLeaves.filter(r => r.id === (user&&user.id));
     if (mine.length === 0) { list.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px 0;">신청 내역이 없습니다.</div>'; return; }
+    const today = new Date().toISOString().slice(0,10);
     list.innerHTML = mine.map(r => {
       const statusColor = r.status==='확정'?'#1a7a45':r.status==='반려'||r.status==='취소'?'#c0392b':'#e67e22';
+      // 시작일이 안 지난 대기/대표승인대기/확정 건만 취소·변경 가능
+      const canManage = ['대기','대표승인대기','확정'].includes(r.status) && String(r.startDate||'') >= today;
       return `<div style="border:1px solid #eee;border-radius:10px;padding:12px 14px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <span style="font-size:13px;font-weight:700;">${r.leaveType} · ${r.days}일</span>
@@ -13430,7 +13618,10 @@ if ('serviceWorker' in navigator) {
         </div>
         <div style="font-size:12px;color:#777;">${r.startDate} ~ ${r.endDate}</div>
         ${r.reason ? `<div style="font-size:11px;color:#aaa;margin-top:4px;">${r.reason}</div>` : ''}
-        ${r.status === '대기' ? `<button onclick="cancelLeaveReq(${r.rowIdx})" style="margin-top:8px;width:100%;padding:7px 0;background:#fff;border:1px solid #e74c3c;border-radius:6px;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;">취소</button>` : ''}
+        ${canManage ? `<div style="display:flex;gap:8px;margin-top:8px;">
+          <button onclick="startChangeLeaveReq(${r.rowIdx})" style="flex:1;padding:7px 0;background:#fff;border:1px solid #ccc;border-radius:6px;color:#555;font-size:12px;font-weight:700;cursor:pointer;">변경</button>
+          <button onclick="cancelLeaveReq(${r.rowIdx})" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e74c3c;border-radius:6px;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;">취소</button>
+        </div>` : ''}
       </div>`;
     }).join('');
   }
@@ -15465,8 +15656,13 @@ if ('serviceWorker' in navigator) {
     </div>
     <!-- 사유 -->
     <textarea id="leaveReason" placeholder="사유 (선택)" style="width:100%;min-height:70px;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:14px;"></textarea>
+    <!-- 변경 요청 모드 안내 -->
+    <div id="leaveChangeModeNotice" style="display:none;background:#fff7e6;border:1px solid #f0c36d;border-radius:8px;padding:10px 12px;font-size:12px;color:#8a6100;margin-bottom:10px;">
+      기존 신청을 변경하는 중입니다. 새 날짜를 선택하고 아래 버튼을 누르면, 이미 결재가 진행된 건이었을 경우 상위 결재자에게 재승인 요청이 갑니다.
+      <a href="#" onclick="cancelLeaveChangeMode();return false;" style="color:#8a6100;text-decoration:underline;margin-left:6px;">변경 취소</a>
+    </div>
     <!-- 신청 버튼 -->
-    <button onclick="submitLeave()" style="width:100%;padding:13px 0;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;">신청하기</button>
+    <button id="leaveSubmitBtn" onclick="submitLeave()" style="width:100%;padding:13px 0;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;">신청하기</button>
     <div id="leaveApplyMsg" style="text-align:center;font-size:12px;color:#1a7a45;margin-top:8px;min-height:18px;"></div>
   </div>
 

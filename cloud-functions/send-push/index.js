@@ -49,8 +49,7 @@ exports.sendPush = async () => {
               token,
               notification: {
                 title: n.title || '지복득마루 ERP',
-                body: n.body || '',
-                image: 'https://sys.jibokdeukmaru.com/notify-icon.png'
+                body: n.body || ''
               },
               android: {
                 notification: { icon: 'ic_launcher', color: '#A2693E' }
