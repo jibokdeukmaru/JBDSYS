@@ -14737,6 +14737,9 @@ if ('serviceWorker' in navigator) {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <button onclick="backToEmailList()" style="background:none;border:none;color:var(--brand);font-size:13px;cursor:pointer;">← 목록으로</button>
           <div style="display:flex;gap:8px;">
+            <button class="em-detail-action-btn" onclick="quickAddSenderToAddressBook()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>주소록추가
+            </button>
             <button class="em-detail-action-btn" onclick="replyEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>답장
             </button>
@@ -14815,6 +14818,21 @@ if ('serviceWorker' in navigator) {
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch(e) { alert('오류: ' + e.message); }
+  };
+
+  // "이름" <email> 또는 이메일만 있는 형태 둘 다 파싱
+  function _parseFromHeader(from) {
+    const m = String(from||'').match(/^"?([^"<]*)"?\s*<([^>]+)>$/);
+    if (m) return { name: m[1].trim(), email: m[2].trim() };
+    return { name: '', email: String(from||'').trim() };
+  }
+
+  // 상세보기의 "주소록추가" 버튼 — 보낸사람을 파싱해서 개인 주소록에 추가
+  window.quickAddSenderToAddressBook = function() {
+    const msg = _currentGmailDetailMsg;
+    if (!msg || !msg.from) return;
+    const { name, email } = _parseFromHeader(msg.from);
+    if (typeof window.quickAddMailContact === 'function') window.quickAddMailContact(name, email);
   };
 
   // 상세보기에서 지금 보고 있는 메일 하나를 휴지통으로 이동
@@ -15805,6 +15823,25 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     _renderMailAddressBook();
+  };
+
+  // 받은메일 상세보기의 "주소록추가" 버튼에서 호출 — 이미 있는 이메일이면 중복 추가하지 않는다.
+  window.quickAddMailContact = async function(name, email) {
+    email = String(email || '').trim();
+    if (!email) return;
+    await _loadMailContacts();
+    if (_mailContacts.some(c => (c.email || '').toLowerCase() === email.toLowerCase())) {
+      alert('이미 주소록에 있는 주소입니다.');
+      return;
+    }
+    _mailContacts.push({ name: String(name || '').trim(), email });
+    try {
+      await _saveMailContacts();
+      alert('주소록에 추가했습니다.');
+    } catch(e) {
+      alert('추가 실패: ' + e.message);
+      _mailContacts.pop();
+    }
   };
 })();
 </script>
