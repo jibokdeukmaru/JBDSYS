@@ -190,6 +190,8 @@ window.fetchEmployeesFS = async function() {
 
 <!-- ── PWA 설정 ── -->
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <meta name="theme-color" content="#111111">
 <meta name="mobile-web-app-capable" content="yes">
 
@@ -15507,11 +15509,15 @@ if ('serviceWorker' in navigator) {
       if (!email) { setTimeout(trySave, 2000); return; }
       try {
         await window.fbEnsureAuth();
-        await window.FB.setDoc(
-          window.FB.doc(window.FB.db, 'pushTokens', email),
-          { token: tokenValue, platform: 'android', updatedAtMs: Date.now() },
-          { merge: true }
-        );
+        const ref = window.FB.doc(window.FB.db, 'pushTokens', email);
+        const payload = { token: tokenValue, platform: 'android', updatedAtMs: Date.now() };
+        // ★ firstRegisteredAtMs는 최초 1회만 기록 — 설치 이전에 쌓여있던 메일 알림을
+        //   설치 시점 이후 알림과 구분해서, 서버(send-push)가 옛날 것은 조용히 건너뛰게 한다.
+        const existing = await window.FB.getDoc(ref);
+        if (!existing.exists() || !existing.data().firstRegisteredAtMs) {
+          payload.firstRegisteredAtMs = Date.now();
+        }
+        await window.FB.setDoc(ref, payload, { merge: true });
       } catch (e) { console.warn('푸시 토큰 저장 실패:', e.message); }
     };
     trySave();

@@ -31,10 +31,16 @@ exports.sendPush = async () => {
     const n = doc.data();
     try {
       const tokenSnap = await firestore.collection('pushTokens').doc(n.toEmail || '').get();
-      const token = tokenSnap.exists ? (tokenSnap.data() || {}).token : null;
+      const tokenData = tokenSnap.exists ? (tokenSnap.data() || {}) : null;
+      const token = tokenData ? tokenData.token : null;
+      const firstRegisteredAtMs = tokenData ? tokenData.firstRegisteredAtMs : null;
       console.log('[sendPush] docId=' + doc.id + ' toEmail=' + n.toEmail + ' token=' + (token ? '있음' : '없음'));
 
-      if (token) {
+      // ★ 이 알림이 이 사용자의 앱 설치(푸시 토큰 최초 등록)보다 이전에 만들어진 거면
+      //   설치 전에 쌓인 옛날 메일이므로 발송하지 않고 조용히 넘어간다.
+      if (token && firstRegisteredAtMs && n.createdAtMs && n.createdAtMs < firstRegisteredAtMs) {
+        console.log('[sendPush] 설치 이전 알림이라 발송 생략(docId=' + doc.id + ')');
+      } else if (token) {
         const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' },
