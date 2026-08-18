@@ -13712,7 +13712,11 @@ if ('serviceWorker' in navigator) {
 
     /* 메일 목록: 카드형 (아바타 + 발신자/시간 한 줄, 제목/미리보기 아래 줄) */
     .em-mail-check, .em-mail-flag, .em-mail-icon { display:none !important; }
-    .em-mail-row { flex-wrap:wrap; padding:14px 12px; gap:0; align-items:flex-start; border-bottom:1px solid #eee; }
+    .em-mail-row { flex-wrap:wrap; padding:14px 12px; gap:0; align-items:flex-start; border-bottom:1px solid #eee; position:relative; }
+    /* 길게 눌러 선택 모드에 들어가면 체크박스를 카드 우측 상단에 보여준다 */
+    .em-mail-list.em-select-mode .em-mail-row { padding-right:38px; }
+    .em-mail-list.em-select-mode .em-mail-check { display:block !important; position:absolute; top:14px; right:12px; width:19px; height:19px; }
+    .em-mail-list.em-select-mode .em-mail-row.em-row-selected { background:var(--cream-2); }
     .em-mail-avatar { order:1; display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; flex-shrink:0; margin-right:8px; color:#fff; font-size:11px; font-weight:800; }
     .em-mail-sender { order:2; flex:1 1 auto; min-width:0; font-size:14px; font-weight:700; color:#222; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .em-mail-time { order:3; width:auto; min-width:44px; font-size:11.5px; color:#999; text-align:right; flex-shrink:0; }
@@ -13956,6 +13960,56 @@ if ('serviceWorker' in navigator) {
       if (sidebar) sidebar.style.display = 'flex';
     }
   }
+
+  // ── 모바일: 메일 길게 눌러 선택모드 진입 → 삭제 가능하게 ──
+  function _isEmailMobile() {
+    return (window.screen && window.screen.width) ? window.screen.width <= 768 : window.innerWidth <= 768;
+  }
+  let _emSelectMode = false;
+  function _emEnterSelectMode(firstCheckbox) {
+    _emSelectMode = true;
+    const listEl = document.getElementById('emMailList');
+    if (listEl) listEl.classList.add('em-select-mode');
+    if (firstCheckbox) { firstCheckbox.checked = true; _emUpdateBulkState(); }
+  }
+  function _emExitSelectMode() {
+    if (!_emSelectMode) return;
+    _emSelectMode = false;
+    const listEl = document.getElementById('emMailList');
+    if (listEl) listEl.classList.remove('em-select-mode');
+  }
+
+  (function() {
+    let pressTimer = null;
+    document.addEventListener('touchstart', function(e) {
+      if (!_isEmailMobile()) return;
+      const listEl = document.getElementById('emMailList');
+      const row = e.target.closest('.em-mail-row');
+      if (!row || !listEl || !listEl.contains(row)) return;
+      pressTimer = setTimeout(function() {
+        pressTimer = null;
+        const cb = row.querySelector('.em-mail-check');
+        if (cb) _emEnterSelectMode(cb);
+      }, 500);
+    }, { passive: true });
+    function _emCancelPress() { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+    document.addEventListener('touchend', _emCancelPress);
+    document.addEventListener('touchmove', _emCancelPress);
+    document.addEventListener('touchcancel', _emCancelPress);
+  })();
+
+  // 선택모드에서는 카드를 탭해도 상세보기 대신 체크만 토글되게 가로챈다(캡처 단계에서 먼저 처리).
+  document.addEventListener('click', function(e) {
+    if (!_emSelectMode) return;
+    const listEl = document.getElementById('emMailList');
+    const row = e.target.closest('.em-mail-row');
+    if (!row || !listEl || !listEl.contains(row)) return;
+    if (e.target.closest('.em-mail-check')) return; // 체크박스 자체 클릭은 원래 동작(체크 토글)에 맡김
+    e.stopPropagation();
+    e.preventDefault();
+    const cb = row.querySelector('.em-mail-check');
+    if (cb) { cb.checked = !cb.checked; _emUpdateBulkState(); }
+  }, true);
 
   window.emMobileTabSwitch = function(btn) {
     document.querySelectorAll('#emMobileTabbar .em-mobile-tab').forEach(t => {
@@ -14383,6 +14437,12 @@ if ('serviceWorker' in navigator) {
     const all = document.getElementById('emSelectAll');
     const boxes = document.querySelectorAll('.em-mail-check');
     if (all) all.checked = boxes.length > 0 && n === boxes.length;
+    // 선택된 카드 강조(모바일 선택모드) + 전부 해제되면 선택모드 자동 종료
+    boxes.forEach(cb => {
+      const row = cb.closest('.em-mail-row');
+      if (row) row.classList.toggle('em-row-selected', cb.checked);
+    });
+    if (n === 0) _emExitSelectMode();
   }
   window.emOnCheck = function() { _emUpdateBulkState(); };
   window.emToggleSelectAll = function(checked) {
