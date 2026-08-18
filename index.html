@@ -1238,7 +1238,7 @@ window.fetchEmployeesFS = async function() {
          있어서, sticky가 붙어있을 수 있는 범위(containing block)가 그 짧은 박스 높이뿐이라
          본문을 스크롤하면 부모 박스째로 화면 밖으로 사라져버렸다. .card는 본문 전체를 담고
          있을 만큼 크므로, 이제 스크롤 내내 제대로 따라온다. -->
-    <div id="wikiToolbar" style="display:flex;gap:8px;position:sticky;z-index:50;background:var(--app-bg);padding:6px 0;margin-bottom:6px;">
+    <div id="wikiToolbar" style="display:flex;gap:8px;position:sticky;z-index:50;padding:6px 0;margin-bottom:6px;">
       <button type="button" id="wikiHistoryBtn" onclick="openWikiHistory()" style="background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정기록</button>
       <button type="button" id="wikiEditBtn" onclick="startWikiEdit()" style="background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정</button>
       <button type="button" id="wikiSaveBtn" onclick="saveWikiEdit()" style="display:none;background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
