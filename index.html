@@ -185,6 +185,7 @@
     --ui-scale: 1;
     /* ── 테마 변수 (기본: 브라운) ── 견적서/상태색/경고색은 이 변수를 쓰지 않아 영향 없음 */
     --brand: #A2693E;         /* 메인 브랜드색 */
+    --wiki-money: #e0483e;    /* 위키 금액 강조색 — 모든 테마와 대비되도록 고정 빨강 */
     --brand-dark: #8a6a48;    /* 진한 브랜드색(텍스트 등) */
     --brand-deep: #6f4a2c;    /* 더 진한 톤 */
     --brand-light: #C68A52;   /* 밝은 브랜드색(그라데이션 등) */
@@ -273,6 +274,10 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- 달력(날짜 선택) UI 개선 — 연도 숫자를 직접 타이핑해서 바로 이동 가능 (네이티브 date input의 연도 이동 불편함 개선) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/ko.js"></script>
 <style>
   
 .grid-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
@@ -847,6 +852,7 @@
       <button type="button" class="tab-btn" data-tab="floorplanTab">면적분석</button>
       <button type="button" class="tab-btn" data-tab="memoTab">메모장</button>
       <button type="button" class="tab-btn" data-tab="noticeTab">전사게시판</button>
+      <button type="button" class="tab-btn" id="wikiTabBtn" data-tab="wikiTab">지복득위키</button>
       <button type="button" class="tab-btn" data-tab="leaveTab" id="leaveTabBtn" style="display:none;">휴가신청</button>
       <button type="button" class="tab-btn" data-tab="smsTab" id="smsTabBtn" style="display:none;">문자발송</button>
       <button type="button" class="tab-btn" data-tab="emailTab" id="emailTabBtn">이메일</button>
@@ -1126,6 +1132,48 @@
       <textarea id="workMemo" spellcheck="false" style="width:100%; min-height: calc(100dvh - 200px); padding:15px; border:1px solid #ddd; border-radius:8px; font-size:15px; line-height:1.6; resize:vertical; box-sizing:border-box; background:#fdfdfd;" placeholder="업무 내용을 자유롭게 입력하세요..."></textarea>
     </div>
 </section>
+
+<section id="wikiTab" class="tab-panel" style="display:none;">
+  <div class="card" style="display:flex;flex-direction:column;box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+      <h2 class="title" style="margin-bottom:0;">지복득위키</h2>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="wikiHistoryBtn" onclick="openWikiHistory()" style="background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정기록</button>
+        <button type="button" id="wikiEditBtn" onclick="startWikiEdit()" style="background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">수정</button>
+        <button type="button" id="wikiSaveBtn" onclick="saveWikiEdit()" style="display:none;background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
+        <button type="button" id="wikiCancelBtn" onclick="cancelWikiEdit()" style="display:none;background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;">취소</button>
+      </div>
+    </div>
+    <div id="wikiMeta" style="font-size:11.5px;color:#999;margin-bottom:12px;"></div>
+    <div id="wikiViewArea" style="white-space:pre-wrap;font-size:14.5px;line-height:1.8;color:#222;min-height:calc(100dvh - 260px);padding:4px 2px;">불러오는 중...</div>
+    <textarea id="wikiEditArea" spellcheck="false" style="display:none;width:100%;min-height:calc(100dvh - 260px);padding:15px;border:1px solid #ddd;border-radius:8px;font-size:14.5px;line-height:1.7;resize:vertical;box-sizing:border-box;background:#fdfdfd;" placeholder="지복득마루 영업 및 시공 정보를 자유롭게 작성하세요..."></textarea>
+  </div>
+</section>
+
+<!-- 지복득위키 수정기록 모달 -->
+<div id="wikiHistoryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;width:min(520px,92vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="font-size:15px;font-weight:800;">수정기록</div>
+      <button type="button" onclick="closeWikiHistory()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
+    </div>
+    <div id="wikiHistoryList" style="overflow-y:auto;padding:8px 0;flex:1;"></div>
+  </div>
+</div>
+
+<!-- 지복득위키 과거버전 보기 모달 -->
+<div id="wikiRevisionModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3100;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;width:min(640px,92vw);max-height:82vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div id="wikiRevisionMeta" style="font-size:13px;color:#666;"></div>
+      <button type="button" onclick="closeWikiRevision()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
+    </div>
+    <div id="wikiRevisionBody" style="white-space:pre-wrap;font-size:14px;line-height:1.8;color:#222;padding:18px 20px;overflow-y:auto;flex:1;"></div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;text-align:right;">
+      <button type="button" id="wikiRestoreBtn" onclick="restoreWikiRevision()" style="background:var(--brand);color:#fff;border:none;border-radius:4px;padding:7px 16px;cursor:pointer;font-size:13px;font-weight:700;">이 버전으로 복원</button>
+    </div>
+  </div>
+</div>
 
 <section id="stockTab" class="tab-panel" style="display:none;">
     <div class="content-card">
@@ -6422,7 +6470,7 @@ function csDateInputValue(val) {
       </div>
       <div>
         <label style="font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px;">입사일</label>
-        <input id="empModalJoinDate" type="date"
+        <input id="empModalJoinDate" type="text" autocomplete="off" placeholder="YYYY-MM-DD"
           style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;box-sizing:border-box;">
       </div>
       <div>
@@ -7234,8 +7282,8 @@ function csDateInputValue(val) {
         document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
             const tab = btn.dataset.tab;
             if (tab === 'myInfoTab' || tab === 'adminTab') return;
-            // emailTab은 직원에게는 항상 표시하지만, 게스트에게는 설정에 따름
-            if (tab === 'emailTab' && role !== 'guest') return;
+            // emailTab/wikiTab은 직원에게는 항상 표시하지만, 게스트에게는 설정에 따름
+            if ((tab === 'emailTab' || tab === 'wikiTab') && role !== 'guest') return;
             if (!allowed.includes(tab)) btn.style.display = 'none';
         });
     }
@@ -7509,7 +7557,7 @@ function csDateInputValue(val) {
       {id:'consultTab',label:'쇼룸상담'},{id:'reservationTab',label:'예약관리'},
       {id:'cardScanTab',label:'명함스캐닝'},{id:'contactsTab',label:'연락처'},
       {id:'floorplanTab',label:'면적분석'},{id:'memoTab',label:'메모장'},
-      {id:'noticeTab',label:'전사게시판'},{id:'leaveTab',label:'휴가신청'},{id:'emailTab',label:'이메일'},{id:'smsTab',label:'문자발송'}
+      {id:'noticeTab',label:'전사게시판'},{id:'leaveTab',label:'휴가신청'},{id:'emailTab',label:'이메일'},{id:'smsTab',label:'문자발송'},{id:'wikiTab',label:'지복득위키'}
     ];
 
     window.toggleEmpListVisible = function() {
@@ -9292,6 +9340,9 @@ function setTab(tabId, fromPopstate) {
   if (tabId === 'emailTab' && typeof loadEmailTab === 'function') {
     loadEmailTab();
   }
+  if (tabId === 'wikiTab' && typeof loadWikiTab === 'function') {
+    loadWikiTab();
+  }
   if (tabId === 'approvalTab') {
     loadApprovalList();
   }
@@ -9338,7 +9389,7 @@ const TAB_LABELS = {
   pricingTab:'단가표', calculatorTab:'계산기', stockTab:'재고현황',
   invoiceTab:'견적서', consultTab:'쇼룸상담', reservationTab:'예약관리',
   cardScanTab:'명함스캐닝', contactsTab:'연락처', floorplanTab:'면적분석',
-  memoTab:'메모장', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정'
+  memoTab:'메모장', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득위키'
 };
 
 // ── 내 홈 화면 설정 ──
@@ -15400,6 +15451,177 @@ if ('serviceWorker' in navigator) {
     var ov = document.getElementById('downloadPageOverlay');
     if (ov) ov.addEventListener('mousedown', function(e) { if (e.target === ov) closeDownloadPage(); });
   });
+})();
+</script>
+
+<!-- 입사일 캘린더: 연도 숫자를 직접 타이핑해서 바로 이동 가능하게 개선 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof flatpickr === 'undefined') return;
+  if (flatpickr.l10ns && flatpickr.l10ns.ko) flatpickr.localize(flatpickr.l10ns.ko);
+  const el = document.getElementById('empModalJoinDate');
+  if (el) flatpickr(el, { dateFormat: 'Y-m-d', allowInput: true });
+});
+</script>
+
+<!-- ── 지복득위키: 모든 직원이 자유롭게 수정하는 단일 페이지, 수정기록 보관 ── -->
+<script>
+(function() {
+  function _wikiEsc(s) { return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+  // 금액 표기(20,000원 / 3천원 / 50만원 등)만 테마와 대비되는 색으로 강조
+  function _wikiHighlightMoney(escapedHtml) {
+    return escapedHtml.replace(/\d[\d,]*(?:천|만|억)?원/g, m => `<span style="color:var(--wiki-money);font-weight:800;">${m}</span>`);
+  }
+
+  function _wikiFormatTime(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  let _wikiCurrentContent = '';
+  let _wikiRevisionCache = null;
+  let _wikiViewingRevId = null;
+
+  window.loadWikiTab = async function() {
+    const viewEl = document.getElementById('wikiViewArea');
+    const metaEl = document.getElementById('wikiMeta');
+    if (!viewEl) return;
+    try {
+      await window.fbEnsureAuth();
+      const snap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'wiki', 'main'));
+      const data = snap.exists() ? (snap.data() || {}) : {};
+      _wikiCurrentContent = data.content || '';
+      viewEl.innerHTML = _wikiCurrentContent
+        ? _wikiHighlightMoney(_wikiEsc(_wikiCurrentContent))
+        : '<span style="color:#aaa;">아직 작성된 내용이 없습니다. "수정" 버튼을 눌러 내용을 추가해보세요.</span>';
+      if (metaEl) metaEl.textContent = data.updatedBy ? `최종 수정: ${data.updatedBy} · ${_wikiFormatTime(data.updatedAt)}` : '';
+    } catch(e) {
+      viewEl.textContent = '불러오기 실패: ' + e.message;
+    }
+  };
+
+  window.startWikiEdit = function() {
+    document.getElementById('wikiViewArea').style.display = 'none';
+    document.getElementById('wikiEditBtn').style.display = 'none';
+    document.getElementById('wikiHistoryBtn').style.display = 'none';
+    const area = document.getElementById('wikiEditArea');
+    area.value = _wikiCurrentContent;
+    area.style.display = 'block';
+    document.getElementById('wikiSaveBtn').style.display = 'inline-block';
+    document.getElementById('wikiCancelBtn').style.display = 'inline-block';
+    area.focus();
+  };
+
+  window.cancelWikiEdit = function() {
+    document.getElementById('wikiEditArea').style.display = 'none';
+    document.getElementById('wikiViewArea').style.display = 'block';
+    document.getElementById('wikiEditBtn').style.display = 'inline-block';
+    document.getElementById('wikiHistoryBtn').style.display = 'inline-block';
+    document.getElementById('wikiSaveBtn').style.display = 'none';
+    document.getElementById('wikiCancelBtn').style.display = 'none';
+  };
+
+  window.saveWikiEdit = async function() {
+    const area = document.getElementById('wikiEditArea');
+    const newContent = area.value;
+    const user = window._currentUser;
+    const saveBtn = document.getElementById('wikiSaveBtn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
+    try {
+      await window.fbEnsureAuth();
+      const now = Date.now();
+      const editorName = (user && user.name) || '알수없음';
+      await window.FB.setDoc(window.FB.doc(window.FB.db, 'wiki', 'main'), {
+        content: newContent, updatedAt: now, updatedBy: editorName
+      });
+      // 수정기록에 스냅샷 추가(복원/이력조회용) — 매 저장마다 전체 내용을 그대로 남긴다.
+      await window.FB.addDoc(window.FB.collection(window.FB.db, 'wikiHistory'), {
+        content: newContent, editedAt: now, editedBy: editorName, editedById: (user && user.id) || ''
+      });
+      _wikiCurrentContent = newContent;
+      cancelWikiEdit();
+      loadWikiTab();
+    } catch(e) {
+      alert('저장 실패: ' + e.message);
+    } finally {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장'; }
+    }
+  };
+
+  window.openWikiHistory = async function() {
+    const modal = document.getElementById('wikiHistoryModal');
+    const listEl = document.getElementById('wikiHistoryList');
+    modal.style.display = 'flex';
+    listEl.innerHTML = '<div style="padding:20px;text-align:center;color:#999;font-size:13px;">불러오는 중...</div>';
+    try {
+      await window.fbEnsureAuth();
+      const q = window.FB.query(
+        window.FB.collection(window.FB.db, 'wikiHistory'),
+        window.FB.orderBy('editedAt', 'desc'),
+        window.FB.limit(50)
+      );
+      const snap = await window.FB.getDocs(q);
+      _wikiRevisionCache = {};
+      const rows = [];
+      snap.forEach(d => {
+        const data = d.data();
+        _wikiRevisionCache[d.id] = data;
+        rows.push(`<div class="hamburger-menu-item" style="cursor:pointer;display:flex;justify-content:space-between;" onclick="viewWikiRevision('${d.id}')">
+          <span>${_wikiFormatTime(data.editedAt)}</span>
+          <span style="color:#999;font-size:12px;">${_wikiEsc(data.editedBy || '')}</span>
+        </div>`);
+      });
+      listEl.innerHTML = rows.length ? rows.join('') : '<div style="padding:20px;text-align:center;color:#999;font-size:13px;">수정기록이 없습니다.</div>';
+    } catch(e) {
+      listEl.innerHTML = `<div style="padding:20px;text-align:center;color:#c0392b;font-size:13px;">불러오기 실패: ${e.message}</div>`;
+    }
+  };
+
+  window.closeWikiHistory = function() {
+    document.getElementById('wikiHistoryModal').style.display = 'none';
+  };
+
+  window.viewWikiRevision = function(id) {
+    const data = _wikiRevisionCache && _wikiRevisionCache[id];
+    if (!data) return;
+    _wikiViewingRevId = id;
+    document.getElementById('wikiRevisionMeta').textContent = `${_wikiFormatTime(data.editedAt)} · ${data.editedBy || ''}`;
+    document.getElementById('wikiRevisionBody').innerHTML = data.content
+      ? _wikiHighlightMoney(_wikiEsc(data.content))
+      : '<span style="color:#aaa;">(빈 내용)</span>';
+    document.getElementById('wikiRevisionModal').style.display = 'flex';
+  };
+
+  window.closeWikiRevision = function() {
+    document.getElementById('wikiRevisionModal').style.display = 'none';
+    _wikiViewingRevId = null;
+  };
+
+  window.restoreWikiRevision = async function() {
+    if (!_wikiViewingRevId || !_wikiRevisionCache) return;
+    const data = _wikiRevisionCache[_wikiViewingRevId];
+    if (!data) return;
+    if (!confirm('이 버전으로 복원하시겠습니까? 현재 내용은 수정기록에 남아있어 나중에도 다시 볼 수 있습니다.')) return;
+    const user = window._currentUser;
+    try {
+      await window.fbEnsureAuth();
+      const now = Date.now();
+      const editorName = (user && user.name) || '알수없음';
+      await window.FB.setDoc(window.FB.doc(window.FB.db, 'wiki', 'main'), {
+        content: data.content, updatedAt: now, updatedBy: editorName
+      });
+      await window.FB.addDoc(window.FB.collection(window.FB.db, 'wikiHistory'), {
+        content: data.content, editedAt: now, editedBy: editorName, editedById: (user && user.id) || ''
+      });
+      closeWikiRevision();
+      closeWikiHistory();
+      loadWikiTab();
+    } catch(e) {
+      alert('복원 실패: ' + e.message);
+    }
+  };
 })();
 </script>
 
