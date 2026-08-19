@@ -11896,6 +11896,30 @@ function fmtNum(n) {
     return Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-';
 }
 
+// ── "JIBOKDEUKMARU" 브랜드 텍스트의 폭을, 아래 제목(직접입력 텍스트)의 실제 렌더링 폭과
+//    맞춘다 — letter-spacing 두 지점(0px/10px)의 폭을 재서 1px당 늘어나는 폭을 구하고,
+//    거기서 목표 폭에 필요한 letter-spacing을 역산한다(폰트/브라우저에 상관없이 정확함).
+function _fitInvBrandWidth(brandEl, titleEl) {
+    if (!brandEl || !titleEl) return;
+    const targetWidth = titleEl.getBoundingClientRect().width;
+    if (!targetWidth) return;
+    const clone = brandEl.cloneNode(true);
+    clone.style.position = 'absolute';
+    clone.style.visibility = 'hidden';
+    clone.style.left = '-9999px';
+    clone.style.marginLeft = '0';
+    document.body.appendChild(clone);
+    clone.style.letterSpacing = '0px';
+    const w0 = clone.getBoundingClientRect().width;
+    clone.style.letterSpacing = '10px';
+    const w10 = clone.getBoundingClientRect().width;
+    document.body.removeChild(clone);
+    const perPx = (w10 - w0) / 10;
+    let spacing = perPx > 0 ? (targetWidth - w0) / perPx : 12.2;
+    if (!isFinite(spacing) || spacing < 0) spacing = 0;
+    brandEl.style.letterSpacing = spacing.toFixed(2) + 'px';
+}
+
 function renderInvoice() {
 
     // 메타
@@ -12074,7 +12098,7 @@ function renderInvoice() {
         titleEl.style.fontSize = customSize + 'px';
         titleEl.style.letterSpacing = (customSpacing !== '' && customSpacing != null ? customSpacing : '-1') + 'px';
         if (subtitleEl) subtitleEl.textContent = '';
-        if (brandEl) { brandEl.style.letterSpacing = '12.2px'; brandEl.style.marginRight = '0px'; }
+        if (brandEl) { _fitInvBrandWidth(brandEl, titleEl); brandEl.style.marginRight = '0px'; }
     } else if (subtitleEl) {
         if (titleEl) { titleEl.style.fontSize = ''; titleEl.style.letterSpacing = ''; }
         const isDraft = document.getElementById('invDraftCheck')?.checked;
