@@ -69,21 +69,6 @@
     });
   };
 
-  // ★ 윅스 iframe 안에서 position:fixed 오버레이는 "iframe 자체의 맨 위" 기준으로 고정돼버려서,
-  //   바깥 윅스 페이지를 스크롤한 만큼 화면 밖으로 밀려 안 보이거나 잘리는 문제가 있었다
-  //   (게스트메뉴/허용메뉴 모달, 재고 상세 팝업 등). 모달을 여는 시점의 실제 스크롤 위치를 기준으로
-  //   절대 위치를 잡아, 이중스크롤 여부와 무관하게 항상 현재 보이는 화면에 뜨게 한다.
-  window._positionModalAtScroll = function(modalEl) {
-    if (!modalEl) return;
-    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    modalEl.style.position = 'absolute';
-    modalEl.style.top = scrollY + 'px';
-    modalEl.style.left = '0';
-    modalEl.style.right = '0';
-    modalEl.style.bottom = 'auto';
-    modalEl.style.height = (window.innerHeight || document.documentElement.clientHeight || 800) + 'px';
-    modalEl.style.display = 'flex';
-  };
 </script>
 
 <!-- ★ 직원목록 조회(getEmployees)를 Apps Script(구글시트) 대신 Firestore employees 컬렉션에서
@@ -114,78 +99,6 @@ window.fetchEmployeesFS = async function() {
 };
 </script>
 
-<script>
-// ── 윅스(Wix) iframe 안 모바일 접속 시, 정상 화면으로 이동하는 버튼 표시 ──
-(function () {
-  try {
-    var isIframe = (window.self !== window.top);
-    if (!isIframe) return;
-    var isMobile = (window.screen && window.screen.width)
-      ? window.screen.width <= 768
-      : /Mobi|Android|iPhone/i.test(navigator.userAgent);
-    if (!isMobile) return;
-    var showButton = function () {
-      if (document.getElementById('wixExitOverlay')) return;
-      var overlay = document.createElement('div');
-      overlay.id = 'wixExitOverlay';
-      // ★ 윅스 iframe 안에서 position:fixed는 "iframe 자체 좌표" 기준으로 고정돼버려서, 이 페이지가
-      //   iframe 안에서 실제로 얼마나 스크롤돼 있는지와 무관하게 위치가 어긋나 아래로 처져 보였다.
-      //   생성 시점의 실제 스크롤 위치를 기준으로 absolute 배치해 항상 현재 보이는 화면에 뜨게 한다.
-      var _scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-      var _viewH = window.innerHeight || document.documentElement.clientHeight || 800;
-      overlay.style.cssText = 'position:absolute;top:' + _scrollY + 'px;left:0;right:0;height:' + _viewH + 'px;z-index:999999;background:#FFFFFF;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;font-family:"Pretendard","Noto Sans KR",sans-serif;text-align:center;box-sizing:border-box;';
-      overlay.innerHTML =
-        '<img src="https://github.com/jibokdeukmaru/JBDSYS/blob/main/%EB%A1%9C%EA%B3%A0.png?raw=true" alt="지복득마루" style="width:120px;height:auto;margin-bottom:22px;">' +
-        '<div style="font-size:13.5px;color:#666;line-height:1.6;margin-bottom:28px;max-width:280px;">모바일에서는 더 넓고 편한 화면으로<br>보여드리기 위해 페이지를 이동합니다</div>' +
-        '<button id="wixExitBtn" style="background:#000;color:#fff;border:none;padding:16px 36px;border-radius:12px;font-size:15px;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,0.2);cursor:pointer;font-family:inherit;">사내시스템에 접속합니다</button>';
-      overlay.querySelector('#wixExitBtn').onclick = function () {
-        window.top.location.href = 'https://jibokdeukmaru.github.io/JBDSYS/';
-      };
-      if (document.body) document.body.appendChild(overlay);
-    };
-    document.addEventListener('DOMContentLoaded', showButton);
-    window.addEventListener('load', showButton);
-  } catch (e) {}
-})();
-</script>
-<script>
-// ── Wix iframe 높이 자동 조절 (postMessage) ──
-(function () {
-  try {
-    if (window.self === window.top) return;
-    var lastHeight = 0;
-    function sendHeight() {
-      // lockSection(position:fixed)은 실제 문서 높이에 포함하지 않도록
-      // mainSection이 보이면 그 높이를 기준으로, 아니면 body 기준으로 계산
-      var mainEl = document.getElementById('mainSection');
-      var h;
-      if (mainEl && mainEl.style.display !== 'none') {
-        h = Math.max(mainEl.scrollHeight, mainEl.offsetHeight);
-      } else {
-        h = Math.max(
-          document.body.scrollHeight,
-          document.body.offsetHeight,
-          document.documentElement.scrollHeight,
-          document.documentElement.offsetHeight
-        );
-      }
-      if (h === lastHeight) return;
-      lastHeight = h;
-      window.parent.postMessage({ type: 'jbdHEIGHT', height: h }, '*');
-    }
-    document.addEventListener('DOMContentLoaded', sendHeight);
-    window.addEventListener('load', sendHeight);
-    if (window.ResizeObserver) {
-      var ro = new ResizeObserver(sendHeight);
-      document.addEventListener('DOMContentLoaded', function () { ro.observe(document.body); });
-    }
-    // 300ms → 800ms: Wix가 잦은 높이 변경으로 잘못 계산하는 빈도 줄이기
-    setInterval(sendHeight, 800);
-    // mainSection 노출 직후 즉시 1회 전송을 위해 전역 노출
-    window._sendIframeHeight = sendHeight;
-  } catch (e) {}
-})();
-</script>
 <title>지복득마루시스템</title>
 
 <!-- ── PWA 설정 ── -->
@@ -313,9 +226,8 @@ window.fetchEmployeesFS = async function() {
 .grid-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
   .grid-tabs .quick-preview-trigger .secondary { width: 100%; min-height: 44px; padding: 0 4px; border: 1px solid #d8d8d8; border-radius: 8px; background: #fff; color: #444; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; }
   * { box-sizing:border-box; }
-  /* ★ overflow-y는 visible로 둔다(auto 금지) — body가 자체 스크롤 영역이 되면 Wix에서
-     iframe 높이를 내용에 맞게 늘려줘도 body 안쪽에서 또 스크롤이 걸려 이중 스크롤이 생긴다.
-     스크롤은 항상 윅스 부모 페이지 하나에서만 일어나야 한다. */
+  /* ★ overflow-y는 visible로 둔다(auto 금지) — body 안쪽에 별도 스크롤 영역을 만들면
+     바깥 뷰포트 스크롤과 겹쳐서 이중 스크롤이 생긴다. 스크롤은 항상 body 하나에서만 일어나야 한다. */
   body { margin:0; font-family:'Pretendard','Noto Sans KR', sans-serif; background:var(--app-bg); color:#2B2521; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; overflow-x:hidden; overflow-y:visible; }
   [spellcheck], input, textarea, td, th, select { -webkit-spellcheck: false; }
   td, th { -webkit-user-modify: read-only; }
@@ -5859,7 +5771,6 @@ function csDateInputValue(val) {
     renderNoticeReplies(n.id);
     const _dm = document.getElementById('noticeDetailModal');
     _dm.classList.add('open');
-    window._positionModalAtScroll(_dm);
     const _inner = _dm.querySelector('.notice-modal'); if (_inner) _inner.scrollTop = 0; // 항상 맨 위부터
     document.body.style.overflow = 'hidden';
   };
@@ -5908,7 +5819,6 @@ function csDateInputValue(val) {
     renderNoticeAttachList();
     document.getElementById('noticeWriteTitle').textContent = '전사게시판 글쓰기';
     document.getElementById('noticeWriteModal').classList.add('open');
-    window._positionModalAtScroll(document.getElementById('noticeWriteModal'));
     { const _w = document.querySelector('#noticeWriteModal .notice-modal'); if (_w) _w.scrollTop = 0; }
     document.body.style.overflow='hidden';
     document.getElementById('noticeContent').innerHTML = '';
@@ -5920,8 +5830,6 @@ function csDateInputValue(val) {
     document.getElementById('noticeWriteTitle').textContent = '전사게시판 글쓰기';
     const m = document.getElementById('noticeWriteModal');
     m.classList.remove('open');
-    // ★ _positionModalAtScroll이 인라인 style.display='flex'를 남겨두는데, 클래스만 떼면
-    //   그 인라인 스타일이 우선해서 계속 화면에 남아있는다(모바일 "안 닫힘" 원인). 같이 지운다.
     m.style.removeProperty('display');
     document.body.style.removeProperty('overflow');
   };
@@ -5943,7 +5851,6 @@ function csDateInputValue(val) {
     closeNoticeDetailModal();
     document.getElementById('noticeWriteTitle').textContent = '전사게시판 글 수정';
     document.getElementById('noticeWriteModal').classList.add('open');
-    window._positionModalAtScroll(document.getElementById('noticeWriteModal'));
     { const _w = document.querySelector('#noticeWriteModal .notice-modal'); if (_w) _w.scrollTop = 0; }
     document.body.style.overflow='hidden';
     document.getElementById('noticeTitle').value = n.title || '';
@@ -7285,12 +7192,6 @@ function csDateInputValue(val) {
             if (el) el.value = '';
           });
         }
-        // iframe 환경에서 mainSection 노출 직후 높이 즉시 전송
-        try {
-          if (window.self !== window.top && typeof window._sendIframeHeight === 'function') {
-            setTimeout(window._sendIframeHeight, 50);
-          }
-        } catch(_) {}
         // 뒤로가기 시 직전 탭으로 이동하도록, 로그인 완료 시점을 히스토리 기준점으로 고정
         try { history.replaceState({ tab: null }, '', ''); } catch(_) {}
 
@@ -8016,7 +7917,7 @@ function csDateInputValue(val) {
         document.getElementById('empModalIsHead').checked    = false;
         document.getElementById('empModalIsManager').checked = false;
       }
-      window._positionModalAtScroll(modal);
+      modal.style.display = 'flex';
       document.body.style.overflow = 'hidden';
     };
 
@@ -8156,7 +8057,7 @@ function csDateInputValue(val) {
           </div>
         `;
       }).join('');
-      window._positionModalAtScroll(document.getElementById('tabPermModal'));
+      document.getElementById('tabPermModal').style.display = 'flex';
       document.body.style.overflow = 'hidden';
     };
 
@@ -8255,7 +8156,7 @@ function csDateInputValue(val) {
             </div>
           </div>`;
       }).join('');
-      window._positionModalAtScroll(document.getElementById('guestTabModal'));
+      document.getElementById('guestTabModal').style.display = 'flex';
       document.body.style.overflow = 'hidden';
     };
 
@@ -8296,7 +8197,7 @@ function csDateInputValue(val) {
     window.openInfoRequestModal = function() {
       const modal = document.getElementById('infoRequestModal');
       if (modal) {
-        window._positionModalAtScroll(modal);
+        modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
         document.getElementById('infoRequestText').value = '';
         document.getElementById('infoRequestMsg').textContent = '';
@@ -8437,7 +8338,7 @@ function csDateInputValue(val) {
         }
       }
       const modal = document.getElementById('adminInfoReqModal');
-      if (modal) { window._positionModalAtScroll(modal); document.body.style.overflow = 'hidden'; }
+      if (modal) { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
     };
     window.closeAdminInfoReqModal = function() {
       const modal = document.getElementById('adminInfoReqModal');
@@ -9407,12 +9308,6 @@ function resetViewportZoom() {
     meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes');
   }, 50);
   window.scrollTo(0, 0);
-  // Wix(iframe 부모)에도 최상단 스크롤 요청 — 탭 전환 시 부모 페이지가 중간에 걸리는 문제 해소
-  try {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'jbdSCROLLTOP' }, '*');
-    }
-  } catch(_) {}
 }
 
 function openCardViewer(src) {
@@ -9420,7 +9315,7 @@ function openCardViewer(src) {
   const img = document.getElementById('cardViewerImg');
   if (!overlay || !img) return;
   img.src = src;
-  window._positionModalAtScroll(overlay);
+  overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 }
 function closeCardViewer() {
@@ -10708,34 +10603,14 @@ async function fetchStockData(forceRefresh = false) {
             <button onclick="fetchStockData()" style="margin-top:10px;padding:6px 16px;background:#111;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">다시 시도</button>
             </td></tr>`;
     }
-    // ★ 재고 표는 로딩→실패/재시도 과정에서 늦게, 크게 높이가 바뀔 수 있어
-    //   윅스 iframe 리사이즈(ResizeObserver+800ms 폴링)가 따라잡기 전 순간적으로 이중스크롤이 보일 수 있다.
-    //   렌더 직후 즉시 한 번 더 높이를 강제로 재전송해 그 틈을 없앤다.
-    if (window._sendIframeHeight) window._sendIframeHeight();
 }
 
 // ============================================================
 //  품번 상세 모달 — 발주현황 / 입고예정일 / 예약일정
 // ============================================================
-// iframe(Wix 임베드) 안에서 부모 페이지의 스크롤/뷰포트 정보를 저장
-window._parentViewport = null;
-// 클릭 위치 기반 배치를 이미 했다면, 뒤늦게 도착하는 부모뷰포트 응답이 그걸 덮어쓰지 않게 막는 용도
 let _itemModalClickY = null;
-window.addEventListener('message', function(ev) {
-  if (ev.data && ev.data.__erpViewport) {
-    window._parentViewport = ev.data.__erpViewport;
-    const m = document.getElementById('itemDetailModal');
-    if (m && m.style.display === 'flex' && _itemModalClickY == null) _positionItemModal();
-  }
-}, false);
 
-function _requestParentViewport() {
-  try { if (window.parent && window.parent !== window) window.parent.postMessage({ __erpRequestViewport: true }, '*'); } catch(e) {}
-}
-
-// 재고 상세 팝업 배치 (iframe 대응). clickY가 있으면 그 위치 근처에, 없으면 기존 방식으로 폴백.
-//   ★ ERP 페이지 body의 overflow-y:auto를 없앤 이중스크롤 수정 덕분에, iframe 자체엔 내부
-//     스크롤이 없다 — 그래서 클릭 이벤트의 clientY가 곧 문서(페이지) 안에서의 세로 위치와 같다.
+// 재고 상세 팝업 배치. clickY가 있으면 그 위치 근처에, 없으면 화면 상단 근처에 고정.
 function _positionItemModal(clickY) {
   const modal = document.getElementById('itemDetailModal');
   if (!modal) return;
@@ -10755,25 +10630,10 @@ function _positionItemModal(clickY) {
     return;
   }
 
-  // 클릭 좌표가 없을 때(프로그래밍적 호출 등)는 기존 방식으로 폴백
-  _requestParentViewport();
-  const vp = window._parentViewport;
-  if (vp && typeof vp.scrollY === 'number' && typeof vp.iframeTop === 'number') {
-    // 부모 협조 정보가 있을 때: 부모 뷰포트 중앙을 iframe 내부 좌표로 변환해 배치
-    modal.style.position = 'absolute';
-    modal.style.alignItems = 'flex-start';
-    const centerInParent = vp.scrollY + vp.innerHeight / 2;
-    const yInIframe = centerInParent - vp.iframeTop;
-    const boxH = box.offsetHeight || 400;
-    let top = yInIframe - boxH / 2;
-    if (top < 20) top = 20;
-    box.style.marginTop = top + 'px';
-  } else {
-    // 부모 정보 없음(대부분의 Wix 임베드): 팝업을 iframe 뷰포트 상단 근처에 고정.
-    modal.style.position = 'fixed';
-    modal.style.alignItems = 'flex-start';
-    box.style.marginTop = 'clamp(20px, 8vh, 120px)';
-  }
+  // 클릭 좌표가 없을 때(프로그래밍적 호출 등)는 화면 상단 근처에 고정
+  modal.style.position = 'fixed';
+  modal.style.alignItems = 'flex-start';
+  box.style.marginTop = 'clamp(20px, 8vh, 120px)';
 }
 
 async function openItemDetail(itemCode, evt) {
@@ -12378,8 +12238,7 @@ async function saveInvoiceImage() {
 
         // 7. 저장 — JPG blob
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
-        const inIframe = (() => { try { return window.self !== window.top; } catch(_) { return true; } })();
-        if (!isMobile && !inIframe && window.showSaveFilePicker) {
+        if (!isMobile && window.showSaveFilePicker) {
             const handle = await window.showSaveFilePicker({
                 suggestedName: fileName,
                 types: [{ description: 'JPG 이미지', accept: { 'image/jpeg': ['.jpg'] } }]
@@ -12402,15 +12261,7 @@ async function saveInvoiceImage() {
             document.body.appendChild(a);
             a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-            if (inIframe) {
-                // 임베드(iframe) 환경: 다운로드가 sandbox 정책에 막힐 수 있어 새 탭으로도 열어 우회 제공
-                const url2 = URL.createObjectURL(blob);
-                window.open(url2, '_blank');
-                showToast('새 창에서 이미지를 우클릭(길게 눌러) 저장하세요');
-                setTimeout(() => URL.revokeObjectURL(url2), 60000);
-            } else {
-                showToast('이미지 저장 완료');
-            }
+            showToast('이미지 저장 완료');
         }
     } catch(e) {
         if (e && e.name === 'AbortError') return;
@@ -12467,8 +12318,7 @@ async function saveInvoicePdf() {
         const fileName = safeName ? `${prefix}견적서(${dateStr})_${safeName}.pdf` : `${prefix}견적서(${dateStr}).pdf`;
 
         const pdfBlob = pdf.output('blob');
-        const inIframe = (() => { try { return window.self !== window.top; } catch(_) { return true; } })();
-        if (!isMobile && !inIframe && window.showSaveFilePicker) {
+        if (!isMobile && window.showSaveFilePicker) {
             const handle = await window.showSaveFilePicker({
                 suggestedName: fileName,
                 types: [{ description: 'PDF 파일', accept: { 'application/pdf': ['.pdf'] } }]
@@ -12485,8 +12335,8 @@ async function saveInvoicePdf() {
             document.body.appendChild(a);
             a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-            if (inIframe || isMobile) {
-                // 임베드(iframe)·모바일 환경: 다운로드가 막힐 수 있어 새 탭으로도 열어 우회 제공
+            if (isMobile) {
+                // 모바일 환경: 다운로드가 막힐 수 있어 새 탭으로도 열어 우회 제공
                 const url2 = URL.createObjectURL(pdfBlob);
                 window.open(url2, '_blank');
                 showToast('새 창에서 PDF를 저장(공유)하세요');
@@ -12579,7 +12429,7 @@ async function saveInvoicePdf() {
             phoneRow.style.display = 'flex';
         } else { phoneRow.style.display = 'none'; }
 
-        window._positionModalAtScroll(document.getElementById('contactTooltip'));
+        document.getElementById('contactTooltip').style.display = 'flex';
     };
 
     document.getElementById('contactsSearch').addEventListener('input', function() {
@@ -12953,7 +12803,6 @@ if ('serviceWorker' in navigator) {
     const restoreBtn = document.getElementById('consultTrashRestoreBtn');
     const msgEl = document.getElementById('consultTrashMsg');
     overlay.classList.add('open');
-    window._positionModalAtScroll(overlay);
     document.body.style.overflow = 'hidden';
     msgEl.textContent = '';
     restoreBtn.disabled = true;
@@ -12996,7 +12845,7 @@ if ('serviceWorker' in navigator) {
   window.closeConsultTrash = function() {
     const m = document.getElementById('consultTrashOverlay');
     m.classList.remove('open');
-    m.style.removeProperty('display'); // _positionModalAtScroll이 남긴 인라인 display 정리
+    m.style.removeProperty('display');
     document.body.style.removeProperty('overflow');
   };
 
@@ -13112,7 +12961,6 @@ if ('serviceWorker' in navigator) {
   };
   window.openCsvModal = function() {
     document.getElementById('csvModalOverlay').classList.add('open');
-    window._positionModalAtScroll(document.getElementById('csvModalOverlay'));
     document.body.style.overflow = 'hidden';
     document.getElementById('csvFileInput').value = '';
     document.getElementById('csvPreview').style.display = 'none';
@@ -13122,7 +12970,7 @@ if ('serviceWorker' in navigator) {
   window.closeCsvModal = function() {
     const m = document.getElementById('csvModalOverlay');
     m.classList.remove('open');
-    m.style.removeProperty('display'); // _positionModalAtScroll이 남긴 인라인 display 정리
+    m.style.removeProperty('display');
     document.body.style.removeProperty('overflow');
   };
 
@@ -14687,7 +14535,7 @@ if ('serviceWorker' in navigator) {
       } catch(e) {}
     };
 
-    window._positionModalAtScroll(document.getElementById('emPreviewModal'));
+    document.getElementById('emPreviewModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
   };
 
