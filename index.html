@@ -1624,16 +1624,28 @@ window.fetchEmployeesFS = async function() {
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; margin:0 0 12px; padding:12px 14px; background:#f9f9f9; border:1px solid #eee; border-radius:12px;">
       <label class="check-chip">
-        <input type="checkbox" id="invSplitCostCheck" />
-        재료비 / 인건비+부자재비 분리
+        <input type="checkbox" id="invDraftCheck" onchange="renderInvoice()" />
+        가견적서
+      </label>
+      <label class="check-chip">
+        <input type="checkbox" id="invFinalCheck" onchange="renderInvoice()" />
+        정산서
+      </label>
+      <label class="check-chip">
+        <input type="checkbox" id="invAsCheck" onchange="renderInvoice()" />
+        AS견적서 작성
+      </label>
+      <label class="check-chip">
+        <input type="checkbox" id="invTitleEditCheck" data-invoice-bound="1" onchange="onInvTitleEditToggle(this)" />
+        제목 직접입력
       </label>
       <label class="check-chip">
         <input type="checkbox" id="invRemarksEditCheck" data-invoice-bound="1" onchange="onInvRemarksEditToggle(this)" />
         REMARKS 직접입력
       </label>
       <label class="check-chip">
-        <input type="checkbox" id="invTitleEditCheck" data-invoice-bound="1" onchange="onInvTitleEditToggle(this)" />
-        제목 직접입력
+        <input type="checkbox" id="invSplitCostCheck" />
+        재료비 / 인건비+부자재비 분리
       </label>
       <label class="check-chip">
         <input type="checkbox" id="invMergeLaborCheck" onchange="renderInvoice()" />
@@ -1644,12 +1656,8 @@ window.fetchEmployeesFS = async function() {
         박스기준 헤베계산
       </label>
       <label class="check-chip">
-        <input type="checkbox" id="invDraftCheck" onchange="renderInvoice()" />
-        가견적서
-      </label>
-      <label class="check-chip">
-        <input type="checkbox" id="invAsCheck" onchange="renderInvoice()" />
-        AS견적서 작성
+        <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
+        단분리
       </label>
       <div class="check-chip" style="grid-column:1 / -1;white-space:nowrap;">
         <input type="checkbox" id="invAdjustCheck" checked onchange="renderInvoice()" />
@@ -1657,14 +1665,6 @@ window.fetchEmployeesFS = async function() {
         (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 4px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;white-space:nowrap;">천원</label>
         <input type="checkbox" id="invAdjustUnit10000" onchange="onInvAdjustUnitChange('10000')" style="margin:0 2px 0 6px;"><label for="invAdjustUnit10000" style="cursor:pointer;margin:0;white-space:nowrap;">만원</label>)
       </div>
-      <label class="check-chip">
-        <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
-        단분리
-      </label>
-      <label class="check-chip">
-        <input type="checkbox" id="invFinalCheck" onchange="renderInvoice()" />
-        정산서
-      </label>
     </div>
 
     <!-- 제목(INVOICE 등) 직접입력 (체크 시 표시) -->
