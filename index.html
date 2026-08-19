@@ -1159,8 +1159,10 @@ window.fetchEmployeesFS = async function() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
       <h2 class="title" style="margin-bottom:0;">지복득마루위키</h2>
     </div>
-    <!-- 본문 안 <대제목> 목록에서 자동으로 만들어지는 빠른 이동 버튼줄 (좌측 정렬) -->
-    <div id="wikiHeadingNav" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+    <!-- 본문 안 <대제목> 목록에서 자동으로 만들어지는 빠른 이동 버튼줄 (좌측 정렬).
+         수정기록/수정 버튼줄과 같은 이유로 sticky — 부모(.card)가 본문 전체를 담을 만큼
+         커서 스크롤 내내 따라온다. -->
+    <div id="wikiHeadingNav" style="display:flex;flex-wrap:wrap;gap:6px;position:sticky;z-index:51;padding:6px 0;margin-bottom:2px;"></div>
     <!-- ★ 버튼줄의 부모를 .card 바로 아래로 옮김 — 예전엔 h2와 한 줄짜리 짧은 flex 박스 안에
          있어서, sticky가 붙어있을 수 있는 범위(containing block)가 그 짧은 박스 높이뿐이라
          본문을 스크롤하면 부모 박스째로 화면 밖으로 사라져버렸다. .card는 본문 전체를 담고
@@ -16060,14 +16062,17 @@ document.addEventListener('DOMContentLoaded', function() {
     navEl.innerHTML = buttons.join('');
   }
 
-  // 대제목 버튼 클릭 시 그 위치로 스크롤 — 상단 메뉴바 + 위키 버튼줄(둘 다 sticky)에
-  // 가려지지 않도록, 그 둘의 높이만큼 오프셋을 두고 이동한다.
+  // 대제목 버튼 클릭 시 그 위치로 스크롤 — 상단 메뉴바 + 퀵네비 줄 + 수정 버튼줄(전부 sticky)에
+  // 가려지지 않도록, 그 셋의 높이만큼 오프셋을 두고 이동한다.
   window.scrollToWikiHeading = function(id) {
     const el = document.getElementById(id);
     if (!el) return;
     const nav = document.querySelector('.tabs-wrap');
+    const headingNav = document.getElementById('wikiHeadingNav');
     const toolbar = document.getElementById('wikiToolbar');
-    const offset = (nav ? nav.getBoundingClientRect().height : 0) + (toolbar ? toolbar.getBoundingClientRect().height : 0) + 10;
+    const offset = (nav ? nav.getBoundingClientRect().height : 0)
+      + (headingNav ? headingNav.getBoundingClientRect().height : 0)
+      + (toolbar ? toolbar.getBoundingClientRect().height : 0) + 10;
     const y = el.getBoundingClientRect().top + window.pageYOffset - offset;
     window.scrollTo({ top: y, behavior: 'smooth' });
   };
@@ -16085,6 +16090,9 @@ document.addEventListener('DOMContentLoaded', function() {
         ? _wikiRenderContentWithAnchors(_wikiCurrentContent)
         : '<span style="color:#aaa;">아직 작성된 내용이 없습니다. "수정" 버튼을 눌러 내용을 추가해보세요.</span>';
       _renderWikiHeadingNav();
+      // ★ 퀵네비 줄은 본문을 비동기로 불러온 뒤에야 채워지므로, setTab에서 곧바로 부른
+      //   fixWikiToolbarTop()은 아직 빈 상태(높이 0)를 보고 계산했을 수 있다 — 채워진 뒤 다시 계산.
+      if (typeof window.fixWikiToolbarTop === 'function') window.fixWikiToolbarTop();
       if (metaEl) metaEl.textContent = data.updatedBy ? `최종 수정: ${data.updatedBy} · ${_wikiFormatTime(data.updatedAt)}` : '';
     } catch(e) {
       viewEl.textContent = '불러오기 실패: ' + e.message;
@@ -16469,13 +16477,22 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 </script>
 
-<!-- 지복득위키 수정/수정기록 버튼 줄도 같은 이유로 상단 메뉴바 높이만큼 아래로 고정 -->
+<!-- 지복득위키 대제목 퀵네비 줄 + 수정/수정기록 버튼 줄, 둘 다 같은 이유로 sticky —
+     상단 메뉴바 높이만큼 아래로 고정하고, 퀵네비 줄 바로 아래에 버튼줄이 이어지도록
+     서로 겹치지 않게 순서대로 쌓는다. -->
 <script>
 window.fixWikiToolbarTop = function() {
   const nav = document.querySelector('.tabs-wrap');
+  const headingNav = document.getElementById('wikiHeadingNav');
   const toolbar = document.getElementById('wikiToolbar');
   if (!nav || !toolbar) return;
-  toolbar.style.top = nav.getBoundingClientRect().height + 'px';
+  const navHeight = nav.getBoundingClientRect().height;
+  let toolbarTop = navHeight;
+  if (headingNav) {
+    headingNav.style.top = navHeight + 'px';
+    toolbarTop = navHeight + headingNav.getBoundingClientRect().height;
+  }
+  toolbar.style.top = toolbarTop + 'px';
 };
 window.addEventListener('resize', window.fixWikiToolbarTop);
 document.addEventListener('DOMContentLoaded', window.fixWikiToolbarTop);
