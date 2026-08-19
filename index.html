@@ -1247,6 +1247,8 @@ window.fetchEmployeesFS = async function() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
       <h2 class="title" style="margin-bottom:0;">지복득마루위키</h2>
     </div>
+    <!-- 본문 안 <대제목> 목록에서 자동으로 만들어지는 빠른 이동 버튼줄 (좌측 정렬) -->
+    <div id="wikiHeadingNav" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
     <!-- ★ 버튼줄의 부모를 .card 바로 아래로 옮김 — 예전엔 h2와 한 줄짜리 짧은 flex 박스 안에
          있어서, sticky가 붙어있을 수 있는 범위(containing block)가 그 짧은 박스 높이뿐이라
          본문을 스크롤하면 부모 박스째로 화면 밖으로 사라져버렸다. .card는 본문 전체를 담고
@@ -1282,10 +1284,7 @@ window.fetchEmployeesFS = async function() {
   <div style="background:#fff;border-radius:12px;width:min(640px,92vw);max-height:82vh;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div id="wikiRevisionMeta" style="font-size:13px;color:#666;"></div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button type="button" id="wikiDiffToggleBtn" onclick="toggleWikiDiffView()" style="background:none;border:1px solid var(--border);color:#666;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap;">전체 내용 보기</button>
-        <button type="button" onclick="closeWikiRevision()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
-      </div>
+      <button type="button" onclick="closeWikiRevision()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">✕</button>
     </div>
     <div id="wikiRevisionBody" style="white-space:pre-wrap;font-size:14px;line-height:1.8;color:#222;padding:18px 20px;overflow-y:auto;flex:1;"></div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;text-align:right;">
@@ -16014,7 +16013,6 @@ document.addEventListener('DOMContentLoaded', function() {
   let _wikiRevisionOrder = null; // 최신순으로 정렬된 문서 id 배열 — "바로 이전 버전" 찾을 때 사용
   let _wikiViewingRevId = null;
   let _wikiViewingRevPrevContent = '';
-  let _wikiDiffViewActive = true;
 
   // ── 두 텍스트 비교(diff) — 외부 라이브러리 없이 LCS(최장 공통 부분수열) 기반으로 직접 계산.
   //   줄 단위로 먼저 비교하고, 바뀐 줄끼리는 다시 단어/숫자 단위로 비교해서 실제로
@@ -16054,41 +16052,101 @@ document.addEventListener('DOMContentLoaded', function() {
     }).join('');
   }
 
+  // 대제목(<...> 한 줄 전체) 판별 — 위키 퀵네비/수정기록 대제목 표시에 공용으로 사용
+  function _wikiHeadingMatch(line) {
+    return String(line || '').trim().match(/^<([^<>]+)>$/);
+  }
+
+  // lines[idx] 이전(포함 안 함) 줄들 중 가장 가까운 대제목 텍스트를 찾는다.
+  function _wikiHeadingBeforeLine(lines, idx) {
+    for (let i = Math.min(idx, lines.length - 1); i >= 0; i--) {
+      const m = _wikiHeadingMatch(lines[i]);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
   // 변경된 줄만 골라서 렌더링 — 안 바뀐 줄은 아예 표시하지 않는다.
+  // 단, 바뀐 내용이 어느 <대제목> 아래에 있었는지는 항상 같이 보여준다(그 대제목 자체는
+  // 안 바뀌었어도) — 대제목이 바뀔 때마다 한 번씩만 표시한다.
   function _wikiRenderDiffHtml(oldContent, newContent) {
-    const lineOps = _wikiLCSOps((oldContent || '').split('\n'), (newContent || '').split('\n'));
+    const oldLines = (oldContent || '').split('\n');
+    const newLines = (newContent || '').split('\n');
+    const lineOps = _wikiLCSOps(oldLines, newLines);
     const blocks = [];
-    let i = 0;
+    let oldIdx = 0, newIdx = 0, i = 0;
     while (i < lineOps.length) {
-      if (lineOps[i].type === 'same') { i++; continue; }
+      if (lineOps[i].type === 'same') { oldIdx++; newIdx++; i++; continue; }
+      const startOldIdx = oldIdx, startNewIdx = newIdx;
       const dels = [], adds = [];
-      while (i < lineOps.length && lineOps[i].type === 'del') { dels.push(lineOps[i].value); i++; }
-      while (i < lineOps.length && lineOps[i].type === 'add') { adds.push(lineOps[i].value); i++; }
+      while (i < lineOps.length && lineOps[i].type === 'del') { dels.push(lineOps[i].value); oldIdx++; i++; }
+      while (i < lineOps.length && lineOps[i].type === 'add') { adds.push(lineOps[i].value); newIdx++; i++; }
+      const refLines = adds.length ? newLines : oldLines;
+      const refIdx = adds.length ? startNewIdx : startOldIdx;
+      const heading = _wikiHeadingBeforeLine(refLines, refIdx - 1);
       const pairCount = Math.min(dels.length, adds.length);
-      for (let k = 0; k < pairCount; k++) blocks.push({ type: 'changed', oldLine: dels[k], newLine: adds[k] });
-      for (let k = pairCount; k < dels.length; k++) blocks.push({ type: 'removed', line: dels[k] });
-      for (let k = pairCount; k < adds.length; k++) blocks.push({ type: 'added', line: adds[k] });
+      for (let k = 0; k < pairCount; k++) blocks.push({ type: 'changed', oldLine: dels[k], newLine: adds[k], heading });
+      for (let k = pairCount; k < dels.length; k++) blocks.push({ type: 'removed', line: dels[k], heading });
+      for (let k = pairCount; k < adds.length; k++) blocks.push({ type: 'added', line: adds[k], heading });
     }
     if (!blocks.length) return '<span style="color:#aaa;">이전 버전과 달라진 내용이 없습니다.</span>';
-    return blocks.map(b => {
-      if (b.type === 'changed') return `<div style="padding:3px 0;">${_wikiRenderLineDiffHtml(b.oldLine, b.newLine)}</div>`;
-      if (b.type === 'added') return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;color:#1a7f37;background:#eaf7ec;">+ ${_wikiEsc(b.line)}</div>`;
-      return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;color:#c0392b;background:#fdeceb;text-decoration:line-through;">- ${_wikiEsc(b.line)}</div>`;
-    }).join('');
+    let lastHeading;
+    const parts = [];
+    blocks.forEach(b => {
+      if (b.heading !== lastHeading) {
+        lastHeading = b.heading;
+        if (b.heading) parts.push(`<div style="font-weight:800;margin:12px 0 4px;color:#333;">&lt;${_wikiEsc(b.heading)}&gt;</div>`);
+      }
+      if (b.type === 'changed') parts.push(`<div style="padding:3px 0;">${_wikiRenderLineDiffHtml(b.oldLine, b.newLine)}</div>`);
+      else if (b.type === 'added') parts.push(`<div style="padding:3px 6px;margin:2px 0;border-radius:4px;color:#1a7f37;background:#eaf7ec;">+ ${_wikiEsc(b.line)}</div>`);
+      else parts.push(`<div style="padding:3px 6px;margin:2px 0;border-radius:4px;color:#c0392b;background:#fdeceb;text-decoration:line-through;">- ${_wikiEsc(b.line)}</div>`);
+    });
+    return parts.join('');
   }
 
   function _renderWikiRevisionBody() {
     const data = _wikiRevisionCache && _wikiRevisionCache[_wikiViewingRevId];
     const bodyEl = document.getElementById('wikiRevisionBody');
     if (!data || !bodyEl) return;
-    if (_wikiDiffViewActive) {
-      bodyEl.innerHTML = _wikiRenderDiffHtml(_wikiViewingRevPrevContent, data.content || '');
-    } else {
-      bodyEl.innerHTML = data.content
-        ? _wikiHighlightMoney(_wikiEsc(data.content))
-        : '<span style="color:#aaa;">(빈 내용)</span>';
-    }
+    bodyEl.innerHTML = _wikiRenderDiffHtml(_wikiViewingRevPrevContent, data.content || '');
   }
+
+  // 본문 줄 단위로 렌더링하면서, <대제목> 줄에는 이동용 anchor id를 붙인다.
+  //   ★ _renderWikiHeadingNav()와 반드시 같은 순서로 대제목을 스캔해야 버튼-앵커 id가 일치한다.
+  function _wikiRenderContentWithAnchors(content) {
+    let headIdx = 0;
+    return String(content || '').split('\n').map(line => {
+      const m = _wikiHeadingMatch(line);
+      const html = _wikiHighlightMoney(_wikiEsc(line));
+      return m ? `<span id="wikiHead_${headIdx++}" class="wiki-heading-anchor">${html}</span>` : html;
+    }).join('\n');
+  }
+
+  function _renderWikiHeadingNav() {
+    const navEl = document.getElementById('wikiHeadingNav');
+    if (!navEl) return;
+    let headIdx = 0;
+    const buttons = [];
+    String(_wikiCurrentContent || '').split('\n').forEach(line => {
+      const m = _wikiHeadingMatch(line);
+      if (!m) return;
+      const id = 'wikiHead_' + (headIdx++);
+      buttons.push(`<button type="button" onclick="scrollToWikiHeading('${id}')" style="background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:700;">${_wikiEsc(m[1])}</button>`);
+    });
+    navEl.innerHTML = buttons.join('');
+  }
+
+  // 대제목 버튼 클릭 시 그 위치로 스크롤 — 상단 메뉴바 + 위키 버튼줄(둘 다 sticky)에
+  // 가려지지 않도록, 그 둘의 높이만큼 오프셋을 두고 이동한다.
+  window.scrollToWikiHeading = function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const nav = document.querySelector('.tabs-wrap');
+    const toolbar = document.getElementById('wikiToolbar');
+    const offset = (nav ? nav.getBoundingClientRect().height : 0) + (toolbar ? toolbar.getBoundingClientRect().height : 0) + 10;
+    const y = el.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  };
 
   window.loadWikiTab = async function() {
     const viewEl = document.getElementById('wikiViewArea');
@@ -16100,8 +16158,9 @@ document.addEventListener('DOMContentLoaded', function() {
       const data = snap.exists() ? (snap.data() || {}) : {};
       _wikiCurrentContent = data.content || '';
       viewEl.innerHTML = _wikiCurrentContent
-        ? _wikiHighlightMoney(_wikiEsc(_wikiCurrentContent))
+        ? _wikiRenderContentWithAnchors(_wikiCurrentContent)
         : '<span style="color:#aaa;">아직 작성된 내용이 없습니다. "수정" 버튼을 눌러 내용을 추가해보세요.</span>';
+      _renderWikiHeadingNav();
       if (metaEl) metaEl.textContent = data.updatedBy ? `최종 수정: ${data.updatedBy} · ${_wikiFormatTime(data.updatedAt)}` : '';
     } catch(e) {
       viewEl.textContent = '불러오기 실패: ' + e.message;
@@ -16236,19 +16295,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const idx = order.indexOf(id);
     const prevId = (idx >= 0 && idx < order.length - 1) ? order[idx + 1] : null;
     _wikiViewingRevPrevContent = prevId ? (_wikiRevisionCache[prevId].content || '') : '';
-    _wikiDiffViewActive = true;
-    const toggleBtn = document.getElementById('wikiDiffToggleBtn');
-    if (toggleBtn) toggleBtn.textContent = '전체 내용 보기';
     document.getElementById('wikiRevisionMeta').textContent = `${_wikiFormatTime(data.editedAt)} · ${data.editedBy || ''}`;
     _renderWikiRevisionBody();
     document.getElementById('wikiRevisionModal').style.display = 'flex';
-  };
-
-  window.toggleWikiDiffView = function() {
-    _wikiDiffViewActive = !_wikiDiffViewActive;
-    const toggleBtn = document.getElementById('wikiDiffToggleBtn');
-    if (toggleBtn) toggleBtn.textContent = _wikiDiffViewActive ? '전체 내용 보기' : '변경 내용만 보기';
-    _renderWikiRevisionBody();
   };
 
   window.closeWikiRevision = function() {
