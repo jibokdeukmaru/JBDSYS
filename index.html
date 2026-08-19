@@ -11895,12 +11895,25 @@ function fmtNum(n) {
     return Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-';
 }
 
+// 텍스트 노드 자체의 실제 렌더링 폭을 잰다(Range 이용) — 부모가 .inv-title처럼
+// display:block(너비가 텍스트 길이와 무관하게 부모 컨테이너 폭 전체)인 경우
+// getBoundingClientRect()를 부모 요소에 바로 쓰면 글자 폭이 아니라 컨테이너 전체
+// 폭이 잡혀버리는 문제가 있어, 반드시 텍스트 노드 자체를 Range로 측정해야 한다.
+function _measureTextNodeWidth(node) {
+    if (!node) return 0;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const width = range.getBoundingClientRect().width;
+    if (range.detach) range.detach();
+    return width;
+}
+
 // ── "JIBOKDEUKMARU" 브랜드 텍스트의 폭을, 아래 제목(직접입력 텍스트)의 실제 렌더링 폭과
 //    맞춘다 — letter-spacing 두 지점(0px/10px)의 폭을 재서 1px당 늘어나는 폭을 구하고,
 //    거기서 목표 폭에 필요한 letter-spacing을 역산한다(폰트/브라우저에 상관없이 정확함).
 function _fitInvBrandWidth(brandEl, titleEl) {
     if (!brandEl || !titleEl) return;
-    const targetWidth = titleEl.getBoundingClientRect().width;
+    const targetWidth = _measureTextNodeWidth(titleEl.childNodes[0]);
     if (!targetWidth) return;
     const clone = brandEl.cloneNode(true);
     clone.style.position = 'absolute';
