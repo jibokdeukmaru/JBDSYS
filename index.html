@@ -1640,10 +1640,6 @@ window.fetchEmployeesFS = async function() {
         제목 직접입력
       </label>
       <label class="check-chip">
-        <input type="checkbox" id="invRemarksEditCheck" data-invoice-bound="1" onchange="onInvRemarksEditToggle(this)" />
-        REMARKS 직접입력
-      </label>
-      <label class="check-chip">
         <input type="checkbox" id="invSplitCostCheck" />
         재료비 / 인건비+부자재비 분리
       </label>
@@ -1656,14 +1652,18 @@ window.fetchEmployeesFS = async function() {
         박스기준 헤베계산
       </label>
       <label class="check-chip">
+        <input type="checkbox" id="invRemarksEditCheck" data-invoice-bound="1" onchange="onInvRemarksEditToggle(this)" />
+        REMARKS 직접입력
+      </label>
+      <label class="check-chip">
         <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
         단분리
       </label>
-      <div class="check-chip" style="grid-column:1 / -1;white-space:nowrap;">
+      <div class="check-chip" style="white-space:nowrap;">
         <input type="checkbox" id="invAdjustCheck" checked onchange="renderInvoice()" />
         <label for="invAdjustCheck" style="cursor:pointer;margin:0;white-space:nowrap;">단수정리</label>
-        (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 4px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;white-space:nowrap;">천원</label>
-        <input type="checkbox" id="invAdjustUnit10000" onchange="onInvAdjustUnitChange('10000')" style="margin:0 2px 0 6px;"><label for="invAdjustUnit10000" style="cursor:pointer;margin:0;white-space:nowrap;">만원</label>)
+        (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 3px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;white-space:nowrap;">천</label>
+        <input type="checkbox" id="invAdjustUnit10000" onchange="onInvAdjustUnitChange('10000')" style="margin:0 2px 0 4px;"><label for="invAdjustUnit10000" style="cursor:pointer;margin:0;white-space:nowrap;">만</label>)
       </div>
     </div>
 
