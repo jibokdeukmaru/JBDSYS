@@ -5572,22 +5572,26 @@ function csDateInputValue(val) {
     _renderHomeReservations(); // 예약관리
     _renderHomeEmails();    // 메일함(보낸메일)
 
+    // ★ 아래 세 데이터 소스는 서로 독립적이라 동시에 불러온다 — 예전엔 순서대로 기다려서
+    //   세 번의 왕복시간이 그대로 더해졌는데(로그인 직후 홈 화면이라 캐시가 비어있는 경우가
+    //   흔함), Promise.all로 묶어서 가장 느린 것 하나만큼만 기다리면 되게 한다.
+    const homeTasks = [];
     // 쇼룸상담: 캐시 없으면 로드
     if ((!window._consultsCache || !window._consultsCache.length) && typeof loadConsults === 'function') {
-      try { await loadConsults(); _renderHomeConsults(); } catch(e){}
+      homeTasks.push(loadConsults().then(_renderHomeConsults).catch(()=>{}));
     }
     // 예약: 캐시 없으면 로드
     if ((!window.allReservations || !window.allReservations.length) && typeof loadReservations === 'function') {
-      try { await loadReservations(); _renderHomeReservations(); } catch(e){}
+      homeTasks.push(loadReservations().then(_renderHomeReservations).catch(()=>{}));
     }
-    // 게시판: 캐시 없으면 불러온 뒤 재렌더 — 우선순위를 뒤로 미룸(쇼룸상담/예약보다 나중)
+    // 게시판: 캐시 없으면 불러온 뒤 재렌더
     if (!notices.length) {
-      try {
-        const data = await _fetchNoticesFromFirestore();
+      homeTasks.push(_fetchNoticesFromFirestore().then(data => {
         notices = data.rows || []; replies = data.replies || [];
         _renderHomeNotices();
-      } catch(e) {}
+      }).catch(()=>{}));
     }
+    await Promise.all(homeTasks);
   };
 
   function _homeItem(main, sub, badge, onclick) {
@@ -10956,6 +10960,7 @@ function renderStockTable(rows, orderRows, arrivalRows) {
         const tr = document.createElement('tr');
         tr.className = (isGrayGroup ? 'bg-group-gray' : 'bg-group-white') + (isNewGroup ? ' group-first' : '');
         tr.dataset.seriesGroup = seriesGroupKey;
+        tr.dataset.itemCode = d.itemCode; // ★ 툴팁 이벤트 위임(delegation)에서 행별 품번을 알아내는 용도
         tr.style.display = 'none'; // 기본 접힘 — 시리즈 헤더 클릭 시 펼침
 
         const totalRaw = String(d.totalM2);
@@ -10998,38 +11003,44 @@ tr.innerHTML = `
             if (link) link.addEventListener('click', (e) => openItemDetail(d.itemCode, e));
         }
 
-        // 툴팁 — TOOLTIP 시트 기반
-        tr.addEventListener('mousemove', async (e) => {
+        tbody.appendChild(tr);
+    });
+    });
+
+    // 툴팁 — TOOLTIP 시트 기반. ★ 행마다 mousemove/mouseleave 리스너를 따로 붙이면 재고 항목이
+    //   많을 때(수백 행) 리스너가 그만큼 쌓여 렌더링이 느려진다 — tbody 하나에만 위임(delegation)
+    //   리스너를 걸고, 각 행에 심어둔 data-item-code로 어느 행 위인지 판단한다.
+    //   renderStockTable이 여러 번(업로드/탭 재진입마다) 불릴 수 있으므로 최초 1회만 등록한다.
+    if (!tbody._tooltipDelegated) {
+        tbody._tooltipDelegated = true;
+        tbody.addEventListener('mousemove', async (e) => {
             const tooltip = document.getElementById('stockTooltip');
             if (!tooltip) return;
+            const row = e.target.closest('tr[data-item-code]');
+            if (!row) { tooltip.style.display = 'none'; return; }
+            const itemCode = row.dataset.itemCode;
 
-            // tooltipMap 아직 안 로드됐으면 로드 후 재시도
             if (!tooltipMap) await loadTooltipMap();
-
-            const key = d.itemCode.trim().toUpperCase();
+            const key = itemCode.trim().toUpperCase();
             const info = tooltipMap[key];
 
             if (info) {
                 if (info.spec === '단종') {
-                    tooltip.innerHTML = `<strong>[${d.itemCode}] ${info.name}</strong><br><span style="color:#ff4d4d;font-weight:bold;">단종</span>`;
+                    tooltip.innerHTML = `<strong>[${itemCode}] ${info.name}</strong><br><span style="color:#ff4d4d;font-weight:bold;">단종</span>`;
                 } else {
-                    tooltip.innerHTML = `<strong>[${d.itemCode}] ${info.name}</strong><br>규격: ${info.spec || '정보 없음'}`;
+                    tooltip.innerHTML = `<strong>[${itemCode}] ${info.name}</strong><br>규격: ${info.spec || '정보 없음'}`;
                 }
             } else {
-                tooltip.innerHTML = `<strong>[${d.itemCode}]</strong><br>정보 없음`;
+                tooltip.innerHTML = `<strong>[${itemCode}]</strong><br>정보 없음`;
             }
 
             tooltip.style.cssText = `display:block;left:${e.pageX + 15}px;top:${e.pageY + 15}px;`;
         });
-
-        tr.addEventListener('mouseleave', () => {
+        tbody.addEventListener('mouseleave', () => {
             const tooltip = document.getElementById('stockTooltip');
             if (tooltip) tooltip.style.display = 'none';
         });
-
-        tbody.appendChild(tr);
-    });
-    });
+    }
 }
 
 // 재고현황 시리즈 헤더 클릭 시 그 시리즈에 속한 품번 행들을 펼치기/접기 (아이콘 회전도 같이 처리)
