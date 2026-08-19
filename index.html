@@ -1651,14 +1651,12 @@ window.fetchEmployeesFS = async function() {
         <input type="checkbox" id="invAsCheck" onchange="renderInvoice()" />
         AS견적서 작성
       </label>
-      <label class="check-chip">
+      <div class="check-chip">
         <input type="checkbox" id="invAdjustCheck" checked onchange="renderInvoice()" />
-        단수정리
-      </label>
-      <label class="check-chip">
-        <input type="checkbox" id="invAdjustManCheck" onchange="renderInvoice()" />
-        만원단위(기본 천원단위)
-      </label>
+        <label for="invAdjustCheck" style="cursor:pointer;margin:0;">단수정리</label>
+        (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 4px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;">천원</label>
+        <input type="checkbox" id="invAdjustUnit10000" onchange="onInvAdjustUnitChange('10000')" style="margin:0 2px 0 6px;"><label for="invAdjustUnit10000" style="cursor:pointer;margin:0;">만원</label>)
+      </div>
       <label class="check-chip">
         <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
         단분리
@@ -11948,6 +11946,15 @@ function _fitInvBrandWidth(brandEl, titleEl) {
     }
 }
 
+// 단수정리 단위(천원/만원) 선택 — 항상 둘 중 하나만 선택되게(라디오처럼) 동작
+window.onInvAdjustUnitChange = function(which) {
+    const c1000 = document.getElementById('invAdjustUnit1000');
+    const c10000 = document.getElementById('invAdjustUnit10000');
+    if (which === '1000') { if (c1000) c1000.checked = true; if (c10000) c10000.checked = false; }
+    else { if (c10000) c10000.checked = true; if (c1000) c1000.checked = false; }
+    renderInvoice();
+};
+
 function renderInvoice() {
 
     // 메타
@@ -12053,7 +12060,7 @@ function renderInvoice() {
 
     const grandAfterDeduct = grandRaw - depositAmt - interimAmt;
     const useAdjust = document.getElementById('invAdjustCheck')?.checked !== false;
-    const adjustUnit = document.getElementById('invAdjustManCheck')?.checked ? 10000 : 1000;
+    const adjustUnit = document.getElementById('invAdjustUnit10000')?.checked ? 10000 : 1000;
     const grand = useAdjust ? Math.floor(grandAfterDeduct / adjustUnit) * adjustUnit : grandAfterDeduct;
     const adjust = grand - grandAfterDeduct;
 
