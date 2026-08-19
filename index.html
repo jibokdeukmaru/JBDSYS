@@ -13914,6 +13914,8 @@ if ('serviceWorker' in navigator) {
   function renderOrgLeaveTable(emps) {
     const list = document.getElementById('orgLeaveList');
     if (!list) return;
+    // 관리자(시스템 로그인용, 실제 직원 아님) 계정은 연차 현황에 표시하지 않는다.
+    emps = emps.filter(e => String(e.name || '').trim() !== '관리자');
     const TITLE_ORDER = ['대표이사','CEO','부회장','회장','사장','부사장','전무','상무','이사','본부장','실장','부장','차장','과장','팀장','대리','주임','사원','인턴'];
     const DEPT_ORDER  = ['회계','R&D','영업','물류'];
     const getRank  = t => { const i = TITLE_ORDER.findIndex(o => String(t||'').includes(o)); return i === -1 ? 99 : i; };
