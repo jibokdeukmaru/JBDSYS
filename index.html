@@ -8017,10 +8017,12 @@ function csDateInputValue(val) {
         document.getElementById('empModalIsManager').checked = false;
       }
       window._positionModalAtScroll(modal);
+      document.body.style.overflow = 'hidden';
     };
 
     window.closeEmpModal = function() {
       document.getElementById('empModal').style.display = 'none';
+      document.body.style.removeProperty('overflow');
     };
 
     window.submitEmpModal = async function() {
@@ -8155,6 +8157,7 @@ function csDateInputValue(val) {
         `;
       }).join('');
       window._positionModalAtScroll(document.getElementById('tabPermModal'));
+      document.body.style.overflow = 'hidden';
     };
 
     window.setTabPerm = function(tabId, isOn) {
@@ -8168,6 +8171,7 @@ function csDateInputValue(val) {
 
     window.closeTabPermModal = function() {
       document.getElementById('tabPermModal').style.display = 'none';
+      document.body.style.removeProperty('overflow');
     };
 
     window.saveTabPermFromModal = async function() {
@@ -8252,6 +8256,7 @@ function csDateInputValue(val) {
           </div>`;
       }).join('');
       window._positionModalAtScroll(document.getElementById('guestTabModal'));
+      document.body.style.overflow = 'hidden';
     };
 
     window.setGuestTabPerm = function(tabId, isOn) {
@@ -8265,6 +8270,7 @@ function csDateInputValue(val) {
 
     window.closeGuestTabModal = function() {
       document.getElementById('guestTabModal').style.display = 'none';
+      document.body.style.removeProperty('overflow');
     };
 
     window.saveGuestTabsFromModal = async function() {
@@ -8291,6 +8297,7 @@ function csDateInputValue(val) {
       const modal = document.getElementById('infoRequestModal');
       if (modal) {
         window._positionModalAtScroll(modal);
+        document.body.style.overflow = 'hidden';
         document.getElementById('infoRequestText').value = '';
         document.getElementById('infoRequestMsg').textContent = '';
       }
@@ -8299,6 +8306,7 @@ function csDateInputValue(val) {
     window.closeInfoRequestModal = function() {
       const modal = document.getElementById('infoRequestModal');
       if (modal) modal.style.display = 'none';
+      document.body.style.removeProperty('overflow');
     };
 
     window.submitInfoRequest = async function() {
@@ -8429,11 +8437,12 @@ function csDateInputValue(val) {
         }
       }
       const modal = document.getElementById('adminInfoReqModal');
-      if (modal) window._positionModalAtScroll(modal);
+      if (modal) { window._positionModalAtScroll(modal); document.body.style.overflow = 'hidden'; }
     };
     window.closeAdminInfoReqModal = function() {
       const modal = document.getElementById('adminInfoReqModal');
       if (modal) modal.style.display = 'none';
+      document.body.style.removeProperty('overflow');
       _adminInfoReqCurrentRowIdx = null;
     };
     window.resolveAdminInfoReqFromModal = async function() {
@@ -12944,6 +12953,8 @@ if ('serviceWorker' in navigator) {
     const restoreBtn = document.getElementById('consultTrashRestoreBtn');
     const msgEl = document.getElementById('consultTrashMsg');
     overlay.classList.add('open');
+    window._positionModalAtScroll(overlay);
+    document.body.style.overflow = 'hidden';
     msgEl.textContent = '';
     restoreBtn.disabled = true;
     listEl.innerHTML = '<div style="text-align:center;color:#999;font-size:13px;padding:16px 0;">불러오는 중...</div>';
@@ -12983,7 +12994,10 @@ if ('serviceWorker' in navigator) {
   };
 
   window.closeConsultTrash = function() {
-    document.getElementById('consultTrashOverlay').classList.remove('open');
+    const m = document.getElementById('consultTrashOverlay');
+    m.classList.remove('open');
+    m.style.removeProperty('display'); // _positionModalAtScroll이 남긴 인라인 display 정리
+    document.body.style.removeProperty('overflow');
   };
 
   window.restoreCheckedConsults = async function() {
@@ -13099,13 +13113,17 @@ if ('serviceWorker' in navigator) {
   window.openCsvModal = function() {
     document.getElementById('csvModalOverlay').classList.add('open');
     window._positionModalAtScroll(document.getElementById('csvModalOverlay'));
+    document.body.style.overflow = 'hidden';
     document.getElementById('csvFileInput').value = '';
     document.getElementById('csvPreview').style.display = 'none';
     document.getElementById('csvImportBtn').disabled = true;
     document.getElementById('csvMsg').textContent = '';
   };
   window.closeCsvModal = function() {
-    document.getElementById('csvModalOverlay').classList.remove('open');
+    const m = document.getElementById('csvModalOverlay');
+    m.classList.remove('open');
+    m.style.removeProperty('display'); // _positionModalAtScroll이 남긴 인라인 display 정리
+    document.body.style.removeProperty('overflow');
   };
 
   let parsedCsvRows = [];
@@ -14670,10 +14688,12 @@ if ('serviceWorker' in navigator) {
     };
 
     window._positionModalAtScroll(document.getElementById('emPreviewModal'));
+    document.body.style.overflow = 'hidden';
   };
 
   window.closeEmailPreview = function() {
     document.getElementById('emPreviewModal').style.display = 'none';
+    document.body.style.removeProperty('overflow');
   };
 
   const COMPANY_EMAILS = [
