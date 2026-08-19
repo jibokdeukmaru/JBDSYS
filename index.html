@@ -1651,11 +1651,11 @@ window.fetchEmployeesFS = async function() {
         <input type="checkbox" id="invAsCheck" onchange="renderInvoice()" />
         AS견적서 작성
       </label>
-      <div class="check-chip">
+      <div class="check-chip" style="grid-column:1 / -1;white-space:nowrap;">
         <input type="checkbox" id="invAdjustCheck" checked onchange="renderInvoice()" />
-        <label for="invAdjustCheck" style="cursor:pointer;margin:0;">단수정리</label>
-        (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 4px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;">천원</label>
-        <input type="checkbox" id="invAdjustUnit10000" onchange="onInvAdjustUnitChange('10000')" style="margin:0 2px 0 6px;"><label for="invAdjustUnit10000" style="cursor:pointer;margin:0;">만원</label>)
+        <label for="invAdjustCheck" style="cursor:pointer;margin:0;white-space:nowrap;">단수정리</label>
+        (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 4px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;white-space:nowrap;">천원</label>
+        <input type="checkbox" id="invAdjustUnit10000" onchange="onInvAdjustUnitChange('10000')" style="margin:0 2px 0 6px;"><label for="invAdjustUnit10000" style="cursor:pointer;margin:0;white-space:nowrap;">만원</label>)
       </div>
       <label class="check-chip">
         <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
