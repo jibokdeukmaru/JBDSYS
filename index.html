@@ -11909,27 +11909,39 @@ function _measureTextNodeWidth(node) {
 }
 
 // ── "JIBOKDEUKMARU" 브랜드 텍스트의 폭을, 아래 제목(직접입력 텍스트)의 실제 렌더링 폭과
-//    맞춘다 — letter-spacing 두 지점(0px/10px)의 폭을 재서 1px당 늘어나는 폭을 구하고,
-//    거기서 목표 폭에 필요한 letter-spacing을 역산한다(폰트/브라우저에 상관없이 정확함).
+//    맞춘다. ★ 이전 버전은 분리된 clone 요소를 getBoundingClientRect()로 재고, 제목 쪽은
+//    Range로 재는 식으로 서로 다른 두 측정 방식을 섞어썼는데, 이 둘이 완전히 같은 값을
+//    보장하지 않아 계속 살짝씩 어긋났다. 지금은 브랜드 텍스트도 제목과 똑같이 Range로
+//    재고, 실제 화면에 있는 요소에 이분탐색으로 letter-spacing을 직접 맞춰나간다 —
+//    측정 방식이 양쪽 다 동일해서 폰트/자간 계산 오차가 생길 여지가 없다.
 function _fitInvBrandWidth(brandEl, titleEl) {
     if (!brandEl || !titleEl) return;
-    const targetWidth = _measureTextNodeWidth(titleEl.childNodes[0]);
-    if (!targetWidth) return;
-    const clone = brandEl.cloneNode(true);
-    clone.style.position = 'absolute';
-    clone.style.visibility = 'hidden';
-    clone.style.left = '-9999px';
-    clone.style.marginLeft = '0';
-    document.body.appendChild(clone);
-    clone.style.letterSpacing = '0px';
-    const w0 = clone.getBoundingClientRect().width;
-    clone.style.letterSpacing = '10px';
-    const w10 = clone.getBoundingClientRect().width;
-    document.body.removeChild(clone);
-    const perPx = (w10 - w0) / 10;
-    let spacing = perPx > 0 ? (targetWidth - w0) / perPx : 12.2;
-    if (!isFinite(spacing) || spacing < 0) spacing = 0;
-    brandEl.style.letterSpacing = spacing.toFixed(2) + 'px';
+    const textNode = brandEl.childNodes[0];
+    if (!textNode) return;
+    const apply = () => {
+        const targetWidth = _measureTextNodeWidth(titleEl.childNodes[0]);
+        if (!targetWidth) return;
+        let lo = 0, hi = 60;
+        brandEl.style.letterSpacing = hi + 'px';
+        let guard = 0;
+        while (_measureTextNodeWidth(textNode) < targetWidth && hi < 500 && guard < 20) {
+            hi *= 2;
+            brandEl.style.letterSpacing = hi + 'px';
+            guard++;
+        }
+        for (let i = 0; i < 24; i++) {
+            const mid = (lo + hi) / 2;
+            brandEl.style.letterSpacing = mid + 'px';
+            if (_measureTextNodeWidth(textNode) < targetWidth) lo = mid; else hi = mid;
+        }
+        brandEl.style.letterSpacing = hi.toFixed(2) + 'px';
+    };
+    apply();
+    // 커스텀 웹폰트(GmarketSans)가 이 시점에 아직 다운로드 중이었다면 제목 폭이 부정확하게
+    // 잡혔을 수 있어, 폰트 로딩이 끝난 뒤 한 번 더 맞춰준다(이미 로딩됐으면 즉시 재실행됨).
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(apply).catch(() => {});
+    }
 }
 
 function renderInvoice() {
