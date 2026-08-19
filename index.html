@@ -323,7 +323,7 @@ window.fetchEmployeesFS = async function() {
   .tabs-wrap { 
     position:sticky; top:0; z-index:1000;
     display:flex; align-items:center; gap:8px; margin-bottom:6px;
-    background:rgba(var(--header-bg),0.82); -webkit-backdrop-filter:saturate(1.4) blur(10px); backdrop-filter:saturate(1.4) blur(10px); padding:14px 12px; border-bottom:1px solid var(--header-border);
+    background:rgba(var(--header-bg),0.96); padding:14px 12px; border-bottom:1px solid var(--header-border);
   }
   .hamburger-btn { min-width:36px; height:36px; border:1px solid var(--border); border-radius:8px; background:#FFFFFF; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; flex-shrink:0; padding:0; }
   .hamburger-btn span { display:block; width:16px; height:2px; background:var(--muted); border-radius:2px; }
@@ -13300,6 +13300,16 @@ if ('serviceWorker' in navigator) {
   let _allLeaves  = []; // 전체 휴가 내역 캐시
   let _publicLeaves = []; // 전사 휴가 캘린더용 (getLeavesPublic)
   let _publicLeavesAt = 0;
+  let _leaveHolidayMap = {}; // { "2026-01-01": "신정", ... } — 예약관리 탭과 같은 소스(Firestore settings/holidays)
+
+  async function _loadLeaveHolidays() {
+    try {
+      await window.fbEnsureAuth();
+      const snap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'settings', 'holidays'));
+      _leaveHolidayMap = snap.exists() ? (snap.data() || {}) : {};
+      if (typeof renderLeaveCal === 'function') renderLeaveCal();
+    } catch(e) { _leaveHolidayMap = {}; }
+  }
 
   async function loadPublicLeaves(force) {
     const now = Date.now();
@@ -13356,7 +13366,10 @@ if ('serviceWorker' in navigator) {
     const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
     const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
     if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
-    return Math.min(15 + Math.floor((diffYears - 1) / 2), 25);
+    // 1년 이상은 회계연도 기준(입사일 기념일이 아니라 "올해 연도 − 입사 연도"로 근속연수
+    // 계산) — 다우오피스 등 실제 쓰던 시스템과 같은 방식으로 통일.
+    const years = today.getFullYear() - join.getFullYear();
+    return Math.min(15 + Math.floor((years - 1) / 2), 25);
   }
 
   // 잔여 연차 업데이트
@@ -13395,6 +13408,7 @@ if ('serviceWorker' in navigator) {
     if (typeof switchLeaveTab === 'function') switchLeaveTab('apply');
     renderLeaveCal();
     loadLeaveData();
+    if (!Object.keys(_leaveHolidayMap).length) _loadLeaveHolidays(); // 최초 1회만 조회, 이후 캐시 재사용
   };
 
   // 탭 전환
@@ -13464,8 +13478,10 @@ if ('serviceWorker' in navigator) {
       const dow = new Date(_leaveYear, _leaveMon, d).getDay();
       const isSel = _selectedDates.includes(dateStr);
       const isWeekend = dow === 0 || dow === 6;
+      const holidayName = _leaveHolidayMap[dateStr];
       const items = leaveDates[dateStr] || [];
-      const chips = items.slice(0,3).map(it=>`<div style="font-size:9px;background:${typeColor(it.type)};color:#fff;border-radius:3px;padding:1px 3px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.name}</div>`).join('')
+      const chips = (holidayName ? `<div style="font-size:9px;background:#e0483e;color:#fff;border-radius:3px;padding:1px 3px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${holidayName}</div>` : '')
+        + items.slice(0,3).map(it=>`<div style="font-size:9px;background:${typeColor(it.type)};color:#fff;border-radius:3px;padding:1px 3px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.name}</div>`).join('')
         + (items.length>3?`<div style="font-size:9px;color:#999;margin-top:1px;">+${items.length-3}</div>`:'');
       html += `<div data-date="${dateStr}"
         onmousedown="leaveCalMouseDown('${dateStr}')"
@@ -13474,7 +13490,7 @@ if ('serviceWorker' in navigator) {
         style="text-align:left;padding:5px 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:64px;
           background:${isSel?'var(--cream)':'#fff'};
           border:${isSel?'2px solid var(--brand)':'1px solid #eee'};">
-        <div style="text-align:center;font-weight:700;color:${isSel?'var(--brand)':isWeekend?'#ccc':'#333'};margin-bottom:2px;">${d}</div>
+        <div style="text-align:center;font-weight:700;color:${isSel?'var(--brand)':holidayName?'#e0483e':isWeekend?'#ccc':'#333'};margin-bottom:2px;">${d}</div>
         ${chips}
       </div>`;
     }
@@ -13988,7 +14004,9 @@ if ('serviceWorker' in navigator) {
     const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
     const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
     if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
-    return Math.min(15 + Math.floor((diffYears - 1) / 2), 25);
+    // 1년 이상은 회계연도 기준(올해 연도 − 입사 연도)으로 근속연수 계산 — calcAnnualLeave와 동일 방식.
+    const years = today.getFullYear() - join.getFullYear();
+    return Math.min(15 + Math.floor((years - 1) / 2), 25);
   }
 
   window.saveUsedLeave = async function(id) {
