@@ -1656,6 +1656,10 @@ window.fetchEmployeesFS = async function() {
         단수정리
       </label>
       <label class="check-chip">
+        <input type="checkbox" id="invAdjustManCheck" onchange="renderInvoice()" />
+        만원단위(기본 천원단위)
+      </label>
+      <label class="check-chip">
         <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
         단분리
       </label>
@@ -12049,7 +12053,8 @@ function renderInvoice() {
 
     const grandAfterDeduct = grandRaw - depositAmt - interimAmt;
     const useAdjust = document.getElementById('invAdjustCheck')?.checked !== false;
-    const grand = useAdjust ? Math.floor(grandAfterDeduct / 10000) * 10000 : grandAfterDeduct;
+    const adjustUnit = document.getElementById('invAdjustManCheck')?.checked ? 10000 : 1000;
+    const grand = useAdjust ? Math.floor(grandAfterDeduct / adjustUnit) * adjustUnit : grandAfterDeduct;
     const adjust = grand - grandAfterDeduct;
 
     const makeTotal = (label, val, cls='normal') => {
