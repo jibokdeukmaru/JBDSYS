@@ -12126,23 +12126,19 @@ function renderInvoice() {
     } else if (subtitleEl) {
         if (titleEl) { titleEl.style.fontSize = ''; titleEl.style.letterSpacing = ''; }
         const isDraft = document.getElementById('invDraftCheck')?.checked;
-        if (isAs) {
-            if (titleEl) titleEl.childNodes[0].textContent = 'AS견적서';
-            if (brandEl) brandEl.style.letterSpacing = '10.2px';
-            subtitleEl.textContent = '';
-        } else if (isFinal) {
-            if (titleEl) titleEl.childNodes[0].textContent = 'STATEMENT';
-            if (brandEl) brandEl.style.letterSpacing = '12.2px';
-            subtitleEl.textContent = '';
-        } else if (isDraft) {
-            if (titleEl) titleEl.childNodes[0].textContent = 'ESTIMATE';
-            if (brandEl) brandEl.style.letterSpacing = '16px';
-            subtitleEl.textContent = '';
-        } else {
-            if (titleEl) titleEl.childNodes[0].textContent = 'INVOICE';
-            if (brandEl) brandEl.style.letterSpacing = '12.2px';
-            subtitleEl.textContent = '';
-        }
+        // AS견적서 + 정산서가 동시에 체크되면 "AS정산서"로 표시
+        let newTitle;
+        if (isAs && isFinal) newTitle = 'AS정산서';
+        else if (isAs) newTitle = 'AS견적서';
+        else if (isFinal) newTitle = '정산서';
+        else if (isDraft) newTitle = '가견적서';
+        else newTitle = '견적서';
+        if (titleEl) titleEl.childNodes[0].textContent = newTitle;
+        subtitleEl.textContent = '';
+        // ★ 제목마다 글자 폭이 다 다르므로(특히 한글은 영문과 폭 비율이 또 달라서), 예전처럼
+        //   경우마다 letter-spacing 값을 손으로 정해두지 않고 매번 실제 렌더링 폭에 맞춰
+        //   자동 계산한다(제목 직접입력 모드와 동일한 함수 재사용).
+        if (brandEl && titleEl) _fitInvBrandWidth(brandEl, titleEl);
         if (brandEl) brandEl.style.marginRight = '0px';
     }
 
