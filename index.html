@@ -854,11 +854,17 @@ window.fetchEmployeesFS = async function() {
         <div id="loginSection">
           <input type="text" id="loginId" placeholder="아이디" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginPw').focus();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:8px; background:#f2f2f2; color:#111; outline:none;">
           <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('loginBtn').click();}" style="width:100%; height:44px; padding:0 16px; font-size:14px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:12px;">
-            <label style="display:flex;align-items:center;gap:6px;color:rgba(0,0,0,0.6);cursor:pointer;">
-              <input type="checkbox" id="loginSaveCheck" style="margin:0;">
-              아이디/비밀번호 저장(자동 로그인)
-            </label>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:12px;flex-wrap:wrap;gap:6px;">
+            <div style="display:flex;gap:14px;">
+              <label style="display:flex;align-items:center;gap:6px;color:rgba(0,0,0,0.6);cursor:pointer;">
+                <input type="checkbox" id="loginSaveIdCheck" style="margin:0;">
+                아이디 저장
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;color:rgba(0,0,0,0.6);cursor:pointer;">
+                <input type="checkbox" id="loginSavePwCheck" style="margin:0;">
+                비밀번호 저장
+              </label>
+            </div>
             <a href="javascript:void(0)" id="loginForgetLink" onclick="forgetSavedLogin()" style="display:none;color:rgba(0,0,0,0.4);text-decoration:underline;">저장정보 삭제</a>
           </div>
           <button id="loginBtn" style="width:100%; height:44px; background:#1a1a1a; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);">로그인</button>
@@ -877,7 +883,7 @@ window.fetchEmployeesFS = async function() {
 
         <!-- 게스트 비밀번호 섹션 -->
         <p style="margin:0 0 8px; font-size:12px; color:rgba(0,0,0,0.45);">게스트 접속 (비밀번호)</p>
-        <input type="password" id="authPassword" placeholder="••••" autocomplete="off" style="width:100%; height:44px; padding:0 16px; font-size:18px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; text-align:center; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none; letter-spacing:6px;">
+        <input type="password" id="authPassword" name="guestPinCode" placeholder="••••" autocomplete="new-password" style="width:100%; height:44px; padding:0 16px; font-size:18px; border:1px solid #ddd; border-radius:10px; box-sizing:border-box; text-align:center; margin-bottom:10px; background:#f2f2f2; color:#111; outline:none; letter-spacing:6px;">
         <button id="authBtn" style="width:100%; height:44px; background:transparent; color:#1a1a1a; border:1px solid rgba(0,0,0,0.35); border-radius:10px; font-size:15px; font-weight:700; cursor:pointer;">게스트 접속</button>
         <p id="authError" style="margin:10px 0 0; font-size:12px; color:#ff6b6b; display:none; font-weight:bold;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>비밀번호가 올바르지 않습니다.</p>
 
@@ -3277,6 +3283,14 @@ window.fetchEmployeesFS = async function() {
           <div class="dw-chip" data-date-filter="2day" onclick="setDateFilter(this)">2일전</div>
         </div>
       </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">방문구분</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <div class="dw-chip on" data-visit-filter="전체" onclick="setVisitFilter(this)">전체</div>
+          <div class="dw-chip" data-visit-filter="신규" onclick="setVisitFilter(this)">신규</div>
+          <div class="dw-chip" data-visit-filter="재방문" onclick="setVisitFilter(this)">재방문</div>
+        </div>
+      </div>
       <button onclick="resetAllFilters()" style="padding:6px 14px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-weight:700;color:#666;background:#fff;cursor:pointer;margin-top:16px;">초기화</button>
     </div>
   </div>
@@ -4115,6 +4129,9 @@ window.fetchEmployeesFS = async function() {
     // 날짜 필터 초기화
     csDateFilter = null;
     document.querySelectorAll('.dw-chip[data-date-filter]').forEach(c => c.classList.remove('on'));
+    // 방문구분 필터 초기화
+    csVisitFilter = '전체';
+    document.querySelectorAll('.dw-chip[data-visit-filter]').forEach(c => c.classList.toggle('on', c.dataset.visitFilter === '전체'));
     currentPage = 1;
     renderConsultList();
     updateActiveFilterBadges();
@@ -4131,6 +4148,9 @@ window.fetchEmployeesFS = async function() {
       const label = csDateFilter === 'today' ? '금일' : csDateFilter === '1day' ? '1일전' : '2일전';
       badges.push(`<span onclick="clearDateFilter()" style="cursor:pointer;background:#2c5fc4;color:#fff;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;">${label} <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;pointer-events:none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>`);
     }
+    if (csVisitFilter && csVisitFilter !== '전체') {
+      badges.push(`<span onclick="clearVisitFilter()" style="cursor:pointer;background:#2e7d32;color:#fff;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;">${csVisitFilter} <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;pointer-events:none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>`);
+    }
     el.innerHTML = badges.join('');
   }
 
@@ -4145,6 +4165,14 @@ window.fetchEmployeesFS = async function() {
   window.clearDateFilter = function() {
     csDateFilter = null;
     document.querySelectorAll('.dw-chip[data-date-filter]').forEach(c => c.classList.remove('on'));
+    currentPage = 1;
+    renderConsultList();
+    updateActiveFilterBadges();
+  };
+
+  window.clearVisitFilter = function() {
+    csVisitFilter = '전체';
+    document.querySelectorAll('.dw-chip[data-visit-filter]').forEach(c => c.classList.toggle('on', c.dataset.visitFilter === '전체'));
     currentPage = 1;
     renderConsultList();
     updateActiveFilterBadges();
@@ -4196,7 +4224,7 @@ window.fetchEmployeesFS = async function() {
 
     // 나의상담내역은 최근 100건만이 아니라 전체를 대상으로 걸러야 하므로,
     // 검색어가 있을 때와 마찬가지로 전체 데이터를 온디맨드로 확보한다(캐시되어 재조회는 최초 1회뿐).
-    if (_myConsultsOnly || csCurrentFilter !== '전체') {
+    if (_myConsultsOnly || csCurrentFilter !== '전체' || csVisitFilter !== '전체') {
       allConsults = await ensureFullConsults();
       _consultsMode = 'searchResult'; // 최근100 모드가 아니므로 백그라운드 갱신에 덮어써지지 않도록
       _syncConsultRefs();
@@ -4229,6 +4257,11 @@ window.fetchEmployeesFS = async function() {
         if (csDateFilter === '2day') target.setUTCDate(target.getUTCDate()-2);
         const targetStr = target.toISOString().slice(0,10);
         if ((r.date||'').slice(0,10) !== targetStr) return false;
+      }
+      if (typeof csVisitFilter !== 'undefined' && csVisitFilter && csVisitFilter !== '전체') {
+        const isRevisit = (r.visitStatus === '재방문' || r.revisit === '재방문');
+        if (csVisitFilter === '재방문' && !isRevisit) return false;
+        if (csVisitFilter === '신규' && isRevisit) return false;
       }
       return true;
     });
@@ -7175,55 +7208,42 @@ function csDateInputValue(val) {
     const AUTH_TIMEOUT = 8 * 60 * 60 * 1000;
     // RESERVE_URL은 전역으로 선언됨 (상단 참조)
 
-    // ★ 아이디/비밀번호 저장(자동 로그인) — 사용자가 명시적으로 이 기기에 저장하기로 선택한
-    //   경우에만 사용한다. 비밀번호를 기기에 그대로 남기는 방식이라 보안 트레이드오프가 있다는
-    //   점을 안내했고, 사용자가 그 방식을 선택했다.
-    const SAVED_LOGIN_KEY = 'baram_saved_login';
+    // ★ 아이디/비밀번호 저장 — 사용자가 명시적으로 이 기기에 저장하기로 선택한 경우에만 사용한다.
+    //   비밀번호를 기기에 그대로 남기는 방식이라 보안 트레이드오프가 있다는 점을 안내했고,
+    //   사용자가 그 방식을 선택했다. 아이디/비밀번호는 각각 독립적으로 저장 여부를 고를 수 있고,
+    //   자동으로 로그인을 실행하지는 않는다 — 입력창만 채워두고 로그인은 직접 눌러야 한다.
+    const SAVED_ID_KEY = 'baram_saved_id';
+    const SAVED_PW_KEY = 'baram_saved_pw';
 
     function _fillSavedLoginFields() {
         try {
-            const saved = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
-            if (saved && saved.id) {
-                const idEl = document.getElementById('loginId');
-                const pwEl = document.getElementById('loginPw');
-                const checkEl = document.getElementById('loginSaveCheck');
-                const forgetLink = document.getElementById('loginForgetLink');
-                if (idEl) idEl.value = saved.id;
-                if (pwEl) pwEl.value = saved.pw || '';
-                if (checkEl) checkEl.checked = true;
-                if (forgetLink) forgetLink.style.display = 'inline';
-                return saved;
-            }
+            const savedId = localStorage.getItem(SAVED_ID_KEY);
+            const savedPw = localStorage.getItem(SAVED_PW_KEY);
+            const idEl = document.getElementById('loginId');
+            const pwEl = document.getElementById('loginPw');
+            const idCheckEl = document.getElementById('loginSaveIdCheck');
+            const pwCheckEl = document.getElementById('loginSavePwCheck');
+            const forgetLink = document.getElementById('loginForgetLink');
+            if (savedId != null) { if (idEl) idEl.value = savedId; if (idCheckEl) idCheckEl.checked = true; }
+            if (savedPw != null) { if (pwEl) pwEl.value = savedPw; if (pwCheckEl) pwCheckEl.checked = true; }
+            if (forgetLink) forgetLink.style.display = (savedId != null || savedPw != null) ? 'inline' : 'none';
         } catch(e) {}
-        return null;
     }
 
     window.forgetSavedLogin = function() {
-        localStorage.removeItem(SAVED_LOGIN_KEY);
+        localStorage.removeItem(SAVED_ID_KEY);
+        localStorage.removeItem(SAVED_PW_KEY);
         const idEl = document.getElementById('loginId');
         const pwEl = document.getElementById('loginPw');
-        const checkEl = document.getElementById('loginSaveCheck');
+        const idCheckEl = document.getElementById('loginSaveIdCheck');
+        const pwCheckEl = document.getElementById('loginSavePwCheck');
         const forgetLink = document.getElementById('loginForgetLink');
         if (idEl) idEl.value = '';
         if (pwEl) pwEl.value = '';
-        if (checkEl) checkEl.checked = false;
+        if (idCheckEl) idCheckEl.checked = false;
+        if (pwCheckEl) pwCheckEl.checked = false;
         if (forgetLink) forgetLink.style.display = 'none';
     };
-
-    // 저장된 정보가 있으면 채워두고, 방금 로그아웃한 직후가 아니면 바로 자동 로그인까지 실행.
-    // ★ 로그아웃 직후에는 자동 재로그인하지 않는다 — 안 그러면 로그아웃 버튼이 아예 동작하지
-    //   않는 것처럼 보인다(눌러도 바로 다시 로그인됨). 이땐 정보만 채워두고 사용자가 직접
-    //   버튼을 눌러야 한다. 앱을 완전히 닫았다 새로 여는 경우(sessionStorage가 비어있음)엔
-    //   이 플래그가 없으므로 정상적으로 자동 로그인된다.
-    function _tryAutoLoginFromSaved() {
-        const saved = _fillSavedLoginFields();
-        if (!saved) return;
-        if (sessionStorage.getItem('baram_just_logged_out')) {
-            sessionStorage.removeItem('baram_just_logged_out');
-            return;
-        }
-        if (typeof window.doLogin === 'function') window.doLogin();
-    }
 
     const lockSection = document.getElementById('lockSection');
     const mainSection = document.getElementById('mainSection');
@@ -7347,23 +7367,15 @@ function csDateInputValue(val) {
             })();
         }
 
-        // ★ baram_last_tab은 sessionStorage에 저장한다(localStorage 금지) — sessionStorage는
-        //   "같은 창/프로세스를 유지한 채 새로고침"에서는 남아있지만, 창을 완전히 닫거나
-        //   앱을 완전종료했다가 재실행하면 사라진다. 그래서 "새로고침 시 마지막 화면 유지"와
-        //   "재접속 시엔 항상 홈화면 설정" 두 요구를 동시에 만족시킬 수 있다.
-        //   (localStorage였을 때는 8시간 자동로그인 세션 동안 항상 남아있어서, 앱을 완전히
-        //   껐다 켜도 매번 마지막 화면으로 가버리고 홈화면 설정이 무시되는 문제가 있었다.)
-        const lastTab = sessionStorage.getItem('baram_last_tab');
-        // ★ 새로고침(세션 복원)일 땐 마지막으로 보던 탭으로, 실제 로그인일 때만 홈화면 설정으로 이동.
-        //   예전엔 구분 없이 항상 홈화면으로 이동해서, "새로고침 시 마지막 탭 복귀" 기능이
-        //   200ms 뒤 이 로직에 덮어써져 무력화됐었다.
+        // ★ "마지막으로 보던 탭 유지" 로직은 완전히 제거했다 — 새로고침이든 재접속이든 예외 없이
+        //   항상 저장된 홈화면 설정(userData.homeTab)으로만 이동한다. 예전엔 새로고침/재접속을
+        //   구분해서 다르게 처리했는데, 그 구분이 기기/브라우저마다 안정적으로 동작하지 않아
+        //   "홈화면 설정이 안 지켜진다"는 문제가 계속 생겼다 — 예외 없는 단일 규칙으로 바꾼다.
         if (loginType === 'user') {
             // setTab을 200ms 후 실행 — 초기 렌더링과 API 호출 분리
             setTimeout(() => {
               if (typeof setTab === 'function') {
-                const target = (isRestore && lastTab && document.getElementById(lastTab))
-                  ? lastTab
-                  : ((userData.homeTab && document.getElementById(userData.homeTab)) ? userData.homeTab : 'myInfoTab');
+                const target = (userData.homeTab && document.getElementById(userData.homeTab)) ? userData.homeTab : 'myInfoTab';
                 setTab(target);
               }
             }, 200);
@@ -7372,7 +7384,7 @@ function csDateInputValue(val) {
               if (typeof loadMonthlyNoticeEditor === 'function') loadMonthlyNoticeEditor();
             }, 2000);
         } else if (typeof setTab === 'function') {
-            setTab((isRestore && lastTab && document.getElementById(lastTab)) ? lastTab : 'myInfoTab');
+            setTab('myInfoTab');
         }
         // 예약 알림 체크는 가장 마지막에 (4초 후)
         setTimeout(() => {
@@ -7650,12 +7662,14 @@ function csDateInputValue(val) {
                 localStorage.setItem(SESSION_KEY, String(Date.now()));
                 sessionStorage.removeItem(LOGIN_TYPE_KEY);
                 sessionStorage.removeItem(USER_KEY);
-                const saveCheck = document.getElementById('loginSaveCheck');
-                if (saveCheck && saveCheck.checked) {
-                    localStorage.setItem(SAVED_LOGIN_KEY, JSON.stringify({ id, pw }));
-                } else {
-                    localStorage.removeItem(SAVED_LOGIN_KEY);
-                }
+                const saveIdCheck = document.getElementById('loginSaveIdCheck');
+                const savePwCheck = document.getElementById('loginSavePwCheck');
+                if (saveIdCheck && saveIdCheck.checked) localStorage.setItem(SAVED_ID_KEY, id);
+                else localStorage.removeItem(SAVED_ID_KEY);
+                if (savePwCheck && savePwCheck.checked) localStorage.setItem(SAVED_PW_KEY, pw);
+                else localStorage.removeItem(SAVED_PW_KEY);
+                const forgetLink = document.getElementById('loginForgetLink');
+                if (forgetLink) forgetLink.style.display = (saveIdCheck?.checked || savePwCheck?.checked) ? 'inline' : 'none';
                 unlock('user', data.user);
             } else {
                 errEl.style.display = 'block';
@@ -7705,8 +7719,6 @@ function csDateInputValue(val) {
         sessionStorage.removeItem(LOGIN_TYPE_KEY);
         sessionStorage.removeItem(USER_KEY);
         sessionStorage.removeItem('baram_last_tab');
-        // 저장된 로그인정보가 있어도 로그아웃 직후엔 자동 재로그인하지 않도록 표시
-        sessionStorage.setItem('baram_just_logged_out', '1');
         location.reload();
     };
 
@@ -9044,7 +9056,7 @@ function csDateInputValue(val) {
             localStorage.removeItem(LOGIN_TYPE_KEY);
             localStorage.removeItem(USER_KEY);
             lockBody();
-            _tryAutoLoginFromSaved();
+            _fillSavedLoginFields();
         }
     } else if (loginType === 'guest') {
         const savedAuth = localStorage.getItem(SESSION_KEY);
@@ -9054,11 +9066,11 @@ function csDateInputValue(val) {
             localStorage.removeItem(SESSION_KEY);
             localStorage.removeItem(LOGIN_TYPE_KEY);
             lockBody();
-            _tryAutoLoginFromSaved();
+            _fillSavedLoginFields();
         }
     } else {
         lockBody();
-        _tryAutoLoginFromSaved();
+        _fillSavedLoginFields();
     }
 
     // 이벤트 연결
@@ -9926,6 +9938,17 @@ window.setDateFilter = function(el) {
   if (typeof updateActiveFilterBadges === 'function') updateActiveFilterBadges();
 };
 
+// ── 방문구분 필터(신규/재방문) ──
+let csVisitFilter = '전체';
+window.setVisitFilter = function(el) {
+  document.querySelectorAll('.dw-chip[data-visit-filter]').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  csVisitFilter = el.dataset.visitFilter;
+  currentPage = 1;
+  if (typeof renderConsultList === 'function') renderConsultList();
+  if (typeof updateActiveFilterBadges === 'function') updateActiveFilterBadges();
+};
+
 // 초기 즐겨찾기 + 순서 적용
 applyVisibleTabs();
 applyTabOrder();
@@ -10214,16 +10237,8 @@ function initApp() {
     });
   })();
   document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>setTab(btn.dataset.tab)));
-  // 새로고침 시 마지막 탭 복귀
-  const lastTab = sessionStorage.getItem('baram_last_tab');
-  if (lastTab && document.getElementById(lastTab)) {
-    setTab(lastTab);
-    if (lastTab === 'reservationTab') {
-      setTimeout(() => {
-        if (typeof loadMonthlyNoticeEditor === 'function') loadMonthlyNoticeEditor();
-      }, 300);
-    }
-  }
+  // ★ "마지막 탭 복귀"는 홈화면 설정과 경쟁하며 화면이 순간 바뀌는 원인이 되어 제거함 —
+  //   탭 이동은 이제 unlock()의 홈화면 설정 로직 하나로만 결정된다.
 }
 // PRICE 시트에서 products 로드 후 앱 초기화
 async function startApp() {
