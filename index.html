@@ -14813,6 +14813,9 @@ if ('serviceWorker' in navigator) {
       const res1 = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params1}`, undefined, 0, 20000);
       const data1 = await res1.json();
       if (data1.status !== 'ok') { alert('폴더 지정 실패: ' + (data1.message||'')); return; }
+      // ★ 방금 지정한 폴더의 목록 캐시(5분)를 지워야, 나중에 그 폴더를 열었을 때
+      //   지정 전의 옛날(비어있는) 목록이 아니라 방금 추가된 메일까지 바로 보인다.
+      Object.keys(_gmailCache).forEach(k => { if (k.indexOf(email + '|' + labelId) === 0) delete _gmailCache[k]; });
       alert(`"${labelName}" 폴더로 지정했습니다.`);
     } catch(e) { alert('오류: ' + e.message); return; }
 
@@ -14975,9 +14978,10 @@ if ('serviceWorker' in navigator) {
     listEl.appendChild(wrap);
   }
 
-  // 새로고침 — Gmail 폴더는 캐시 무시 재조회, 그 외(보낸/임시)는 목록 재렌더
+  // 새로고침 — Gmail 폴더(고정 폴더 + 커스텀 라벨 폴더)는 캐시 무시 재조회, 그 외(보낸/임시)는 목록 재렌더
   window.gmailRefresh = function() {
-    if (window.USE_GMAIL_API && ['inbox','spam','trash'].includes(_currentFolder)) {
+    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash'].includes(_currentFolder) || (_emailLabels||[]).some(l => l.id === _currentFolder));
+    if (isGmailFolder) {
       _fetchGmailAndRender(_currentFolder, true);
     } else {
       renderEmailList();
@@ -15496,7 +15500,8 @@ if ('serviceWorker' in navigator) {
 
   window.filterEmailList = function() {
     const q = ((document.getElementById('emSearchInput')||{}).value || '').trim();
-    if (window.USE_GMAIL_API && ['inbox','spam','trash'].includes(_currentFolder)) {
+    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash'].includes(_currentFolder) || (_emailLabels||[]).some(l => l.id === _currentFolder));
+    if (isGmailFolder) {
       _fetchGmailAndRender(_currentFolder, false, q);
     } else {
       renderEmailList();
