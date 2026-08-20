@@ -136,6 +136,9 @@ async function getGmailMessages(p) {
         id, from: h.From || '', to: h.To || '', subject: h.Subject || '(제목없음)',
         date: h.Date || '', snippet: m.snippet || '',
         unread: (m.labelIds || []).indexOf('UNREAD') !== -1,
+        // 사용자가 만든 라벨(개인 폴더)만 — 목록에 칩으로 표시하는 용도. INBOX/UNREAD/CATEGORY_* 같은
+        // 시스템 라벨은 제외(Gmail이 만든 라벨 ID는 전부 대문자라 소문자 포함 여부로 구분됨).
+        labelIds: (m.labelIds || []).filter((id) => id.indexOf('Label_') === 0),
       };
     }));
     return { status: 'ok', messages: items, nextPageToken: listRes.data.nextPageToken || '' };
@@ -209,6 +212,8 @@ async function gmailBatchModify(p) {
     else if (op === 'unread') addLabelIds = ['UNREAD'];
     else if (op === 'spam') addLabelIds = ['SPAM'];
     else if (op === 'unspam') removeLabelIds = ['SPAM'];
+    else if (op === 'archive') removeLabelIds = ['INBOX']; // 받은편지함에서만 뺌(삭제 아님)
+    else if (op === 'unarchive') addLabelIds = ['INBOX'];
     else return { status: 'error', message: '알 수 없는 작업: ' + op };
     await gmail.users.messages.batchModify({ userId: 'me', requestBody: { ids, addLabelIds, removeLabelIds } });
     return { status: 'ok', count: ids.length };

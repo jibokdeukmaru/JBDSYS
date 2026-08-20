@@ -14121,6 +14121,7 @@ if ('serviceWorker' in navigator) {
   .em-mail-sender { width:160px; min-width:120px; font-size:13px; color:#444; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; }
   .em-mail-subject { flex:1; font-size:13px; color:#555; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .em-mail-subject .em-mail-preview { color:#aaa; font-weight:400; margin-left:8px; font-size:12px; }
+  .em-mail-label-chip { flex-shrink:0; background:var(--cream-2,#f5f1ec); color:var(--brand); border:1px solid var(--border,#e5d9c6); border-radius:999px; padding:2px 9px; font-size:11px; font-weight:700; white-space:nowrap; }
   .em-mail-attach { flex-shrink:0; opacity:.4; }
   .em-mail-time { flex-shrink:0; font-size:12px; color:#aaa; text-align:right; min-width:80px; }
   .em-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; color:#ccc; gap:12px; padding:60px 0; }
@@ -14321,6 +14322,7 @@ if ('serviceWorker' in navigator) {
         <span id="emBulkGmailBtns" style="display:flex;align-items:center;gap:8px;">
           <button class="em-bulk-btn" id="emBulkRead"   onclick="emBulkAction('read')"   disabled>읽음</button>
           <button class="em-bulk-btn" id="emBulkUnread" onclick="emBulkAction('unread')" disabled>안읽음</button>
+          <button class="em-bulk-btn" id="emBulkArchive" onclick="emBulkAction('archive')" disabled>보관</button>
           <button class="em-bulk-btn" id="emBulkSpam"   onclick="emBulkAction('spam')"   disabled>스팸</button>
         </span>
         <button class="em-bulk-btn em-bulk-del" id="emBulkTrash" onclick="emBulkTrashClick()" disabled>삭제</button>
@@ -14878,7 +14880,7 @@ if ('serviceWorker' in navigator) {
     const msgs = (data.messages || []).map(m => ({
       gmailId: m.id, from: m.from, to: m.to, subject: m.subject,
       sentAt: m.date ? new Date(m.date).toISOString() : '',
-      snippet: m.snippet, unread: m.unread
+      snippet: m.snippet, unread: m.unread, labelIds: m.labelIds || []
     }));
     return { msgs, nextPageToken: data.nextPageToken || '' };
   }
@@ -15041,11 +15043,18 @@ if ('serviceWorker' in navigator) {
         const weight = m.unread ? 'font-weight:800;' : '';
         const avatarColor = _emAvatarColor(senderName);
         const avatarInitial = _emEsc(senderName.slice(0,2).toUpperCase());
+        // 개인 폴더(라벨) 칩 — Gmail 목록처럼 제목 앞에 표시
+        const labelChips = (m.labelIds || [])
+          .map(lid => (_emailLabels||[]).find(l => l.id === lid))
+          .filter(Boolean)
+          .map(l => `<span class="em-mail-label-chip">${_emEsc(l.name)}</span>`)
+          .join('');
         html += `<div class="em-mail-row" onclick="openGmailDetailById('${m.gmailId}')">
           <input type="checkbox" class="em-mail-check" data-gmail-id="${m.gmailId}" onchange="emOnCheck()" onclick="event.stopPropagation()">
           <svg class="em-mail-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
           <span class="em-mail-avatar" style="background:${avatarColor};">${avatarInitial}</span>
           <span class="em-mail-sender" style="${weight}">${sender}</span>
+          ${labelChips}
           <span class="em-mail-subject" style="${weight}">${subjectDisplay}${previewDisplay ? `<span class="em-mail-preview">${previewDisplay}</span>` : ''}</span>
           <span class="em-mail-time">${timeStr}</span>
         </div>`;
@@ -15072,7 +15081,7 @@ if ('serviceWorker' in navigator) {
     const n = document.querySelectorAll('.em-mail-check:checked').length;
     const cntEl = document.getElementById('emSelCount');
     if (cntEl) cntEl.textContent = n ? (n + '개 선택') : '';
-    ['emBulkRead','emBulkUnread','emBulkSpam','emBulkTrash'].forEach(id => {
+    ['emBulkRead','emBulkUnread','emBulkArchive','emBulkSpam','emBulkTrash'].forEach(id => {
       const b = document.getElementById(id); if (b) b.disabled = (n === 0);
     });
     // 스팸함에선 '스팸' 버튼이 '스팸해제'로
@@ -15165,7 +15174,7 @@ if ('serviceWorker' in navigator) {
     const idSet = new Set(ids);
 
     // ── 낙관적 갱신: 화면에서 먼저 반영 (서버 응답 기다리지 않음) ──
-    if (op === 'trash' || op === 'spam') {
+    if (op === 'trash' || op === 'spam' || op === 'archive') {
       // 현재 폴더에서 사라져야 하는 작업 → 목록에서 즉시 제거
       _allEmailItems = _allEmailItems.filter(m => !idSet.has(m.gmailId));
       // 남은 게 적고 다음 페이지가 있으면, 빈 화면을 그리기 전에 먼저 채운 뒤 렌더
@@ -15303,6 +15312,9 @@ if ('serviceWorker' in navigator) {
             <button class="em-detail-action-btn" onclick="openLabelPicker(event)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83a2 2 0 0 0-1.41-.58H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .58 1.41l9.59 9.59a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1"/></svg>폴더지정
             </button>
+            <button class="em-detail-action-btn" onclick="archiveCurrentEmail()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="4" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>보관
+            </button>
             <button class="em-detail-action-btn" onclick="deleteCurrentEmail()" style="color:#c0392b;border-color:#e6b8b3;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제
             </button>
@@ -15410,6 +15422,30 @@ if ('serviceWorker' in navigator) {
       return;
     }
     // 목록에서도 제거하고 목록 화면으로 복귀
+    _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id);
+    const cacheKey = email + '|' + _currentFolder;
+    if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    backToEmailList();
+    _renderGmailList(_allEmailItems, _currentFolder);
+    _appendMoreButton();
+    if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
+  };
+
+  // 상세보기에서 지금 보고 있는 메일 하나를 보관 — 삭제 없이 받은편지함에서만 뺀다
+  window.archiveCurrentEmail = async function() {
+    const msg = _currentGmailDetailMsg;
+    if (!msg || !msg.id) return;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    try {
+      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'archive', ids: msg.id });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
+      const data = await res.json();
+      if (data.status !== 'ok') { alert('보관 실패: ' + (data.message||'')); return; }
+    } catch(e) {
+      alert('보관 오류: ' + e.message);
+      return;
+    }
     _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id);
     const cacheKey = email + '|' + _currentFolder;
     if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
