@@ -198,6 +198,12 @@ async function gmailBatchModify(p) {
         : gmail.users.messages.untrash({ userId: 'me', id }))));
       return { status: 'ok', count: ids.length };
     }
+    // 완전삭제(복구 불가) — 휴지통 화면에서 "삭제"를 누르면 이미 휴지통에 있는 메일이라
+    // trash가 아니라 이걸 써야 한다.
+    if (op === 'delete') {
+      await Promise.all(ids.map((id) => gmail.users.messages.delete({ userId: 'me', id })));
+      return { status: 'ok', count: ids.length };
+    }
     let addLabelIds = [], removeLabelIds = [];
     if (op === 'read') removeLabelIds = ['UNREAD'];
     else if (op === 'unread') addLabelIds = ['UNREAD'];

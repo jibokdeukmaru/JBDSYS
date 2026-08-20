@@ -15152,8 +15152,13 @@ if ('serviceWorker' in navigator) {
     if (!ids.length) return;
     let realOp = op;
     if (op === 'spam' && _currentFolder === 'spam') realOp = 'unspam'; // 스팸함에선 해제
+    if (op === 'trash' && _currentFolder === 'trash') realOp = 'delete'; // 이미 휴지통이면 완전삭제
     if (op === 'trash') {
-      if (!confirm(`${ids.length}개 메일을 휴지통으로 옮기시겠습니까?`)) return;
+      if (_currentFolder === 'trash') {
+        if (!confirm(`${ids.length}개 메일을 완전히 삭제하시겠습니까?\n(복구할 수 없습니다)`)) return;
+      } else {
+        if (!confirm(`${ids.length}개 메일을 휴지통으로 옮기시겠습니까?`)) return;
+      }
     }
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
@@ -15387,15 +15392,16 @@ if ('serviceWorker' in navigator) {
     if (typeof window.quickAddMailContact === 'function') window.quickAddMailContact(name, email);
   };
 
-  // 상세보기에서 지금 보고 있는 메일 하나를 휴지통으로 이동
+  // 상세보기에서 지금 보고 있는 메일 하나를 휴지통으로 이동 (이미 휴지통이면 완전삭제)
   window.deleteCurrentEmail = async function() {
     const msg = _currentGmailDetailMsg;
     if (!msg || !msg.id) return;
-    if (!confirm('이 메일을 휴지통으로 옮기시겠습니까?')) return;
+    const inTrash = _currentFolder === 'trash';
+    if (!confirm(inTrash ? '이 메일을 완전히 삭제하시겠습니까?\n(복구할 수 없습니다)' : '이 메일을 휴지통으로 옮기시겠습니까?')) return;
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
     try {
-      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'trash', ids: msg.id });
+      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: inTrash ? 'delete' : 'trash', ids: msg.id });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
       if (data.status !== 'ok') { alert('삭제 실패: ' + (data.message||'')); return; }
