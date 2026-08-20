@@ -18,8 +18,10 @@ function labelForFolder(folder) {
     case 'sent': return 'SENT';
     case 'spam': return 'SPAM';
     case 'trash': return 'TRASH';
-    case 'inbox':
-    default: return 'INBOX';
+    case 'inbox': return 'INBOX';
+    // ★ 그 외(예: 사용자가 만든 라벨 ID "Label_123...")는 그대로 labelIds 필터로 사용 —
+    //   개인별 커스텀 폴더(라벨) 기능이 이 분기 하나로 getGmailMessages에 자동 연동된다.
+    default: return folder;
   }
 }
 
@@ -219,6 +221,141 @@ async function getGmailAttachment(p) {
   }
 }
 
+// ── 개인별 폴더(Gmail 라벨) ──
+async function getGmailLabels(p) {
+  const email = (p.email || '').trim();
+  if (!email) return { status: 'error', message: 'email 없음' };
+  const gmail = gmailClientFor(email);
+  try {
+    const res = await gmail.users.labels.list({ userId: 'me' });
+    // 시스템 라벨(INBOX/SENT/SPAM 등)은 이미 고정 폴더로 있으니 제외, 사용자가 만든 것만
+    const labels = (res.data.labels || [])
+      .filter((l) => l.type === 'user')
+      .map((l) => ({ id: l.id, name: l.name }));
+    return { status: 'ok', labels };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+}
+
+async function createGmailLabel(p) {
+  const email = (p.email || '').trim();
+  const name = (p.name || '').trim();
+  if (!email || !name) return { status: 'error', message: '필수 파라미터 누락(email, name)' };
+  const gmail = gmailClientFor(email);
+  try {
+    const res = await gmail.users.labels.create({
+      userId: 'me',
+      requestBody: { name, labelListVisibility: 'labelShow', messageListVisibility: 'show' },
+    });
+    return { status: 'ok', label: { id: res.data.id, name: res.data.name } };
+  } catch (err) {
+    return { status: 'error', message: (err.errors && err.errors[0] && err.errors[0].message) || err.message };
+  }
+}
+
+async function deleteGmailLabel(p) {
+  const email = (p.email || '').trim();
+  const labelId = (p.labelId || '').trim();
+  if (!email || !labelId) return { status: 'error', message: '필수 파라미터 누락(email, labelId)' };
+  const gmail = gmailClientFor(email);
+  try {
+    await gmail.users.labels.delete({ userId: 'me', id: labelId });
+    return { status: 'ok' };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+}
+
+// 메일 여러 건에 커스텀 라벨 붙이기/떼기 — gmailBatchModify는 시스템 라벨(읽음/스팸 등) 전용이라
+// 임의의 라벨 ID를 받는 이 액션을 따로 둔다.
+async function gmailModifyLabel(p) {
+  const email = (p.email || '').trim();
+  const labelId = (p.labelId || '').trim();
+  const op = (p.op || '').trim(); // 'add' | 'remove'
+  const idsRaw = (p.ids || '').trim();
+  if (!email || !labelId || !op || !idsRaw) return { status: 'error', message: '필수 파라미터 누락' };
+  const ids = idsRaw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (!ids.length) return { status: 'error', message: '선택된 메일 없음' };
+  const gmail = gmailClientFor(email);
+  try {
+    await gmail.users.messages.batchModify({
+      userId: 'me',
+      requestBody: {
+        ids,
+        addLabelIds: op === 'add' ? [labelId] : [],
+        removeLabelIds: op === 'remove' ? [labelId] : [],
+      },
+    });
+    return { status: 'ok', count: ids.length };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+}
+
+// ── 발신주소 → 라벨 자동분류 (Gmail 필터) ──
+// ★ 이 3개 액션(필터 조회/생성/삭제)은 gmail.modify 권한만으로는 안 되고, 관리콘솔에서
+//   서비스계정 도메인 위임 범위에 https://www.googleapis.com/auth/gmail.settings.basic 를
+//   추가로 허용해줘야 동작한다. 라벨(폴더) 기능은 기존 권한으로 바로 되지만 필터는 이 권한이
+//   없으면 403 에러가 난다.
+async function getGmailFilters(p) {
+  const email = (p.email || '').trim();
+  if (!email) return { status: 'error', message: 'email 없음' };
+  const gmail = gmailClientFor(email);
+  try {
+    const res = await gmail.users.settings.filters.list({ userId: 'me' });
+    const filters = (res.data.filter || []).map((f) => ({
+      id: f.id,
+      from: (f.criteria && f.criteria.from) || '',
+      labelIds: (f.action && f.action.addLabelIds) || [],
+    }));
+    return { status: 'ok', filters };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+}
+
+// 발신주소 조건 → 라벨 자동적용 필터 생성. applyToExisting이면 이미 받은 메일에도 즉시 일괄 적용.
+async function createGmailFilter(p) {
+  const email = (p.email || '').trim();
+  const from = (p.from || '').trim();
+  const labelId = (p.labelId || '').trim();
+  const applyToExisting = p.applyToExisting === 'true' || p.applyToExisting === true;
+  if (!email || !from || !labelId) return { status: 'error', message: '필수 파라미터 누락(email, from, labelId)' };
+  const gmail = gmailClientFor(email);
+  try {
+    const res = await gmail.users.settings.filters.create({
+      userId: 'me',
+      requestBody: { criteria: { from }, action: { addLabelIds: [labelId] } },
+    });
+    let existingCount = 0;
+    if (applyToExisting) {
+      const listRes = await gmail.users.messages.list({ userId: 'me', q: 'from:' + from, maxResults: 500 });
+      const ids = (listRes.data.messages || []).map((m) => m.id);
+      if (ids.length) {
+        await gmail.users.messages.batchModify({ userId: 'me', requestBody: { ids, addLabelIds: [labelId] } });
+        existingCount = ids.length;
+      }
+    }
+    return { status: 'ok', filterId: res.data.id, existingCount };
+  } catch (err) {
+    return { status: 'error', message: (err.errors && err.errors[0] && err.errors[0].message) || err.message };
+  }
+}
+
+async function deleteGmailFilter(p) {
+  const email = (p.email || '').trim();
+  const filterId = (p.filterId || '').trim();
+  if (!email || !filterId) return { status: 'error', message: '필수 파라미터 누락(email, filterId)' };
+  const gmail = gmailClientFor(email);
+  try {
+    await gmail.users.settings.filters.delete({ userId: 'me', id: filterId });
+    return { status: 'ok' };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+}
+
 async function sendEmailFromERP(p) {
   const to = (p.to || '').trim();
   const cc = (p.cc || '').trim();
@@ -338,6 +475,13 @@ exports.gmailApi = async (req, res) => {
       case 'gmailBatchModify': result = await gmailBatchModify(params); break;
       case 'getGmailAttachment': result = await getGmailAttachment(params); break;
       case 'sendEmailFromERP': result = await sendEmailFromERP(params); break;
+      case 'getGmailLabels': result = await getGmailLabels(params); break;
+      case 'createGmailLabel': result = await createGmailLabel(params); break;
+      case 'deleteGmailLabel': result = await deleteGmailLabel(params); break;
+      case 'gmailModifyLabel': result = await gmailModifyLabel(params); break;
+      case 'getGmailFilters': result = await getGmailFilters(params); break;
+      case 'createGmailFilter': result = await createGmailFilter(params); break;
+      case 'deleteGmailFilter': result = await deleteGmailFilter(params); break;
       default: result = { status: 'error', message: '알 수 없는 action: ' + action };
     }
     res.json(result);

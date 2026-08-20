@@ -14290,6 +14290,12 @@ if ('serviceWorker' in navigator) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         <span>휴지통</span>
       </div>
+      <!-- 개인별 폴더(Gmail 라벨) — 로그인한 사람 본인 것만 loadEmailTab에서 채워짐 -->
+      <div id="emCustomFolderList"></div>
+      <div class="em-folder-item" onclick="promptCreateEmailLabel()" style="color:#aaa;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>새 폴더</span>
+      </div>
     </div>
   </div>
 
@@ -14644,13 +14650,15 @@ if ('serviceWorker' in navigator) {
     document.querySelectorAll('.em-folder-item').forEach(i => i.classList.remove('active'));
     if (el) el.classList.add('active');
     document.querySelectorAll('.em-folder-item').forEach(i => { if (i.getAttribute('data-folder') === folder) i.classList.add('active'); });
-    document.getElementById('emFolderTitle').textContent = FOLDER_LABELS[folder] || folder;
+    // 커스텀 폴더(라벨)면 FOLDER_LABELS에 없으니 _emailLabels에서 이름을 찾는다.
+    const customLabel = (_emailLabels || []).find(l => l.id === folder);
+    document.getElementById('emFolderTitle').textContent = FOLDER_LABELS[folder] || (customLabel ? customLabel.name : folder);
     const sel = document.getElementById('emFolderSelectMobile'); if (sel) sel.value = folder;
     const si = document.getElementById('emSearchInput'); if (si) si.value = '';
-    // 일괄 작업 바: Gmail 폴더(받은/스팸/휴지통)는 읽음/안읽음/스팸/삭제 전부,
+    // 일괄 작업 바: Gmail 폴더(받은/스팸/휴지통/커스텀 라벨)는 읽음/안읽음/스팸/삭제 전부,
     // 보낸메일함/임시보관함(로컬 저장)은 전체선택+삭제만 표시
     const bulk = document.getElementById('emBulkBar');
-    const isGmailFolder = window.USE_GMAIL_API && ['inbox','spam','trash'].includes(folder);
+    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash'].includes(folder) || !!customLabel);
     const isLocalFolder = ['sent','draft'].includes(folder);
     if (bulk) bulk.style.display = (isGmailFolder || isLocalFolder) ? 'flex' : 'none';
     const gmailBtns = document.getElementById('emBulkGmailBtns');
@@ -14699,6 +14707,118 @@ if ('serviceWorker' in navigator) {
     showEmailListView();
     renderEmailList();
     updateDraftCount();
+    _loadEmailLabels();
+  };
+
+  // ── 개인별 폴더(Gmail 라벨) 목록 불러와서 사이드바에 표시 ──
+  let _emailLabels = []; // [{id, name}]
+  async function _loadEmailLabels() {
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    const listEl = document.getElementById('emCustomFolderList');
+    if (!email || !listEl) return;
+    try {
+      const params = new URLSearchParams({ action: 'getGmailLabels', email });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 20000);
+      const data = await res.json();
+      if (data.status !== 'ok') return;
+      _emailLabels = data.labels || [];
+      listEl.innerHTML = _emailLabels.map(l => `
+        <div class="em-folder-item" onclick="setEmailFolder('${l.id}', this)" data-folder="${l.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83a2 2 0 0 0-1.41-.58H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .58 1.41l9.59 9.59a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1"/></svg>
+          <span>${_emEsc(l.name)}</span>
+          <span style="margin-left:auto;color:#ccc;padding:2px 4px;" onclick="event.stopPropagation();deleteEmailLabel('${l.id}','${_emEsc(l.name)}')" title="폴더 삭제">✕</span>
+        </div>
+      `).join('');
+    } catch(e) { /* 조용히 무시 — 폴더 목록은 부가 기능 */ }
+  }
+
+  // ── 새 폴더(라벨) 만들기 ──
+  window.promptCreateEmailLabel = async function() {
+    const name = prompt('새 폴더 이름을 입력하세요 (예: A업체)');
+    if (!name || !name.trim()) return;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    if (!email) return;
+    try {
+      const params = new URLSearchParams({ action: 'createGmailLabel', email, name: name.trim() });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 20000);
+      const data = await res.json();
+      if (data.status !== 'ok') { alert('폴더 생성 실패: ' + (data.message||'')); return; }
+      await _loadEmailLabels();
+    } catch(e) { alert('오류: ' + e.message); }
+  };
+
+  // ── 폴더(라벨) 삭제 ──
+  window.deleteEmailLabel = async function(labelId, name) {
+    if (!confirm(`"${name}" 폴더를 삭제하시겠습니까?\n(이 폴더로 분류됐던 메일은 삭제되지 않고, 폴더 지정만 없어집니다.)`)) return;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    if (!email) return;
+    try {
+      const params = new URLSearchParams({ action: 'deleteGmailLabel', email, labelId });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 20000);
+      const data = await res.json();
+      if (data.status !== 'ok') { alert('폴더 삭제 실패: ' + (data.message||'')); return; }
+      if (_currentFolder === labelId) { const inboxItem = document.querySelector('.em-folder-item[data-folder="inbox"]'); setEmailFolder('inbox', inboxItem); }
+      await _loadEmailLabels();
+    } catch(e) { alert('오류: ' + e.message); }
+  };
+
+  // ── 메일에 폴더(라벨) 지정 — 목록 팝오버로 선택 ──
+  window.openLabelPicker = function(event) {
+    if (event) event.stopPropagation();
+    const old = document.getElementById('emLabelPickerPopover');
+    if (old) { old.remove(); return; } // 토글
+    const btn = event ? event.currentTarget : null;
+    const rect = btn ? btn.getBoundingClientRect() : { left: 100, bottom: 100 };
+    const pop = document.createElement('div');
+    pop.id = 'emLabelPickerPopover';
+    pop.style.cssText = `position:fixed;top:${rect.bottom + 6}px;left:${Math.max(8, rect.left - 120)}px;z-index:5000;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.14);padding:8px;width:220px;max-height:280px;overflow-y:auto;`;
+    if (!_emailLabels.length) {
+      pop.innerHTML = `<div style="font-size:12px;color:#999;padding:8px;text-align:center;">만든 폴더가 없습니다.<br>사이드바에서 "새 폴더"로 먼저 만들어주세요.</div>`;
+    } else {
+      pop.innerHTML = _emailLabels.map(l => `
+        <div onclick="_applyLabelToCurrentMessage('${l.id}','${_emEsc(l.name)}')" style="padding:8px 10px;font-size:13px;border-radius:6px;cursor:pointer;">${_emEsc(l.name)}</div>
+      `).join('');
+    }
+    document.body.appendChild(pop);
+    setTimeout(() => {
+      document.addEventListener('click', function closeOnce(e) {
+        if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', closeOnce); }
+      });
+    }, 0);
+  };
+
+  // ── 선택한 폴더(라벨)를 현재 보고 있는 메일에 적용 + 자동분류(필터) 확인 ──
+  window._applyLabelToCurrentMessage = async function(labelId, labelName) {
+    const pop = document.getElementById('emLabelPickerPopover');
+    if (pop) pop.remove();
+    const msg = _currentGmailDetailMsg;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    if (!msg || !email) return;
+    try {
+      const params1 = new URLSearchParams({ action: 'gmailModifyLabel', email, labelId, op: 'add', ids: msg.id });
+      const res1 = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params1}`, undefined, 0, 20000);
+      const data1 = await res1.json();
+      if (data1.status !== 'ok') { alert('폴더 지정 실패: ' + (data1.message||'')); return; }
+      alert(`"${labelName}" 폴더로 지정했습니다.`);
+    } catch(e) { alert('오류: ' + e.message); return; }
+
+    // 발신주소 추출 후 자동분류(필터) 여부 확인
+    const fromParsed = _parseFromHeader(msg.from || '');
+    const fromAddr = fromParsed.email;
+    if (!fromAddr) return;
+    if (!confirm(`앞으로 ${fromAddr} 에서 오는 메일은 자동으로 "${labelName}" 폴더로 분류할까요?`)) return;
+    const applyToExisting = confirm(`이미 받은 메일 중 ${fromAddr} 에서 온 것들도 지금 바로 "${labelName}" 폴더로 분류할까요?`);
+    try {
+      const params2 = new URLSearchParams({ action: 'createGmailFilter', email, from: fromAddr, labelId, applyToExisting: applyToExisting ? 'true' : 'false' });
+      const res2 = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params2}`, undefined, 0, 30000);
+      const data2 = await res2.json();
+      if (data2.status !== 'ok') { alert('자동분류 규칙 생성 실패: ' + (data2.message||'')); return; }
+      alert(applyToExisting ? `자동분류 규칙을 만들었고, 기존 메일 ${data2.existingCount || 0}건도 분류했습니다.` : '자동분류 규칙을 만들었습니다.');
+    } catch(e) { alert('오류: ' + e.message); }
   };
 
   // ── 뷰 전환 헬퍼 ──
@@ -15160,6 +15280,9 @@ if ('serviceWorker' in navigator) {
             </button>
             <button class="em-detail-action-btn" onclick="forwardEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>전달
+            </button>
+            <button class="em-detail-action-btn" onclick="openLabelPicker(event)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83a2 2 0 0 0-1.41-.58H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .58 1.41l9.59 9.59a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1"/></svg>폴더지정
             </button>
             <button class="em-detail-action-btn" onclick="deleteCurrentEmail()" style="color:#c0392b;border-color:#e6b8b3;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제
