@@ -2704,9 +2704,9 @@ window.fetchEmployeesFS = async function() {
 
     <!-- 연도 네비 -->
     <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:10px;background:var(--cream-2,#f5f1ec);border-radius:999px;padding:4px;width:fit-content;margin-left:auto;margin-right:auto;">
-      <button onclick="changeNoticeYear(-1)" class="notice-year-nav-btn" title="이전 해"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+      <button onclick="changeNoticeYear(-1)" class="notice-year-nav-btn" title="이전 해"><svg width="11" height="13" viewBox="0 0 11 13" fill="currentColor"><polygon points="11 0 11 13 0 6.5"></polygon></svg></button>
       <span id="noticeYear" style="font-size:14px;font-weight:800;color:#333;min-width:64px;text-align:center;">2026년</span>
-      <button onclick="changeNoticeYear(1)" class="notice-year-nav-btn" title="다음 해"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+      <button onclick="changeNoticeYear(1)" class="notice-year-nav-btn" title="다음 해"><svg width="11" height="13" viewBox="0 0 11 13" fill="currentColor"><polygon points="0 0 0 13 11 6.5"></polygon></svg></button>
     </div>
 
     <!-- 월 버튼 가로 드래그 스크롤 -->
@@ -2734,14 +2734,14 @@ window.fetchEmployeesFS = async function() {
 
     <!-- 서식 툴바: 텍스트를 드래그로 선택한 뒤 눌러서 적용 -->
     <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
-      <button type="button" onmousedown="event.preventDefault();document.execCommand('bold')" style="width:30px;height:30px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#333;line-height:1;padding:0;">B</button>
+      <button type="button" onmousedown="event.preventDefault();document.execCommand('bold')" style="box-sizing:border-box;width:32px;height:32px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#333;line-height:1;padding:0;">B</button>
       <!-- 현재색상 / 팔레트 -->
       <div style="position:relative;">
-        <div style="display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden;height:30px;">
-          <button type="button" title="현재 색상 적용" onmousedown="event.preventDefault();document.execCommand('foreColor', false, window._noticeCurColor || '#7a5c44')" style="width:30px;height:30px;border:none;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">
+        <div style="box-sizing:border-box;display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden;height:32px;">
+          <button type="button" title="현재 색상 적용" onmousedown="event.preventDefault();document.execCommand('foreColor', false, window._noticeCurColor || '#7a5c44')" style="box-sizing:border-box;width:32px;height:32px;border:none;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">
             <span id="noticeColorSwatch" style="display:block;width:16px;height:16px;border-radius:50%;background:#7a5c44;border:1px solid rgba(0,0,0,0.15);"></span>
           </button>
-          <button type="button" title="색상 팔레트" onmousedown="event.preventDefault()" onclick="toggleNoticeColorPalette(event)" style="width:24px;height:30px;border:none;border-left:1px solid #eee;background:#fafafa;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#888;padding:0;">
+          <button type="button" title="색상 팔레트" onmousedown="event.preventDefault()" onclick="toggleNoticeColorPalette(event)" style="box-sizing:border-box;width:26px;height:32px;border:none;border-left:1px solid #eee;background:#fafafa;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#888;padding:0;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1a1.6 1.6 0 0 1 1.6-1.6h2c3 0 5.6-2.5 5.6-5.6C22 6.2 17.5 2 12 2z"/><circle cx="7" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="17.5" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
           </button>
         </div>
@@ -2770,7 +2770,7 @@ window.fetchEmployeesFS = async function() {
           </div>
         </div>
       </div>
-      <button type="button" onmousedown="event.preventDefault();document.execCommand('removeFormat')" style="padding:0 10px;height:30px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:11px;color:#888;">서식 지우기</button>
+      <button type="button" onmousedown="event.preventDefault();document.execCommand('removeFormat')" style="box-sizing:border-box;padding:0 10px;height:32px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:11px;color:#888;">서식 지우기</button>
       <span style="font-size:11px;color:#aaa;margin-left:4px;">강조할 부분을 드래그로 선택한 뒤 버튼을 눌러주세요</span>
     </div>
 
@@ -2797,7 +2797,7 @@ window.fetchEmployeesFS = async function() {
 .notice-m-btn.active { background:var(--brand); color:#fff; border-color:var(--brand); }
 .notice-year-nav-btn {
   width:30px;height:30px;border-radius:50%;border:none;background:transparent;
-  color:#888;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  color:#555;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
   transition:background .12s,color .12s;
 }
 .notice-year-nav-btn:hover { background:#fff; color:var(--brand); box-shadow:0 1px 4px rgba(0,0,0,0.08); }
