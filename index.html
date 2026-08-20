@@ -6275,6 +6275,20 @@ function csDateInputValue(val) {
   </div>
 </div>
 
+<!-- 이메일 새 폴더(라벨) 이름 입력 모달 -->
+<div id="emNewFolderModal" style="display:none;position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:360px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#222;">새 폴더 만들기</h3>
+    <input type="text" id="emNewFolderNameInput" placeholder="예: A업체" maxlength="60"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();confirmCreateEmailLabel();}"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button onclick="closeNewFolderModal()" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">취소</button>
+      <button onclick="confirmCreateEmailLabel()" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">만들기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 정보 수정 신청 모달 -->
 <div id="infoRequestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:20000;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:90%;max-width:480px;padding:28px 28px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);position:relative;">
@@ -14734,14 +14748,35 @@ if ('serviceWorker' in navigator) {
   }
 
   // ── 새 폴더(라벨) 만들기 ──
-  window.promptCreateEmailLabel = async function() {
-    const name = prompt('새 폴더 이름을 입력하세요 (예: A업체)');
-    if (!name || !name.trim()) return;
+  // ★ window.prompt()는 데스크톱 앱(Electron 렌더러)에서 지원 안 돼서 눌러도 아무 반응이
+  //   없다(alert/confirm은 됨) — 그래서 이름 입력은 네이티브 prompt 대신 직접 만든 작은
+  //   모달로 받는다.
+  window.promptCreateEmailLabel = function() {
+    const modal = document.getElementById('emNewFolderModal');
+    const input = document.getElementById('emNewFolderNameInput');
+    if (!modal || !input) return;
+    input.value = '';
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => input.focus(), 50);
+  };
+
+  window.closeNewFolderModal = function() {
+    const modal = document.getElementById('emNewFolderModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.removeProperty('overflow');
+  };
+
+  window.confirmCreateEmailLabel = async function() {
+    const input = document.getElementById('emNewFolderNameInput');
+    const name = input ? input.value.trim() : '';
+    if (!name) return;
+    closeNewFolderModal();
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
     if (!email) return;
     try {
-      const params = new URLSearchParams({ action: 'createGmailLabel', email, name: name.trim() });
+      const params = new URLSearchParams({ action: 'createGmailLabel', email, name });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 20000);
       const data = await res.json();
       if (data.status !== 'ok') { alert('폴더 생성 실패: ' + (data.message||'')); return; }
