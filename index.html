@@ -6327,6 +6327,16 @@ function csDateInputValue(val) {
 <!-- 내 설정 모달 -->
 
 
+<!-- 결재대기 강제 확인 게이트 — 새 결재대기건이 생기면 결재 화면에 한 번 다녀올 때까지 다른 조작을 막는다 -->
+<div id="leaveApprovalGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:400px;padding:32px 28px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.25);">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e67e22" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <h3 style="font-size:16px;font-weight:800;color:#222;margin:0 0 8px;">미확인 결재건이 있습니다</h3>
+    <p id="leaveApprovalGateMsg" style="font-size:13px;color:#888;margin:0 0 20px;">결재 화면에서 확인해주세요.</p>
+    <button onclick="_goToApprovalFromGate()" style="width:100%;padding:12px 0;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;">결재 화면으로 이동</button>
+  </div>
+</div>
+
 <!-- 정보 수정 신청 모달 -->
 <div id="infoRequestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:20000;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:90%;max-width:480px;padding:28px 28px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);position:relative;">
@@ -7350,9 +7360,58 @@ function csDateInputValue(val) {
         const ev = new CustomEvent('leaveDataRefresh', { detail: rows });
         document.dispatchEvent(ev);
         updateApprovalBadge(userData, rows);
+        _checkLeaveApprovalGate(userData, rows);
       } catch(e) {}
     }
     window.checkLeavePending = checkLeavePending;
+
+    // ── 결재대기 강제 확인 게이트 ──
+    //   새 결재대기건이 생기면(로그인 직후 포함) 결재 화면에 한 번 다녀올 때까지 다른 탭 조작을
+    //   막는다. "확인함" 여부는 브라우저에 applyId 목록으로 저장해서, 이미 본 건은 계속
+    //   대기중이어도 다시 막지 않고 진짜 새로 생긴 건에만 반응한다. 결재 화면에 들어갔다 나오면
+    //   (승인/반려까지 다 안 해도) 그 시점 대기건 전부를 "확인함" 처리하고 막힘을 푼다 —
+    //   급한 업무 때문에 다른 기능을 먼저 써야 할 수도 있어서, 완전 처리까진 강제하지 않는다.
+    function _leaveGateSeenKey(userId) { return 'leaveGateSeen_' + userId; }
+    function _getLeaveGateSeen(userId) {
+      try { return JSON.parse(localStorage.getItem(_leaveGateSeenKey(userId)) || '[]'); } catch(e) { return []; }
+    }
+    function _markLeaveGateSeen(userId, applyIds) {
+      try {
+        const cur = new Set(_getLeaveGateSeen(userId));
+        applyIds.forEach(id => cur.add(id));
+        localStorage.setItem(_leaveGateSeenKey(userId), JSON.stringify([...cur]));
+      } catch(e) {}
+    }
+    function _checkLeaveApprovalGate(userData, rows) {
+      if (!userData || (!userData.isManager && !userData.isHead)) return;
+      const pending = (rows || []).filter(r => {
+        if (r.id === userData.id) return false;
+        const approvers = Array.isArray(r.approverIds) ? r.approverIds : String(r.approverIds||'').split(',').map(s=>s.trim());
+        if (!approvers.includes(String(userData.id))) return false;
+        if (userData.isHead)    return r.status === '대표승인대기';
+        if (userData.isManager) return r.status === '대기';
+        return false;
+      });
+      const gate = document.getElementById('leaveApprovalGate');
+      if (!gate) return;
+      const seen = new Set(_getLeaveGateSeen(userData.id));
+      const unseen = pending.filter(r => !seen.has(r.applyId));
+      if (unseen.length > 0) {
+        const msgEl = document.getElementById('leaveApprovalGateMsg');
+        if (msgEl) msgEl.textContent = '미확인 결재 대기 건이 ' + unseen.length + '건 있습니다. 결재 화면에서 확인해주세요.';
+        gate.style.display = 'flex';
+        window._leaveGatePendingIds = pending.map(r => r.applyId);
+      } else {
+        gate.style.display = 'none';
+      }
+    }
+    window._goToApprovalFromGate = function() {
+      const user = window._currentUser;
+      const gate = document.getElementById('leaveApprovalGate');
+      if (gate) gate.style.display = 'none';
+      if (user && window._leaveGatePendingIds) _markLeaveGateSeen(user.id, window._leaveGatePendingIds);
+      if (typeof window.openApprovalPanel === 'function') window.openApprovalPanel();
+    };
 
     window.updateApprovalBadge = function updateApprovalBadge(userData, rows) {
       const pending = (rows||[]).filter(r => {
