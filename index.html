@@ -13312,6 +13312,20 @@ if ('serviceWorker' in navigator) {
     renderLeavePending();
   });
 
+  // ★ 휴가 신청건 하나가 실제로 차지하는 날짜 목록을 구한다.
+  //   selectedDates(실제 선택한 날짜들)가 있으면 그걸 그대로 쓰고, 없으면(예전 신청 등)
+  //   startDate~endDate를 연속 범위로 간주해 채운다 — 예전엔 항상 후자만 썼는데, 떨어진
+  //   날짜만 골라 신청해도 그 사이 날짜까지 연차인 것처럼 보이는 버그가 있었다.
+  function _leaveDateKeys(r) {
+    if (r.selectedDates && r.selectedDates.length) return r.selectedDates;
+    const keys = [];
+    const s = new Date(r.startDate), e = new Date(r.endDate || r.startDate);
+    for (let dt = new Date(s); dt <= e; dt.setDate(dt.getDate()+1)) {
+      keys.push(dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'));
+    }
+    return keys;
+  }
+
   // 신청 달력 렌더링
   function renderLeaveCal() {
     const title = document.getElementById('leaveCalTitle');
@@ -13334,12 +13348,12 @@ if ('serviceWorker' in navigator) {
     };
     const leaveDates = {};
     const src = (_publicLeaves && _publicLeaves.length) ? _publicLeaves : _allLeaves;
-    src.filter(r => r.status !== '반려').forEach(r => {
-      const s = new Date(r.startDate), e = new Date(r.endDate || r.startDate);
-      for (let dt = new Date(s); dt <= e; dt.setDate(dt.getDate()+1)) {
-        const key = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+    // ★ 결재(대표 확정) 전까지는 달력에 표시하지 않는다 — 대기 중인 신청까지 보이면
+    //   아직 승인도 안 된 일정이 확정된 것처럼 오해를 살 수 있다.
+    src.filter(r => r.status === '확정').forEach(r => {
+      _leaveDateKeys(r).forEach(key => {
         (leaveDates[key] = leaveDates[key] || []).push({ name: r.name, type: r.leaveType });
-      }
+      });
     });
     // ★ 생일: 실제 휴가 기록이 아니라 화면에만 얹어서 보여준다 — 연차 차감 없음, 신청내역에도 안 남음.
     (window._allEmployees || []).filter(emp => !emp.leaveDate && emp.birthday).forEach(emp => {
@@ -13385,6 +13399,9 @@ if ('serviceWorker' in navigator) {
     _dragStart = dateStr;
     _isDragging = false; // 실제 이동 시에만 true
     // 토글: 이미 선택된 날짜면 해제, 아니면 선택
+    // ★ 떨어진 날짜를 개별 선택하는 것 자체는 정상 기능(예: 11일+22일만 따로 신청)이라 막지
+    //   않는다 — 대신 신청 저장 시 선택한 날짜 "목록"을 그대로 서버에 보내서, 화면에 표시할
+    //   때도 그 목록을 그대로 쓰게 한다(예전엔 첫/끝 날짜만 저장해서 그 사이까지 색칠되던 버그).
     if (_selectedDates.includes(dateStr)) {
       _selectedDates = _selectedDates.filter(d => d !== dateStr);
     } else {
@@ -13421,7 +13438,10 @@ if ('serviceWorker' in navigator) {
     if (_selectedDates.length === 0) { el.textContent = '선택된 날짜 없음'; return; }
     const sorted = [..._selectedDates].sort();
     const days = _selectedDates.length * _leavePerDay();
-    el.textContent = sorted[0] + (sorted.length > 1 ? ' ~ ' + sorted[sorted.length-1] : '') + '  |  ' + days + '일';
+    // ★ "시작~끝"만 보여주면 떨어진 날짜를 골랐을 때(예: 11일+22일) 그 사이 날짜도 포함된
+    //   것처럼 오해할 수 있어서, 실제 선택한 날짜를 전부 나열한다.
+    const dateListText = sorted.map(d => d.slice(5).replace('-', '/')).join(', ');
+    el.textContent = dateListText + '  |  ' + days + '일';
   }
 
   const LEAVE_TYPE_COLOR = {
@@ -13497,31 +13517,42 @@ if ('serviceWorker' in navigator) {
       return;
     }
 
+    msg.textContent = '';
+    // ★ 신청 전 항상 신청 내용을 명확히 요약해서 보여주고 확인받는다 — 특히 잔여 연차보다
+    //   많이 신청하는 경우, 마이너스 연차로 적용된다는 사실을 신청자가 확실히 인지하게 한다.
+    //   (예전엔 "잔여 0일 이하일 때만" 경고했는데, 잔여가 남아있어도 그보다 많이 신청하면
+    //   똑같이 마이너스가 되는데 경고가 안 뜨는 문제가 있었다.)
+    const saveLeaveType = _leaveSaveType();
+    const dateListText = sorted.map(d => d.slice(5).replace('-', '/')).join(', ');
+    let confirmMsg = `[휴가 신청 확인]\n\n종류: ${saveLeaveType}\n신청 날짜(총 ${sorted.length}일): ${dateListText}\n총 일수: ${days}일\n`;
+    if (_isDeductType(saveLeaveType)) {
+      const total = calcAnnualLeave(user.joinDate);
+      const used  = parseFloat(user.usedLeave) || 0;
+      const pendingDays = _allLeaves
+        .filter(r => r.id === user.id && _isDeductType(r.leaveType) && (r.status === '확정' || r.status === '대기' || r.status === '대표승인대기'))
+        .reduce((s, r) => s + parseFloat(r.days||0), 0);
+      const remainBefore = total - used - pendingDays;
+      const remainAfter = remainBefore - days;
+      confirmMsg += `\n현재 잔여: ${remainBefore}일\n이번 신청 후 잔여: ${remainAfter}일`;
+      if (remainAfter < 0) {
+        confirmMsg += `\n\n⚠ 잔여 연차보다 많이 신청했습니다. 이대로 신청하면 마이너스 연차 사용(${remainAfter}일)으로 적용됩니다.`;
+      }
+    } else {
+      confirmMsg += '\n(건강검진·출산휴가는 잔여 연차에서 차감되지 않습니다.)';
+    }
+    confirmMsg += '\n\n이대로 신청하시겠습니까?';
+    if (!confirm(confirmMsg)) return;
+
     msg.textContent = '신청 중...';
     try {
-      // 잔여연차 없을 때 확인 팝업 — 차감 대상 종류(연차·반차·반반차)만 검사
-      const saveLeaveType = _leaveSaveType();
-      if (_isDeductType(saveLeaveType)) {
-        const total = calcAnnualLeave(user.joinDate);
-        const used  = parseFloat(user.usedLeave) || 0;
-        const pendingDays = _allLeaves
-          .filter(r => r.id === user.id && _isDeductType(r.leaveType) && (r.status === '확정' || r.status === '대기' || r.status === '대표승인대기'))
-          .reduce((s, r) => s + parseFloat(r.days||0), 0);
-        const remain = total - used - pendingDays;
-        if (remain <= 0) {
-          if (!confirm('잔여 연차가 없습니다. 신청하시겠습니까?')) {
-            msg.textContent = '';
-            return;
-          }
-        }
-      }
       const params = new URLSearchParams({
         action: 'applyLeave',
         id: user.id, name: user.name, dept: user.dept || '',
         startDate: sorted[0], endDate: sorted[sorted.length-1],
         days, leaveType: saveLeaveType, reason,
         approverIds,
-        isHead: user.isHead ? 'true' : 'false'
+        isHead: user.isHead ? 'true' : 'false',
+        selectedDates: JSON.stringify(sorted)
       });
 
       const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
@@ -13573,7 +13604,8 @@ if ('serviceWorker' in navigator) {
         action: 'requestChangeLeave',
         rowIdx: _leaveChangeRowIdx, id: user.id,
         startDate: sorted[0], endDate: sorted[sorted.length-1],
-        days, leaveType: _leaveSaveType(), reason
+        days, leaveType: _leaveSaveType(), reason,
+        selectedDates: JSON.stringify(sorted)
       });
       const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
       const data = await res.json();
@@ -13740,13 +13772,12 @@ if ('serviceWorker' in navigator) {
     // 이 달의 휴가 날짜 수집 (이름 + 종류) — 전사 데이터 우선, 없으면 본인/결재대상
     const leaveDates = {};
     const srcLeaves = (_publicLeaves && _publicLeaves.length) ? _publicLeaves : _allLeaves;
-    srcLeaves.filter(r => r.status !== '반려').forEach(r => {
-      const s = new Date(r.startDate), e = new Date(r.endDate);
-      for (let d = new Date(s); d <= e; d.setDate(d.getDate()+1)) {
-        const key = d.toISOString().slice(0,10);
+    // ★ 결재(대표 확정) 전까지는 달력에 표시하지 않는다 (renderLeaveCal과 동일한 이유).
+    srcLeaves.filter(r => r.status === '확정').forEach(r => {
+      _leaveDateKeys(r).forEach(key => {
         if (!leaveDates[key]) leaveDates[key] = [];
         leaveDates[key].push({ name: r.name, type: r.leaveType || '연차' });
-      }
+      });
     });
     // ★ 생일: 실제 휴가 기록이 아니라, 이 달을 그릴 때마다 직원 생일(월/일)이 걸리는 날짜에
     //   화면에만 얹어서 보여준다 — 연차 차감도 없고 신청내역에도 안 남는다.
