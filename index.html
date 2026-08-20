@@ -1174,6 +1174,8 @@ window.fetchEmployeesFS = async function() {
       <button type="button" id="wikiSaveBtn" onclick="saveWikiEdit()" style="display:none;background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
       <button type="button" id="wikiCancelBtn" onclick="cancelWikiEdit()" style="display:none;background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;">취소</button>
     </div>
+    <!-- 수정모드일 때만 <대제목> 문법 설명 표시 (원래 최종수정 정보가 있던 자리) -->
+    <div id="wikiEditHint" style="display:none;font-size:11.5px;color:#999;margin-bottom:12px;"></div>
     <div id="wikiViewArea" style="white-space:pre-wrap;font-size:14.5px;line-height:1.8;color:#222;min-height:calc(100dvh - 260px);padding:4px 2px;">불러오는 중...</div>
     <textarea id="wikiEditArea" spellcheck="false" style="display:none;width:100%;min-height:calc(100dvh - 260px);padding:15px;border:1px solid #ddd;border-radius:8px;font-size:14.5px;line-height:1.7;resize:vertical;box-sizing:border-box;background:#fdfdfd;" placeholder="지복득마루 영업 및 시공 정보를 자유롭게 작성하세요..."></textarea>
   </div>
@@ -1918,19 +1920,6 @@ window.fetchEmployeesFS = async function() {
   .rsv-badge.취소 { background:#f8d7da; color:#842029; border:1px solid #dc3545; }
   .rsv-item-info { font-size:12px; color:#777; display:flex; gap:12px; flex-wrap:wrap; }
 
-  /* 상세/액션 */
-  .rsv-detail { background:#f9f9f9; border-radius:12px; padding:16px; margin-bottom:14px; font-size:13px; line-height:2; }
-  .rsv-detail-row { display:grid; grid-template-columns:90px 1fr; }
-  .rsv-detail-label { color:#888; font-weight:700; }
-  .rsv-detail-val { color:#111; font-weight:500; }
-  .rsv-action-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
-  .rsv-btn-confirm { background:#1a7a45; color:#fff; border:none; border-radius:10px; padding:12px; font-size:13px; font-weight:700; cursor:pointer; width:100%; }
-  .rsv-btn-cancel  { background:#fff; color:#842029; border:1px solid #dc3545; border-radius:10px; padding:12px; font-size:13px; font-weight:700; cursor:pointer; width:100%; }
-  .rsv-btn-confirm:hover { background:#155c35; }
-  .rsv-btn-cancel:hover  { background:#f8d7da; }
-  /* 예약삭제(문자발송X) — 한 줄 전체 차지, 회색으로 구분 */
-  .rsv-btn-delete { grid-column:1 / -1; background:#fff; color:#555; border:1px solid #adb5bd; border-radius:10px; padding:12px; font-size:13px; font-weight:700; cursor:pointer; width:100%; }
-  .rsv-btn-delete:hover { background:#e9ecef; color:#212529; }
   .rsv-empty { text-align:center; color:#aaa; font-size:13px; padding:40px 0; }
 
   /* 슬롯관리 */
@@ -1971,21 +1960,22 @@ window.fetchEmployeesFS = async function() {
       <button onclick="loadReservations()" style="margin-left:8px;padding:6px 12px;font-size:11px;border-radius:8px;background:#111;color:#fff;border:none;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>새로고침</button>
     </div>
 
+    <!-- 체크박스로 선택한 예약건 처리 — 예전엔 목록에서 클릭해 "예약 상세" 패널을 열어야만
+         확정/취소/삭제가 가능했는데, 목록에서 바로 체크해서 처리하도록 단순화. -->
+    <div id="rsvCheckedActions" style="display:none;align-items:center;gap:8px;margin-bottom:14px;padding:8px 10px;background:var(--cream);border-radius:8px;">
+      <span id="rsvCheckedCount" style="font-size:12px;font-weight:700;color:#555;">0건 선택</span>
+      <button onclick="confirmCheckedRsv()" style="margin-left:auto;padding:5px 12px;font-size:11px;border-radius:6px;background:#1a7a45;color:#fff;border:none;cursor:pointer;">확정(문자발송)</button>
+      <button onclick="cancelCheckedRsv()" style="padding:5px 12px;font-size:11px;border-radius:6px;background:#e67e22;color:#fff;border:none;cursor:pointer;">취소(문자발송)</button>
+      <button onclick="deleteCheckedRsv()" style="padding:5px 12px;font-size:11px;border-radius:6px;background:#c0392b;color:#fff;border:none;cursor:pointer;">삭제(문자발송X)</button>
+    </div>
+
     <div id="rsvList" class="rsv-list">
       <div class="rsv-empty">불러오는 중...</div>
     </div>
   </div>
 
-  <!-- 우: 상세 + 슬롯관리 -->
+  <!-- 우: 슬롯관리 -->
   <div style="display:flex; flex-direction:column; gap:16px;">
-
-    <!-- 예약 상세 -->
-    <div class="rsv-card" id="rsvDetailCard">
-      <div class="rsv-card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5M9 13h6M9 17h6"/></svg>예약 상세</div>
-      <div id="rsvDetailBody">
-        <div class="rsv-empty">목록에서 예약을 선택하세요.</div>
-      </div>
-    </div>
 
     <!-- 슬롯 관리 -->
     <div class="rsv-card">
@@ -2176,7 +2166,7 @@ window.fetchEmployeesFS = async function() {
   }
 
   let allReservations = [];
-  let selectedRsv = null;
+  let _rsvCheckedIds = new Set(); // 목록에서 체크박스로 선택한 receiptNo 모음
   let slotState = {}; // { '10:00~10:30': 'open'|'closed', ... }
 
   // ── 오늘 날짜 기본 세팅 ──
@@ -2283,8 +2273,8 @@ window.fetchEmployeesFS = async function() {
         await window.FB.deleteDoc(window.FB.doc(window.FB.db, 'reservations', r.receiptNo));
         const idx = allReservations.findIndex(x => x.receiptNo === r.receiptNo);
         if (idx !== -1) allReservations.splice(idx, 1);
-        // 방금 지운 건이 선택돼 있었다면 선택 해제
-        if (selectedRsv && selectedRsv.receiptNo === r.receiptNo) selectedRsv = null;
+        // 방금 지운 건이 체크돼 있었다면 선택 해제
+        _rsvCheckedIds.delete(r.receiptNo);
       } catch(e) {
         console.warn('[예약정리] 이전건 삭제 실패:', r.receiptNo, e && e.message);
       }
@@ -2349,10 +2339,13 @@ window.fetchEmployeesFS = async function() {
     list.sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
 
     document.getElementById('rsvList').innerHTML = list.map((r,i) => `
-      <div class="rsv-item${selectedRsv && selectedRsv.receiptNo === r.receiptNo ? ' selected':''}"
-           onclick="selectRsv(${allReservations.indexOf(r)})">
+      <div class="rsv-item${_rsvCheckedIds.has(r.receiptNo) ? ' selected':''}"
+           onclick="toggleRsvCheck('${r.receiptNo}')">
         <div class="rsv-item-top">
-          <span class="rsv-item-name">${_esc(r.date)} ${r.time ? _esc(r.time.split('~')[0]) : ''}</span>
+          <span style="display:flex;align-items:center;">
+            <input type="checkbox" onclick="event.stopPropagation();toggleRsvCheck('${r.receiptNo}')" ${_rsvCheckedIds.has(r.receiptNo) ? 'checked' : ''} style="accent-color:var(--brand);width:16px;height:16px;cursor:pointer;margin-right:8px;">
+            <span class="rsv-item-name">${_esc(r.date)} ${r.time ? _esc(r.time.split('~')[0]) : ''}</span>
+          </span>
           <span class="rsv-badge 대기">대기</span>
         </div>
         <div class="rsv-item-info">
@@ -2363,12 +2356,21 @@ window.fetchEmployeesFS = async function() {
     `).join('');
   };
 
-  // ── 예약 선택 ──
-  window.selectRsv = function(idx) {
-    selectedRsv = allReservations[idx];
+  // ── 목록에서 체크박스로 예약 선택/해제 — 위에 나타나는 확정/취소/삭제 버튼이 이 선택을 대상으로 동작한다 ──
+  window.toggleRsvCheck = function(receiptNo) {
+    if (_rsvCheckedIds.has(receiptNo)) _rsvCheckedIds.delete(receiptNo);
+    else _rsvCheckedIds.add(receiptNo);
     renderRsvList();
-    renderRsvDetail(selectedRsv);
+    updateRsvCheckedActionsBar();
   };
+
+  function updateRsvCheckedActionsBar() {
+    const bar = document.getElementById('rsvCheckedActions');
+    const countEl = document.getElementById('rsvCheckedCount');
+    const count = _rsvCheckedIds.size;
+    if (bar) bar.style.display = count > 0 ? 'flex' : 'none';
+    if (countEl) countEl.textContent = count + '건 선택';
+  }
 
   // ── 접수일시 포맷: "2026년6월19일 07시16분" ──
   function formatSubmittedAt(val) {
@@ -2383,166 +2385,85 @@ window.fetchEmployeesFS = async function() {
     return `${y}년${m}월${day}일 ${hh}시${mm}분`;
   }
 
-  // ── 날짜 포맷 헬퍼 ──
-  function fmtDateTime(val) {
-    if (!val) return '-';
-    const s = String(val).trim();
-    // "2026-06-22T23:46" or "2026-06-22T23:46:00.000Z"
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return s;
-    const kst = new Date(d.getTime() + (d.getTimezoneOffset() === 0 ? 9*60*60*1000 : 0));
-    // 이미 KST인 경우 (T 없이 그냥 날짜 문자열이면) 그냥 파싱
-    const target = s.endsWith('Z') ? kst : d;
-    const y = target.getFullYear();
-    const m = target.getMonth()+1;
-    const day = target.getDate();
-    const hh = String(target.getHours()).padStart(2,'0');
-    const mm = String(target.getMinutes()).padStart(2,'0');
-    return `${y}년${m}월${day}일 ${hh}시${mm}분`;
-  }
-
-  function fmtDateOnly(val) {
-    if (!val) return '-';
-    const s = String(val).trim();
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return m[1] + '년' + m[2] + '월' + m[3] + '일';
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return s;
-    const y = d.getFullYear();
-    const mo = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    return y + '년' + mo + '월' + day + '일';
-  }
-
-  function fmtTimeOnly(val) {
-    if (!val) return '-';
-    return String(val).split('~')[0].trim();
-  }
-
-  // 시공예정시기: Date형식이면 YYYY년MM월DD일, 아니면 그대로
-  window.fmtWorkTiming = function fmtWorkTiming(val) {
-    if (!val) return '';
-    const s = String(val).trim();
-    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /^\d{4}-\d{2}-\d{2}$/.test(s)) {
-      const d = new Date(s);
-      if (!isNaN(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth()+1).padStart(2,'0');
-        const day = String(d.getDate()).padStart(2,'0');
-        return `${y}년 ${m}월 ${day}일`;
-      }
-    }
-    return s;
-  };
-
-  // ── 상세 렌더링 ──
-  function renderRsvDetail(r) {
-    const rows = [
-      ['접수일시', fmtDateTime(r.submittedAt)],
-      ['상담날짜', r.date||'-'],
-      ['상담시간', fmtTimeOnly(r.time)],
-      ['예약자유형', r.visitorType||'-'],
-      ['방문인원', r.visitCount||'-'],
-      ['재방문', r.revisit||'-'],
-      ['성함', r.name||'-'],
-      ['연락처', r.phone||'-'],
-      ['업체명', r.company||'-'],
-      ['현장주소', r.address||'-'],
-      ['평수', r.size||'-'],
-      ['시공예정일', fmtDateOnly(r.workDate)],
-      ['공사기간', r.workPeriod||'-'],
-      ['전달사항', r.memo||'-'],
-      ['처리상태', r.status||'대기'],
-    ];
-
-    document.getElementById('rsvDetailBody').innerHTML = `
-      <div class="rsv-detail">
-        ${rows.map(([l,v]) => `
-          <div class="rsv-detail-row">
-            <span class="rsv-detail-label">${l}</span>
-            <span class="rsv-detail-val">${_esc(v)}</span>
-          </div>
-        `).join('')}
-      </div>
-      <div class="rsv-action-row">
-        <button class="rsv-btn-confirm" onclick="updateStatus('예약')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M20 6 9 17l-5-5"/></svg>예약확정(문자발송)</button>
-        <button class="rsv-btn-cancel"  onclick="updateStatus('취소')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M18 6 6 18M6 6l12 12"/></svg>예약취소(문자발송)</button>
-        <button class="rsv-btn-delete"  onclick="deleteReservation()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6"/></svg>예약삭제(문자발송X)</button>
-      </div>
-      <div id="rsvActionMsg" style="font-size:12px;color:#555;text-align:center;"></div>
-    `;
-  }
-
-  // ★ 삭제/상태변경 중 버튼을 빠르게 연타하면 confirm() 대기 중 쌓인 클릭이 뒤이어
-  //   또 실행되면서, 먼저 끝난 처리가 이미 지워버린 rsvActionMsg에 접근해 null 에러가 났었다.
+  // ★ 처리 중 버튼을 빠르게 연타하면 confirm() 대기 중 쌓인 클릭이 뒤이어 또 실행될 수 있어서,
   //   같은 처리 진행 중엔 재진입을 막는다.
   let _rsvActionBusy = false;
 
-  // ── 예약 삭제 (문자발송 없음. 예약 문서를 완전히 삭제) ──
-  window.deleteReservation = async function() {
-    if (!selectedRsv || _rsvActionBusy) return;
-    if (!confirm(`[${selectedRsv.name}] 예약을 완전히 삭제하시겠습니까?\n(문자는 발송되지 않으며, 삭제된 예약은 복구할 수 없습니다.)`)) return;
+  // ── 체크된 예약 확정 (문자발송) ──
+  window.confirmCheckedRsv = async function() {
     if (_rsvActionBusy) return;
+    const targets = allReservations.filter(r => _rsvCheckedIds.has(r.receiptNo));
+    if (!targets.length) return;
+    if (!confirm(`선택한 ${targets.length}건을 확정하시겠습니까?`)) return;
     _rsvActionBusy = true;
-    const msgEl = document.getElementById('rsvActionMsg');
-    if (msgEl) msgEl.textContent = '삭제 중...';
-    try {
-      await window.fbEnsureAuth();
-      const ref = window.FB.doc(window.FB.db, 'reservations', selectedRsv.receiptNo);
-      await window.FB.deleteDoc(ref);
-      // 목록에서 제거
-      const idx = allReservations.findIndex(r => r.receiptNo === selectedRsv.receiptNo);
-      if (idx !== -1) allReservations.splice(idx, 1);
-      renderRsvList();
-      if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
-      selectedRsv = null;
-      document.getElementById('rsvDetailBody').innerHTML = '<div class="rsv-empty">목록에서 예약을 선택하세요.</div>';
-    } catch(e) {
-      const m = document.getElementById('rsvActionMsg');
-      if (m) m.textContent = '오류: ' + e.message;
-    } finally {
-      _rsvActionBusy = false;
+    let successCount = 0, failCount = 0;
+    for (const rsv of targets) {
+      try {
+        await _applyReservationStatus(rsv, '예약');
+        successCount++;
+        if (typeof sendSMS === 'function' && rsv.phone) {
+          const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(rsv.date||'') : (rsv.date||'');
+          const schedule = `${dateFormatted} ${rsv.time||''}`.trim();
+          await sendSMS(rsv.phone, rsv.name||'', schedule, rsv.counselor||'', 'confirm');
+        }
+      } catch(e) { failCount++; }
     }
+    _rsvCheckedIds.clear();
+    renderRsvList();
+    updateRsvCheckedActionsBar();
+    if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
+    _rsvActionBusy = false;
+    alert(`확정 완료: 성공 ${successCount}건${failCount ? `, 실패 ${failCount}건` : ''}`);
   };
 
-  // ── 상태 변경 (Firestore) ──
-  window.updateStatus = async function(newStatus) {
-    if (!selectedRsv || _rsvActionBusy) return;
-    if (!confirm(`[${selectedRsv.name}] 예약을 "${newStatus}" 처리하시겠습니까?`)) return;
+  // ── 체크된 예약 취소 (문자발송) ──
+  window.cancelCheckedRsv = async function() {
     if (_rsvActionBusy) return;
+    const targets = allReservations.filter(r => _rsvCheckedIds.has(r.receiptNo));
+    if (!targets.length) return;
+    if (!confirm(`선택한 ${targets.length}건을 취소 처리하시겠습니까?`)) return;
     _rsvActionBusy = true;
-    const msgEl0 = document.getElementById('rsvActionMsg');
-    if (msgEl0) msgEl0.textContent = '처리 중...';
-    try {
-      await _applyReservationStatus(selectedRsv, newStatus);
-      selectedRsv.status = newStatus;
-      const idx = allReservations.findIndex(r => r.receiptNo === selectedRsv.receiptNo);
-      if (idx !== -1) allReservations[idx].status = newStatus;
-      renderRsvList();
-      // ★ 대기 건수 재계산 → N배지 즉시 갱신 (확정 후 다른 탭 이동 시 배지 남는 문제 방지)
-      if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
-
-      // 문자 발송
-      if (typeof sendSMS === 'function' && selectedRsv.phone) {
-        const templateKey = newStatus === '예약' ? 'confirm' : newStatus === '취소' ? 'cancel' : null;
-        if (templateKey) {
-          const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(selectedRsv.date||'') : (selectedRsv.date||'');
-          const schedule = `${dateFormatted} ${selectedRsv.time||''}`.trim();
-          sendSMS(selectedRsv.phone, selectedRsv.name||'', schedule, selectedRsv.counselor||'', templateKey);
+    let successCount = 0, failCount = 0;
+    for (const rsv of targets) {
+      try {
+        await _applyReservationStatus(rsv, '취소');
+        rsv.status = '취소';
+        successCount++;
+        if (typeof sendSMS === 'function' && rsv.phone) {
+          const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(rsv.date||'') : (rsv.date||'');
+          const schedule = `${dateFormatted} ${rsv.time||''}`.trim();
+          await sendSMS(rsv.phone, rsv.name||'', schedule, rsv.counselor||'', 'cancel');
         }
-      }
+      } catch(e) { failCount++; }
+    }
+    _rsvCheckedIds.clear();
+    renderRsvList();
+    updateRsvCheckedActionsBar();
+    if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
+    _rsvActionBusy = false;
+    alert(`취소 처리 완료: 성공 ${successCount}건${failCount ? `, 실패 ${failCount}건` : ''}`);
+  };
 
-      if (newStatus === '취소' || newStatus === '예약') {
-        selectedRsv = null;
-        document.getElementById('rsvDetailBody').innerHTML = '<div class="rsv-empty">목록에서 예약을 선택하세요.</div>';
-      } else {
-        renderRsvDetail(selectedRsv);
-        const m2 = document.getElementById('rsvActionMsg');
-        if (m2) m2.textContent = `"${newStatus}" 처리 완료`;
+  // ── 체크된 예약 삭제 (문자발송 없음, 복구 불가) ──
+  window.deleteCheckedRsv = async function() {
+    if (_rsvActionBusy) return;
+    const targets = allReservations.filter(r => _rsvCheckedIds.has(r.receiptNo));
+    if (!targets.length) return;
+    if (!confirm(`선택한 ${targets.length}건을 완전히 삭제하시겠습니까?\n(문자는 발송되지 않으며, 삭제된 예약은 복구할 수 없습니다.)`)) return;
+    _rsvActionBusy = true;
+    try {
+      await window.fbEnsureAuth();
+      for (const rsv of targets) {
+        await window.FB.deleteDoc(window.FB.doc(window.FB.db, 'reservations', rsv.receiptNo));
+        const idx = allReservations.findIndex(r => r.receiptNo === rsv.receiptNo);
+        if (idx !== -1) allReservations.splice(idx, 1);
       }
+      _rsvCheckedIds.clear();
+      renderRsvList();
+      updateRsvCheckedActionsBar();
+      if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
     } catch(e) {
-      const m = document.getElementById('rsvActionMsg');
-      if (m) m.textContent = '오류: ' + e.message;
+      alert('삭제 중 오류: ' + e.message);
     } finally {
       _rsvActionBusy = false;
     }
@@ -2608,8 +2529,6 @@ window.fetchEmployeesFS = async function() {
     }
 
     if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px;flex-shrink:0;"><path d="M20 6 9 17l-5-5"/></svg>일괄확정'; }
-    selectedRsv = null;
-    document.getElementById('rsvDetailBody').innerHTML = '<div class="rsv-empty">목록에서 예약을 선택하세요.</div>';
     renderRsvList();
     // ★ 대기 건수 재계산 → N배지 즉시 갱신
     if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
@@ -16109,7 +16028,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   let _wikiCurrentContent = '';
-  let _wikiMetaText = ''; // 제목 옆 "(최종수정 : ...)" 표시 — 수정모드 들어가면 잠깐 문법 설명으로 바뀜
   let _wikiRevisionCache = null;
   let _wikiRevisionOrder = null; // 최신순으로 정렬된 문서 id 배열 — "바로 이전 버전" 찾을 때 사용
   let _wikiViewingRevId = null;
@@ -16271,8 +16189,7 @@ document.addEventListener('DOMContentLoaded', function() {
       //   fixWikiToolbarTop()은 아직 빈 상태(높이 0)를 보고 계산했을 수 있다 — 채워진 뒤 다시 계산.
       if (typeof window.fixWikiToolbarTop === 'function') window.fixWikiToolbarTop();
       // ★ 누가 수정했는지는 표시 안 함(수정기록에서 확인 가능) — 시각만 제목 옆에 표시.
-      _wikiMetaText = data.updatedAt ? `(최종수정 : ${_wikiFormatTime(data.updatedAt)})` : '';
-      if (metaEl) metaEl.textContent = _wikiMetaText;
+      if (metaEl) metaEl.textContent = data.updatedAt ? `(최종수정 : ${_wikiFormatTime(data.updatedAt)})` : '';
     } catch(e) {
       viewEl.textContent = '불러오기 실패: ' + e.message;
     }
@@ -16297,9 +16214,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('wikiCancelBtn').style.display = 'inline-block';
     area.focus();
     area.scrollTop = scrollFraction * (area.scrollHeight - area.clientHeight);
-    // 수정 중엔 제목 옆 최종수정 표시 자리에 <대제목> 문법 설명을 대신 보여준다.
-    const metaEl = document.getElementById('wikiMeta');
-    if (metaEl) metaEl.textContent = '본문에서 한 줄을 <제목처럼> 꺾쇠로 감싸면 대제목으로 인식되어 위 빠른이동 버튼에 자동으로 추가됩니다.';
+    // 수정 중엔 원래 최종수정 정보가 있던 자리(제목 옆이 아니라 툴바 아래)에 <대제목> 문법 설명을 보여준다.
+    const hintEl = document.getElementById('wikiEditHint');
+    if (hintEl) { hintEl.textContent = '본문에서 한 줄을 <제목처럼> 꺾쇠로 감싸면 대제목으로 인식되어 위 빠른이동 버튼에 자동으로 추가됩니다.'; hintEl.style.display = 'block'; }
   };
 
   window.cancelWikiEdit = function() {
@@ -16309,9 +16226,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('wikiHistoryBtn').style.display = 'inline-block';
     document.getElementById('wikiSaveBtn').style.display = 'none';
     document.getElementById('wikiCancelBtn').style.display = 'none';
-    // 문법 설명 대신 원래 최종수정 표시로 복원
-    const metaEl = document.getElementById('wikiMeta');
-    if (metaEl) metaEl.textContent = _wikiMetaText;
+    // 문법 설명 숨기기 (최종수정 표시는 제목 옆에 계속 그대로 있었으므로 따로 복원할 것 없음)
+    const hintEl = document.getElementById('wikiEditHint');
+    if (hintEl) hintEl.style.display = 'none';
   };
 
   window.saveWikiEdit = async function() {
