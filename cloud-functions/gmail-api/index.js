@@ -344,7 +344,10 @@ async function createGmailFilter(p) {
     }
     return { status: 'ok', filterId: res.data.id, existingCount };
   } catch (err) {
-    return { status: 'error', message: (err.errors && err.errors[0] && err.errors[0].message) || err.message };
+    // ★ googleapis 에러 객체는 err.message가 짧게 요약돼서(예: "Insufficient Permission")
+    //   진짜 원인(스코프 문제인지, 다른 이유인지) 구분이 안 될 때가 있어 상세 필드를 다 넣는다.
+    const detail = (err.response && err.response.data) || err.errors || null;
+    return { status: 'error', message: err.message, code: err.code, detail: detail ? JSON.stringify(detail) : undefined };
   }
 }
 
