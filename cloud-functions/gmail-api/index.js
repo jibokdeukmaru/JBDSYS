@@ -6,7 +6,12 @@ const { google } = require('googleapis');
 const SA_EMAIL = process.env.GMAIL_SA_EMAIL;
 const SA_KEY = (process.env.GMAIL_SA_KEY || '').replace(/\\n/g, '\n');
 const INTERNAL_KEY = process.env.INTERNAL_API_KEY;
-const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
+// ★ 관리콘솔 도메인 위임에서 권한을 허용해도, 여기서 실제로 요청하는 scope 목록에
+//   없으면 토큰에 그 권한이 안 붙는다 — 필터(자동분류) 기능은 gmail.settings.basic이 필요.
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.settings.basic',
+];
 
 function gmailClientFor(email) {
   const jwt = new google.auth.JWT({ email: SA_EMAIL, key: SA_KEY, scopes: SCOPES, subject: email });
