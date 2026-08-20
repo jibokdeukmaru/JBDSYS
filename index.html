@@ -1156,8 +1156,9 @@ window.fetchEmployeesFS = async function() {
 
 <section id="wikiTab" class="tab-panel" style="display:none;">
   <div class="card" style="display:flex;flex-direction:column;box-sizing:border-box;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;justify-content:center;align-items:baseline;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
       <h2 class="title" style="margin-bottom:0;">지복득마루위키</h2>
+      <span id="wikiMeta" style="font-size:12px;color:#999;font-weight:600;"></span>
     </div>
     <!-- 본문 안 <대제목> 목록에서 자동으로 만들어지는 빠른 이동 버튼줄 (좌측 정렬).
          수정기록/수정 버튼줄과 같은 이유로 sticky — 부모(.card)가 본문 전체를 담을 만큼
@@ -1173,7 +1174,6 @@ window.fetchEmployeesFS = async function() {
       <button type="button" id="wikiSaveBtn" onclick="saveWikiEdit()" style="display:none;background:var(--brand);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
       <button type="button" id="wikiCancelBtn" onclick="cancelWikiEdit()" style="display:none;background:#fff;color:#666;border:1px solid var(--border);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:13px;">취소</button>
     </div>
-    <div id="wikiMeta" style="font-size:11.5px;color:#999;margin-bottom:12px;"></div>
     <div id="wikiViewArea" style="white-space:pre-wrap;font-size:14.5px;line-height:1.8;color:#222;min-height:calc(100dvh - 260px);padding:4px 2px;">불러오는 중...</div>
     <textarea id="wikiEditArea" spellcheck="false" style="display:none;width:100%;min-height:calc(100dvh - 260px);padding:15px;border:1px solid #ddd;border-radius:8px;font-size:14.5px;line-height:1.7;resize:vertical;box-sizing:border-box;background:#fdfdfd;" placeholder="지복득마루 영업 및 시공 정보를 자유롭게 작성하세요..."></textarea>
   </div>
@@ -1989,17 +1989,18 @@ window.fetchEmployeesFS = async function() {
 
     <!-- 슬롯 관리 -->
     <div class="rsv-card">
-      <div class="rsv-card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>쇼룸 시간 관리</div>
+      <div class="rsv-card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>쇼룸 시간 관리
+        <div class="slot-legend" style="margin-left:auto;margin-top:0;">
+          <span><span class="dot" style="background:#ddd;border:1px solid #ccc;"></span> 오픈</span>
+          <span><span class="dot" style="background:#f8d7da;border:1px solid #dc3545;"></span> 마감</span>
+        </div>
+      </div>
       <div class="slot-date-row" style="position:relative;">
         <input type="text" id="slotDate" readonly onclick="toggleSlotCalendar()" style="cursor:pointer;background:#fff;">
         <button onclick="loadSlots()" style="background:#111;color:#fff;border:none;cursor:pointer;">불러오기</button>
         <div id="slotCalendarPopup" class="slot-calendar-popup" style="display:none;"></div>
       </div>
       <div id="slotGrid" class="slot-grid"></div>
-      <div class="slot-legend">
-        <span><span class="dot" style="background:#ddd;border:1px solid #ccc;"></span> 오픈</span>
-        <span><span class="dot" style="background:#f8d7da;border:1px solid #dc3545;"></span> 마감</span>
-      </div>
       <div class="slot-save-row">
         <button class="slot-btn-save" onclick="saveSlots()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>저장</button>
         <button class="slot-btn-reset" onclick="resetSlots()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>초기화</button>
@@ -2783,10 +2784,10 @@ window.fetchEmployeesFS = async function() {
     </div>
 
     <!-- 연도 네비 -->
-    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px;">
-      <button onclick="changeNoticeYear(-1)" style="width:28px;height:28px;border-radius:50%;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:#555;line-height:1;display:inline-flex;align-items:center;justify-content:center;">&lt;</button>
-      <span id="noticeYear" style="font-size:14px;font-weight:700;color:#333;min-width:60px;text-align:center;">2026년</span>
-      <button onclick="changeNoticeYear(1)" style="width:28px;height:28px;border-radius:50%;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:#555;line-height:1;display:inline-flex;align-items:center;justify-content:center;">&gt;</button>
+    <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:10px;background:var(--cream-2,#f5f1ec);border-radius:999px;padding:4px;width:fit-content;margin-left:auto;margin-right:auto;">
+      <button onclick="changeNoticeYear(-1)" class="notice-year-nav-btn" title="이전 해"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+      <span id="noticeYear" style="font-size:14px;font-weight:800;color:#333;min-width:64px;text-align:center;">2026년</span>
+      <button onclick="changeNoticeYear(1)" class="notice-year-nav-btn" title="다음 해"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
     </div>
 
     <!-- 월 버튼 가로 드래그 스크롤 -->
@@ -2815,15 +2816,41 @@ window.fetchEmployeesFS = async function() {
     <!-- 서식 툴바: 텍스트를 드래그로 선택한 뒤 눌러서 적용 -->
     <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
       <button type="button" onmousedown="event.preventDefault();document.execCommand('bold')" style="width:30px;height:30px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#333;line-height:1;padding:0;">B</button>
-      <div style="display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden;height:30px;">
-        <button type="button" title="현재 색상 바로 적용" onmousedown="event.preventDefault();document.execCommand('foreColor', false, document.getElementById('noticeColorPicker').value)" style="width:30px;height:30px;border:none;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">
-          <span id="noticeColorSwatch" style="display:block;width:16px;height:16px;border-radius:50%;background:#7a5c44;border:1px solid rgba(0,0,0,0.15);"></span>
-        </button>
-        <button type="button" title="다른 색상 선택" onmousedown="event.preventDefault()" onclick="document.getElementById('noticeColorPicker').click()" style="width:16px;height:30px;border:none;border-left:1px solid #eee;background:#fafafa;cursor:pointer;font-size:8px;color:#999;padding:0;">▾</button>
+      <!-- 현재색상 / 팔레트 -->
+      <div style="position:relative;">
+        <div style="display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden;height:30px;">
+          <button type="button" title="현재 색상 적용" onmousedown="event.preventDefault();document.execCommand('foreColor', false, window._noticeCurColor || '#7a5c44')" style="width:30px;height:30px;border:none;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">
+            <span id="noticeColorSwatch" style="display:block;width:16px;height:16px;border-radius:50%;background:#7a5c44;border:1px solid rgba(0,0,0,0.15);"></span>
+          </button>
+          <button type="button" title="색상 팔레트" onmousedown="event.preventDefault()" onclick="toggleNoticeColorPalette(event)" style="width:24px;height:30px;border:none;border-left:1px solid #eee;background:#fafafa;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#888;padding:0;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1a1.6 1.6 0 0 1 1.6-1.6h2c3 0 5.6-2.5 5.6-5.6C22 6.2 17.5 2 12 2z"/><circle cx="7" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="17.5" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
+          </button>
+        </div>
+        <div id="noticeColorPalettePopover" style="display:none;position:absolute;top:36px;left:0;z-index:200;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.14);padding:12px;width:196px;">
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:10px;">
+            <button type="button" class="notice-color-swatch-btn" style="background:#222222;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#222222')" title="#222222"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#7a5c44;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#7a5c44')" title="#7a5c44"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#A2693E;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#A2693E')" title="#A2693E"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#c0392b;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#c0392b')" title="#c0392b"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#e67e22;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#e67e22')" title="#e67e22"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#d4a017;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#d4a017')" title="#d4a017"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#1a7a45;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#1a7a45')" title="#1a7a45"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#2E9E6B;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#2E9E6B')" title="#2E9E6B"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#3B82C4;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#3B82C4')" title="#3B82C4"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#5B6EE1;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#5B6EE1')" title="#5B6EE1"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#8E7CC3;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#8E7CC3')" title="#8E7CC3"></button>
+            <button type="button" class="notice-color-swatch-btn" style="background:#E86AA6;" onmousedown="event.preventDefault()" onclick="applyNoticeColor('#E86AA6')" title="#E86AA6"></button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span id="noticeColorSwatchLarge" style="width:20px;height:20px;border-radius:5px;background:#7a5c44;border:1px solid rgba(0,0,0,0.15);flex-shrink:0;"></span>
+            <input type="text" id="noticeColorHexInput" value="#7a5c44" maxlength="7"
+              onmousedown="event.stopPropagation()"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();applyNoticeColorFromHexInput();}"
+              onchange="applyNoticeColorFromHexInput()"
+              placeholder="#000000" style="flex:1;min-width:0;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:monospace;box-sizing:border-box;">
+          </div>
+        </div>
       </div>
-      <input type="color" id="noticeColorPicker" value="#7a5c44" style="width:0;height:0;opacity:0;position:absolute;"
-        onmousedown="event.preventDefault()"
-        oninput="document.execCommand('foreColor', false, this.value); document.getElementById('noticeColorSwatch').style.background = this.value;">
       <button type="button" onmousedown="event.preventDefault();document.execCommand('removeFormat')" style="padding:0 10px;height:30px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:11px;color:#888;">서식 지우기</button>
       <span style="font-size:11px;color:#aaa;margin-left:4px;">강조할 부분을 드래그로 선택한 뒤 버튼을 눌러주세요</span>
     </div>
@@ -2849,6 +2876,14 @@ window.fetchEmployeesFS = async function() {
 }
 .notice-m-btn:hover { background:var(--cream-2); border-color:var(--border); }
 .notice-m-btn.active { background:var(--brand); color:#fff; border-color:var(--brand); }
+.notice-year-nav-btn {
+  width:30px;height:30px;border-radius:50%;border:none;background:transparent;
+  color:#888;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s;
+}
+.notice-year-nav-btn:hover { background:#fff; color:var(--brand); box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+.notice-color-swatch-btn { width:22px;height:22px;border-radius:6px;border:1px solid rgba(0,0,0,0.12);cursor:pointer;padding:0;transition:transform .1s; }
+.notice-color-swatch-btn:hover { transform:scale(1.15); box-shadow:0 0 0 2px rgba(0,0,0,0.08); }
 </style>
 
 </section>
@@ -8835,6 +8870,46 @@ function csDateInputValue(val) {
       updateMonthBtns();
       renderNoticePreview();
     };
+
+    // ── 서식 툴바 색상 팔레트 ──
+    window._noticeCurColor = '#7a5c44';
+    function _setNoticeColorSwatches(hex) {
+      window._noticeCurColor = hex;
+      const sm = document.getElementById('noticeColorSwatch');
+      const lg = document.getElementById('noticeColorSwatchLarge');
+      const hexInput = document.getElementById('noticeColorHexInput');
+      if (sm) sm.style.background = hex;
+      if (lg) lg.style.background = hex;
+      if (hexInput) hexInput.value = hex;
+    }
+    window.toggleNoticeColorPalette = function(event) {
+      if (event) event.stopPropagation();
+      const pop = document.getElementById('noticeColorPalettePopover');
+      if (!pop) return;
+      pop.style.display = pop.style.display === 'block' ? 'none' : 'block';
+    };
+    window.applyNoticeColor = function(hex) {
+      document.execCommand('foreColor', false, hex);
+      _setNoticeColorSwatches(hex);
+      const pop = document.getElementById('noticeColorPalettePopover');
+      if (pop) pop.style.display = 'none';
+    };
+    window.applyNoticeColorFromHexInput = function() {
+      const input = document.getElementById('noticeColorHexInput');
+      if (!input) return;
+      let hex = input.value.trim();
+      if (hex && hex[0] !== '#') hex = '#' + hex;
+      if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) { input.value = window._noticeCurColor; return; }
+      document.execCommand('foreColor', false, hex);
+      _setNoticeColorSwatches(hex);
+    };
+    // 팔레트 바깥을 클릭하면 닫기
+    document.addEventListener('click', function(e) {
+      const pop = document.getElementById('noticeColorPalettePopover');
+      if (!pop || pop.style.display !== 'block') return;
+      if (pop.contains(e.target)) return;
+      pop.style.display = 'none';
+    });
 
     window.selectNoticeMonth = function(m) {
       const ed = document.getElementById('monthlyNoticeEditor');
@@ -16034,6 +16109,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   let _wikiCurrentContent = '';
+  let _wikiMetaText = ''; // 제목 옆 "(최종수정 : ...)" 표시 — 수정모드 들어가면 잠깐 문법 설명으로 바뀜
   let _wikiRevisionCache = null;
   let _wikiRevisionOrder = null; // 최신순으로 정렬된 문서 id 배열 — "바로 이전 버전" 찾을 때 사용
   let _wikiViewingRevId = null;
@@ -16194,7 +16270,9 @@ document.addEventListener('DOMContentLoaded', function() {
       // ★ 퀵네비 줄은 본문을 비동기로 불러온 뒤에야 채워지므로, setTab에서 곧바로 부른
       //   fixWikiToolbarTop()은 아직 빈 상태(높이 0)를 보고 계산했을 수 있다 — 채워진 뒤 다시 계산.
       if (typeof window.fixWikiToolbarTop === 'function') window.fixWikiToolbarTop();
-      if (metaEl) metaEl.textContent = data.updatedBy ? `최종 수정: ${data.updatedBy} · ${_wikiFormatTime(data.updatedAt)}` : '';
+      // ★ 누가 수정했는지는 표시 안 함(수정기록에서 확인 가능) — 시각만 제목 옆에 표시.
+      _wikiMetaText = data.updatedAt ? `(최종수정 : ${_wikiFormatTime(data.updatedAt)})` : '';
+      if (metaEl) metaEl.textContent = _wikiMetaText;
     } catch(e) {
       viewEl.textContent = '불러오기 실패: ' + e.message;
     }
@@ -16219,6 +16297,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('wikiCancelBtn').style.display = 'inline-block';
     area.focus();
     area.scrollTop = scrollFraction * (area.scrollHeight - area.clientHeight);
+    // 수정 중엔 제목 옆 최종수정 표시 자리에 <대제목> 문법 설명을 대신 보여준다.
+    const metaEl = document.getElementById('wikiMeta');
+    if (metaEl) metaEl.textContent = '본문에서 한 줄을 <제목처럼> 꺾쇠로 감싸면 대제목으로 인식되어 위 빠른이동 버튼에 자동으로 추가됩니다.';
   };
 
   window.cancelWikiEdit = function() {
@@ -16228,6 +16309,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('wikiHistoryBtn').style.display = 'inline-block';
     document.getElementById('wikiSaveBtn').style.display = 'none';
     document.getElementById('wikiCancelBtn').style.display = 'none';
+    // 문법 설명 대신 원래 최종수정 표시로 복원
+    const metaEl = document.getElementById('wikiMeta');
+    if (metaEl) metaEl.textContent = _wikiMetaText;
   };
 
   window.saveWikiEdit = async function() {
