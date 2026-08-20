@@ -6264,31 +6264,6 @@ function csDateInputValue(val) {
 
 <!-- 내 설정 모달 -->
 
-
-<!-- 결재대기 강제 확인 게이트 — 새 결재대기건이 생기면 결재 화면에 한 번 다녀올 때까지 다른 조작을 막는다 -->
-<div id="leaveApprovalGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;width:90%;max-width:400px;padding:32px 28px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.25);">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e67e22" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    <h3 style="font-size:16px;font-weight:800;color:#222;margin:0 0 8px;">미확인 결재건이 있습니다</h3>
-    <p id="leaveApprovalGateMsg" style="font-size:13px;color:#888;margin:0 0 20px;">결재 화면에서 확인해주세요.</p>
-    <button onclick="_goToApprovalFromGate()" style="width:100%;padding:12px 0;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;">결재 화면으로 이동</button>
-  </div>
-</div>
-
-<!-- 이메일 새 폴더(라벨) 이름 입력 모달 -->
-<div id="emNewFolderModal" style="display:none;position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;width:90%;max-width:360px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
-    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#222;">새 폴더 만들기</h3>
-    <input type="text" id="emNewFolderNameInput" placeholder="예: A업체" maxlength="60"
-      onkeydown="if(event.key==='Enter'){event.preventDefault();confirmCreateEmailLabel();}"
-      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
-    <div style="display:flex;gap:8px;margin-top:16px;">
-      <button onclick="closeNewFolderModal()" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">취소</button>
-      <button onclick="confirmCreateEmailLabel()" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">만들기</button>
-    </div>
-  </div>
-</div>
-
 <!-- 정보 수정 신청 모달 -->
 <div id="infoRequestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:20000;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:90%;max-width:480px;padding:28px 28px 24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);position:relative;">
@@ -16800,6 +16775,34 @@ window.submitFindPw = async function() {
   }
 };
 </script>
+
+<!-- ★ 아래 두 모달은 반드시 어느 탭에서 열려도 보여야 해서(결재대기 게이트는 전체 탭 공통,
+     새폴더 모달은 이메일 탭에서 씀) body 바로 아래(모든 tab-panel section 바깥)에 둔다 —
+     tab-panel section 안에 넣으면 그 탭이 display:none일 때 모달도 같이 숨겨져서 아예 안 뜬다
+     (실제로 emNewFolderModal을 myInfoTab 섹션 안에 잘못 넣었다가 이 문제로 발견됨). -->
+<!-- 결재대기 강제 확인 게이트 — 새 결재대기건이 생기면 결재 화면에 한 번 다녀올 때까지 다른 조작을 막는다 -->
+<div id="leaveApprovalGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:400px;padding:32px 28px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.25);">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e67e22" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <h3 style="font-size:16px;font-weight:800;color:#222;margin:0 0 8px;">미확인 결재건이 있습니다</h3>
+    <p id="leaveApprovalGateMsg" style="font-size:13px;color:#888;margin:0 0 20px;">결재 화면에서 확인해주세요.</p>
+    <button onclick="_goToApprovalFromGate()" style="width:100%;padding:12px 0;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;">결재 화면으로 이동</button>
+  </div>
+</div>
+
+<!-- 이메일 새 폴더(라벨) 이름 입력 모달 -->
+<div id="emNewFolderModal" style="display:none;position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:360px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#222;">새 폴더 만들기</h3>
+    <input type="text" id="emNewFolderNameInput" placeholder="예: A업체" maxlength="60"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();confirmCreateEmailLabel();}"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button onclick="closeNewFolderModal()" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">취소</button>
+      <button onclick="confirmCreateEmailLabel()" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">만들기</button>
+    </div>
+  </div>
+</div>
 
 </body>
     </html>
