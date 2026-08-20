@@ -2704,9 +2704,9 @@ window.fetchEmployeesFS = async function() {
 
     <!-- 연도 네비 -->
     <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:10px;background:var(--cream-2,#f5f1ec);border-radius:999px;padding:4px;width:fit-content;margin-left:auto;margin-right:auto;">
-      <button onclick="changeNoticeYear(-1)" class="notice-year-nav-btn" title="이전 해"><svg width="11" height="13" viewBox="0 0 11 13" fill="currentColor"><polygon points="11 0 11 13 0 6.5"></polygon></svg></button>
+      <button onclick="changeNoticeYear(-1)" class="notice-year-nav-btn" title="이전 해"><svg width="13" height="15" viewBox="0 0 13 15" fill="#333"><polygon points="13 0 13 15 0 7.5"></polygon></svg></button>
       <span id="noticeYear" style="font-size:14px;font-weight:800;color:#333;min-width:64px;text-align:center;">2026년</span>
-      <button onclick="changeNoticeYear(1)" class="notice-year-nav-btn" title="다음 해"><svg width="11" height="13" viewBox="0 0 11 13" fill="currentColor"><polygon points="0 0 0 13 11 6.5"></polygon></svg></button>
+      <button onclick="changeNoticeYear(1)" class="notice-year-nav-btn" title="다음 해"><svg width="13" height="15" viewBox="0 0 13 15" fill="#333"><polygon points="0 0 0 15 13 7.5"></polygon></svg></button>
     </div>
 
     <!-- 월 버튼 가로 드래그 스크롤 -->
@@ -2780,11 +2780,13 @@ window.fetchEmployeesFS = async function() {
 .notice-m-btn:hover { background:var(--cream-2); border-color:var(--border); }
 .notice-m-btn.active { background:var(--brand); color:#fff; border-color:var(--brand); }
 .notice-year-nav-btn {
-  width:30px;height:30px;border-radius:50%;border:none;background:transparent;
-  color:#555;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:50%;border:none;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,0.15);
+  color:#333;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
   transition:background .12s,color .12s;
 }
-.notice-year-nav-btn:hover { background:#fff; color:var(--brand); box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+.notice-year-nav-btn svg { display:block; flex-shrink:0; }
+.notice-year-nav-btn:hover { background:var(--brand); color:#fff; }
 </style>
 
 </section>
