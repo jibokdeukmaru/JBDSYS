@@ -14780,6 +14780,7 @@ if ('serviceWorker' in navigator) {
         const h = frame.contentDocument.body.scrollHeight;
         frame.style.height = Math.max(h + 20, 400) + 'px';
       } catch(e) {}
+      _emEnableIframeLinks(frame);
     };
 
     document.getElementById('emPreviewModal').style.display = 'flex';
@@ -15171,6 +15172,25 @@ if ('serviceWorker' in navigator) {
   };
 
   function _emEsc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  // 메일 본문 iframe은 sandbox="allow-same-origin"만 걸려있어 팝업/새창 열기(allow-popups)가
+  // 막혀있다 — 이메일 안 링크는 대부분 target="_blank"라 그냥 두면 클릭해도 아무 반응이 없다.
+  // iframe 자체 권한은 그대로 최소한으로 유지하고(스크립트 실행 불가 등 보안 유지), 대신 부모
+  // 페이지(sandbox 제약이 없는 쪽)에서 클릭을 가로채 window.open으로 새 탭을 띄워준다.
+  function _emEnableIframeLinks(frame) {
+    try {
+      const doc = frame.contentDocument;
+      if (!doc || doc.__emLinksBound) return;
+      doc.__emLinksBound = true;
+      doc.addEventListener('click', function(e) {
+        const a = e.target.closest && e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href') || '';
+        if (!href || href.indexOf('#') === 0 || href.indexOf('mailto:') === 0) return;
+        e.preventDefault();
+        window.open(href, '_blank', 'noopener,noreferrer');
+      });
+    } catch(e) { /* 접근 실패 시 조용히 무시 */ }
+  }
   // 모바일 카드형 목록의 발신자 아바타 — _mailAvatarColor는 다른 <script> 블록(홈 위젯)에
   // 있어 여기서 직접 접근 불가하므로 자체적으로 둔다.
   function _emAvatarColor(str) {
@@ -15520,6 +15540,7 @@ if ('serviceWorker' in navigator) {
             if (h && h > 50) frame.style.height = (h + 40) + 'px';
             else frame.style.height = '600px';
           } catch(e){ frame.style.height = '600px'; } // 접근 실패 시 기본 높이
+          _emEnableIframeLinks(frame);
         };
         // onload가 안 올 경우 대비 (일부 환경)
         setTimeout(function(){
