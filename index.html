@@ -14199,8 +14199,11 @@ if ('serviceWorker' in navigator) {
     .em-mail-list.em-select-mode .em-mail-row.em-row-selected { background:var(--cream-2); }
     .em-mail-avatar { order:1; display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; flex-shrink:0; margin-right:8px; color:#fff; font-size:11px; font-weight:800; }
     .em-mail-sender { order:2; flex:1 1 auto; min-width:0; font-size:14px; font-weight:700; color:#222; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .em-mail-time { order:3; width:auto; min-width:44px; font-size:11.5px; color:#999; text-align:right; flex-shrink:0; }
-    .em-mail-subject { order:4; flex:0 0 100%; width:100%; font-size:13px; font-weight:400; color:#333; margin-top:5px; padding-left:38px; white-space:normal; }
+    /* ★ 라벨칩에 order를 안 정해주면 기본값(0)이라 아바타보다도 앞으로 밀려나서 혼자 줄바꿈되어
+       버림 — 발신자 이름 뒤, 시간 앞자리에 나란히 붙게 순서를 정해준다. */
+    .em-mail-label-chip { order:3; flex-shrink:0; font-size:10px; padding:1px 7px; }
+    .em-mail-time { order:4; width:auto; min-width:44px; font-size:11.5px; color:#999; text-align:right; flex-shrink:0; }
+    .em-mail-subject { order:5; flex:0 0 100%; width:100%; font-size:13px; font-weight:400; color:#333; margin-top:5px; padding-left:38px; white-space:normal; }
     .em-mail-subject .em-mail-preview { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:1; overflow:hidden; margin-left:0; margin-top:3px; font-size:12px; font-weight:400; color:#999; line-height:1.4; }
 
     /* 메일쓰기 헤더: 제목 + 버튼 2줄 */
@@ -14226,8 +14229,11 @@ if ('serviceWorker' in navigator) {
     /* 상세보기 */
     .em-detail-subject { font-size:16px; }
     .em-detail-meta { flex-wrap:wrap; gap:4px; font-size:12px; }
-    .em-detail-actions { flex-wrap:wrap; gap:6px; }
-    .em-detail-action-btn { padding:6px 10px; font-size:12px; }
+    .em-detail-actions { flex-wrap:nowrap; gap:4px; }
+    /* ★ 아이콘+글자 버튼 6개가 좁은 화면에 다 안 들어가서 글자가 세로로 한 글자씩
+       줄바꿈되던 문제 — em-toolbar-btn과 같은 방식으로 글자는 숨기고 아이콘만 보여준다. */
+    .em-detail-action-btn { padding:8px; font-size:0; gap:0; flex-shrink:0; }
+    .em-detail-action-btn svg { width:15px; height:15px; }
     .em-detail-body { padding:12px 10px; font-size:15px; }
   }
 </style>
@@ -15302,7 +15308,7 @@ if ('serviceWorker' in navigator) {
       <div style="padding:20px 24px;border-bottom:1px solid #eee;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <button onclick="backToEmailList()" style="background:none;border:none;color:var(--brand);font-size:13px;cursor:pointer;">← 목록으로</button>
-          <div style="display:flex;gap:8px;">
+          <div class="em-detail-actions" style="display:flex;gap:8px;">
             <button class="em-detail-action-btn" onclick="quickAddSenderToAddressBook()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>주소록추가
             </button>
