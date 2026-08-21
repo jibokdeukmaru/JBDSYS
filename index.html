@@ -13995,6 +13995,11 @@ if ('serviceWorker' in navigator) {
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#aaa;">결재 대기 건이 없습니다.</td></tr>';
       return;
     }
+    // yyyy-mm-dd → yy.mm.dd (표 너비 절약용 — 결재대기 표 전용)
+    function _approvalShortDate(s) {
+      var m = String(s||'').match(/^\d{2}(\d{2})-(\d{2})-(\d{2})/);
+      return m ? (m[1] + '.' + m[2] + '.' + m[3]) : String(s||'');
+    }
     tbody.innerHTML = _approvalRows.map(function(r) {
       var statusColor = r.status==='확정'?'#1a7a45':r.status==='반려'?'#c0392b':'#e67e22';
       var statusBg    = r.status==='대기'?'#fff3cd':r.status==='반려'?'#fdecea':'#d1f0e0';
@@ -14006,10 +14011,10 @@ if ('serviceWorker' in navigator) {
           + '<button onclick="doApprove(\'' + docId + '\',\'reject\',\'' + approverRole + '\')" style="padding:5px 12px;background:#c0392b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">반려</button>'
         : '<span style="font-size:11px;color:#bbb;">처리완료</span>';
       return '<tr style="border-bottom:1px solid #f0f0f0;cursor:default;">'
-        + '<td style="padding:12px;font-weight:700;">' + (r.name||'') + '</td>'
-        + '<td style="padding:12px;color:#888;">' + (r.dept||'-') + '</td>'
-        + '<td style="padding:12px;text-align:center;">' + (r.leaveType||'') + '</td>'
-        + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + (r.startDate||'') + ' ~ ' + (r.endDate||'') + '</td>'
+        + '<td style="padding:12px;font-weight:700;white-space:nowrap;">' + (r.name||'') + '</td>'
+        + '<td style="padding:12px;color:#888;white-space:nowrap;">' + (r.dept||'-') + '</td>'
+        + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + (r.leaveType||'') + '</td>'
+        + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + _approvalShortDate(r.startDate) + ' ~ ' + _approvalShortDate(r.endDate) + '</td>'
         + '<td style="padding:12px;text-align:center;">' + (r.days||0) + '일</td>'
         + '<td style="padding:12px;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + String(r.reason||'').replace(/"/g,'&quot;') + '">' + (r.reason||'-') + '</td>'
         + '<td style="padding:12px;text-align:center;"><span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:' + statusColor + ';background:' + statusBg + ';">' + r.status + '</span></td>'
