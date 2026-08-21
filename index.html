@@ -9495,11 +9495,63 @@ function setTab(tabId, fromPopstate) {
   closeHamburger();
 }
 
+// ★ 범용 모달 뒤로가기 스택 — emailDetail/consultForm/downloadPage처럼 개별로 pushState를
+//   심어둔 것들 말고, 나머지 모달들(찾기/위키이력/명함/직원상세/권한/공지 등)을 위해
+//   화면에 "여는 시점"에 자동으로 히스토리를 쌓고, 뒤로가기 시 가장 나중에 연(=제일 위) 모달
+//   하나만 닫는다. leaveApprovalGate(강제 확인 게이트)는 뒤로가기로 그냥 빠져나가면 안 되므로
+//   여기 목록에서 제외한다.
+var _autoModalStack = [];
+var _autoModalCloseFn = {
+  findIdModal: 'closeFindIdModal', findPwModal: 'closeFindPwModal',
+  wikiHistoryModal: 'closeWikiHistory', wikiRevisionModal: 'closeWikiRevision',
+  itemDetailModal: 'closeItemDetailModal', infoRequestModal: 'closeInfoRequestModal',
+  tabPermModal: 'closeTabPermModal', guestTabModal: 'closeGuestTabModal',
+  empModal: 'closeEmpModal', adminInfoReqModal: 'closeAdminInfoReqModal',
+  emPreviewModal: 'closeEmailPreview', mailAddressBookModal: 'closeMailAddressBook',
+  emNewFolderModal: 'closeNewFolderModal', noticeWriteModal: 'closeNoticeWrite',
+  noticeDetailModal: 'closeNoticeDetailModal', cardViewerOverlay: 'closeCardViewer',
+  csvModalOverlay: 'closeCsvModal', consultTrashOverlay: 'closeConsultTrash'
+};
+var _autoModalClosingViaBack = false;
+(function() {
+  function isOpen(el) {
+    var cs = getComputedStyle(el);
+    return cs.display !== 'none' && cs.position === 'fixed';
+  }
+  new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      var el = m.target;
+      if (!(el instanceof Element) || !el.id || !(el.id in _autoModalCloseFn)) return;
+      var open = isOpen(el);
+      var idx = _autoModalStack.indexOf(el.id);
+      if (open && idx === -1) {
+        _autoModalStack.push(el.id);
+        try { history.pushState({ __autoModal: el.id }, '', ''); } catch(_) {}
+      } else if (!open && idx !== -1) {
+        _autoModalStack.splice(idx, 1);
+        // 뒤로가기가 아니라 X버튼/바깥클릭 등으로 닫힌 경우만 쌓인 히스토리를 정리
+        if (!_autoModalClosingViaBack) { try { history.back(); } catch(_) {} }
+      }
+    });
+  }).observe(document.body, { attributes: true, attributeFilter: ['style'], subtree: true });
+})();
+
 // 뒤로가기/앞으로가기 시 직전에 머물던 탭으로 복귀 (잠금화면으로 튕기는 문제 방지)
 window.addEventListener('popstate', function(e) {
   // 로그인 전(잠금화면)이면 히스토리 탐색을 무시 (보안: 인증 없이 메인 화면 노출 방지)
   const mainSection = document.getElementById('mainSection');
   if (!mainSection || mainSection.style.display === 'none') return;
+  // 열려있는 모달이 있으면 가장 나중에 연(=제일 위) 모달 하나만 닫고 탭 이동은 하지 않는다
+  if (_autoModalStack.length > 0) {
+    const topId = _autoModalStack[_autoModalStack.length - 1];
+    _autoModalClosingViaBack = true;
+    const fnName = _autoModalCloseFn[topId];
+    if (typeof window[fnName] === 'function') window[fnName]();
+    else { const el = document.getElementById(topId); if (el) el.style.display = 'none'; }
+    _autoModalStack.pop();
+    _autoModalClosingViaBack = false;
+    return;
+  }
   // 메일 본문이 열려 있으면 탭 이동 대신 목록으로 복귀
   if (window._emailDetailOpen) {
     window._emailDetailOpen = false;
@@ -13301,6 +13353,9 @@ if ('serviceWorker' in navigator) {
 
   // 휴가 탭 진입 시 초기화 (setTab에서 호출)
   window.initLeaveTab = function() {
+    // ★ 제출/취소 없이 그냥 탭을 나갔다 와도 이전에 클릭했던 날짜 테두리가 남아있던 문제 —
+    //   달력 화면에 새로 들어올 때마다 선택 상태를 비운다.
+    _selectedDates = [];
     if (typeof setLeaveType === 'function') setLeaveType('연차');
     if (typeof switchLeaveTab === 'function') switchLeaveTab('apply');
     renderLeaveCal();
@@ -13958,6 +14013,25 @@ if ('serviceWorker' in navigator) {
   // 결재대기 탭 렌더링
   // 결재대기 - loadConsults 방식으로 재작성
   let _approvalRows = [];
+  let _approvalPage = 1;
+  const APPROVAL_PAGE_SIZE = 10;
+
+  // 처리(승인/반려 등) 완료된 지 30일 지난 건은 목록에서만 뺀다(시트 원본은 그대로라 달력엔 계속 남음).
+  // 아직 대기중인 건은 아무리 오래돼도 항상 보여준다.
+  function _approvalIsStale(r) {
+    if (r.status === '대기' || r.status === '대표승인대기') return false;
+    const texts = [r.headApproval, r.managerApproval].filter(Boolean);
+    let latest = null;
+    texts.forEach(function(t) {
+      const m = String(t).match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+      if (m) {
+        const d = new Date(m[1].replace(' ', 'T'));
+        if (!latest || d > latest) latest = d;
+      }
+    });
+    if (!latest) return false; // 타임스탬프를 못 찾으면(옛날 데이터 등) 안전하게 계속 보여줌
+    return (Date.now() - latest.getTime()) > 30 * 24 * 60 * 60 * 1000;
+  }
 
   window.loadApprovalList = async function() {
     const user = window._currentUser;
@@ -13978,8 +14052,11 @@ if ('serviceWorker' in navigator) {
         const approvers = Array.isArray(r.approverIds)
           ? r.approverIds
           : String(r.approverIds||'').split(',').map(s=>s.trim());
-        return approvers.includes(String(user.id));
+        if (!approvers.includes(String(user.id))) return false;
+        if (_approvalIsStale(r)) return false;
+        return true;
       });
+      if (_approvalPage > Math.max(1, Math.ceil(_approvalRows.length / APPROVAL_PAGE_SIZE))) _approvalPage = 1;
       renderApprovalTable();
       updateApprovalBadge(user, allRows);
     } catch(e) {
@@ -13993,6 +14070,18 @@ if ('serviceWorker' in navigator) {
     return m ? (m[1] + '.' + m[2] + '.' + m[3]) : String(s||'');
   }
 
+  // 휴가신청 달력에서 쓰는 종류별 색상과 동일하게 — 결재대기 배지 색상 통일용
+  function _approvalTypeColor(t) {
+    const s = String(t || '');
+    if (s.indexOf('생일') !== -1) return '#C9A227';
+    if (s.indexOf('건강검진') !== -1) return '#2E9E6B';
+    if (s.indexOf('출산') !== -1) return '#E86AA6';
+    if (s.indexOf('오전') !== -1) return '#3B82C4';
+    if (s.indexOf('오후') !== -1) return '#E67E22';
+    if (s.indexOf('반차') !== -1) return '#7B9E5B';
+    return 'var(--brand)'; // 연차
+  }
+
   // ★ 결재대기를 표 대신 카드 목록으로 — 신청자/부서/종류/기간/일수/사유만 요약으로 보여주고,
   //   클릭하면 그 아래로 승인/반려 버튼이 아코디언처럼 펼쳐진다(좁은 화면에서 열이 잘리거나
   //   세로로 글자가 쪼개지던 문제를 애초에 열이 없는 구조로 바꿔서 해결).
@@ -14004,7 +14093,11 @@ if ('serviceWorker' in navigator) {
       listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">결재 대기 건이 없습니다.</div>';
       return;
     }
-    listEl.innerHTML = _approvalRows.map(function(r) {
+    const totalPages = Math.max(1, Math.ceil(_approvalRows.length / APPROVAL_PAGE_SIZE));
+    if (_approvalPage > totalPages) _approvalPage = totalPages;
+    const startIdx = (_approvalPage - 1) * APPROVAL_PAGE_SIZE;
+    const pageRows = _approvalRows.slice(startIdx, startIdx + APPROVAL_PAGE_SIZE);
+    const cardsHtml = pageRows.map(function(r) {
       var approverRole = (user.isHead && r.status === '대표승인대기') ? 'head' : 'manager';
       var canApprove   = (user.isManager && r.status === '대기') || (user.isHead && r.status === '대표승인대기');
       const docId = r.rowIdx;
@@ -14020,7 +14113,7 @@ if ('serviceWorker' in navigator) {
         + '<div class="appr-card-top">'
         + '<span class="appr-name">' + (r.name||'') + '</span>'
         + '<span class="appr-dept">' + (r.dept||'-') + '</span>'
-        + '<span class="appr-type">' + (r.leaveType||'') + '</span>'
+        + '<span class="appr-type" style="background:' + _approvalTypeColor(r.leaveType) + ';">' + (r.leaveType||'') + '</span>'
         + '</div>'
         + '<div class="appr-card-sub">'
         + '<span>' + _approvalShortDate(r.startDate) + ' ~ ' + _approvalShortDate(r.endDate) + '</span>'
@@ -14033,7 +14126,21 @@ if ('serviceWorker' in navigator) {
         + '<div class="appr-card-actions">' + actionsHtml + '</div>'
         + '</div>';
     }).join('');
+    let pagerHtml = '';
+    if (totalPages > 1) {
+      let btns = '';
+      for (let p = 1; p <= totalPages; p++) {
+        btns += '<button onclick="goToApprovalPage(' + p + ')" style="min-width:28px;padding:5px 8px;border:1px solid ' + (p === _approvalPage ? 'var(--brand)' : '#eee') + ';border-radius:6px;background:' + (p === _approvalPage ? 'var(--brand)' : '#fff') + ';color:' + (p === _approvalPage ? '#fff' : '#555') + ';font-size:12px;font-weight:700;cursor:pointer;">' + p + '</button>';
+      }
+      pagerHtml = '<div style="display:flex;justify-content:center;gap:6px;margin-top:6px;">' + btns + '</div>';
+    }
+    listEl.innerHTML = cardsHtml + pagerHtml;
   }
+
+  window.goToApprovalPage = function(p) {
+    _approvalPage = p;
+    renderApprovalTable();
+  };
 
   // 카드 클릭 시 아래로 승인/반려 펼치기 — 한 번에 하나만 열리게(다른 카드는 자동으로 닫힘)
   window.toggleApprovalCard = function(el) {
@@ -14092,7 +14199,7 @@ if ('serviceWorker' in navigator) {
     .appr-card-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
     .appr-name { font-weight:800; font-size:14px; color:#222; white-space:nowrap; }
     .appr-dept { font-size:12px; color:#888; white-space:nowrap; }
-    .appr-type { font-size:11px; padding:2px 9px; border-radius:999px; background:var(--cream-2); color:var(--brand); font-weight:700; white-space:nowrap; }
+    .appr-type { font-size:11px; padding:2px 9px; border-radius:999px; color:#fff; font-weight:700; white-space:nowrap; }
     .appr-card-sub { display:flex; gap:10px; flex-wrap:wrap; font-size:12.5px; color:#666; white-space:nowrap; }
     .appr-reason { font-size:12px; color:#999; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .appr-chevron { flex-shrink:0; transition:transform .2s ease; color:#bbb; }
@@ -14235,6 +14342,20 @@ if ('serviceWorker' in navigator) {
     .em-search-box input[type="text"] { width:auto; min-width:0; flex:1; height:30px !important; font-size:12px !important; }
     .em-toolbar-btn { padding:6px 8px; white-space:nowrap; font-size:0; gap:0; flex-shrink:0; }
     .em-toolbar-btn svg { display:block; width:16px; height:16px; }
+    /* ★ 아이콘만 남아서 무슨 버튼인지 안 보이는 문제 — 마우스 올리거나(hover) 탭하면(focus)
+       버튼 이름이 말풍선으로 잠깐 뜨게 한다. */
+    .em-toolbar-btn, .em-detail-action-btn { position:relative; }
+    .em-toolbar-btn::after, .em-detail-action-btn::after {
+      content: attr(data-label);
+      position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:6px;
+      background:#333; color:#fff; font-size:11px; font-weight:600; white-space:nowrap;
+      padding:4px 8px; border-radius:6px; opacity:0; visibility:hidden; pointer-events:none;
+      transition:opacity .15s; z-index:60;
+    }
+    .em-toolbar-btn:hover::after, .em-toolbar-btn:focus::after,
+    .em-detail-action-btn:hover::after, .em-detail-action-btn:focus::after {
+      opacity:1; visibility:visible;
+    }
 
     /* 메일 목록: 카드형 (아바타 + 발신자/시간 한 줄, 제목/미리보기 아래 줄) */
     .em-mail-check, .em-mail-flag, .em-mail-icon { display:none !important; }
@@ -14335,6 +14456,10 @@ if ('serviceWorker' in navigator) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         <span>휴지통</span>
       </div>
+      <div class="em-folder-item" onclick="setEmailFolder('archive', this)" data-folder="archive">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+        <span>보관함</span>
+      </div>
       <!-- 개인별 폴더(Gmail 라벨) — 로그인한 사람 본인 것만 loadEmailTab에서 채워짐 -->
       <div id="emCustomFolderList"></div>
       <div class="em-folder-item" onclick="promptCreateEmailLabel()">
@@ -14350,7 +14475,7 @@ if ('serviceWorker' in navigator) {
     <!-- 메일 목록 뷰 -->
     <div id="emListView" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
       <div class="em-toolbar">
-        <span class="em-toolbar-title" id="emFolderTitle">받은메일함</span><select id="emFolderSelectMobile" onchange="setEmailFolder(this.value)" style="display:none;font-size:13px;font-weight:700;color:#222;border:1px solid #ddd;border-radius:8px;padding:6px 8px;background:#fff;"><option value="inbox">받은메일함</option><option value="sent">보낸메일함</option><option value="draft">임시보관함</option><option value="spam">스팸메일함</option><option value="trash">휴지통</option></select>
+        <span class="em-toolbar-title" id="emFolderTitle">받은메일함</span><select id="emFolderSelectMobile" onchange="setEmailFolder(this.value)" style="display:none;font-size:13px;font-weight:700;color:#222;border:1px solid #ddd;border-radius:8px;padding:6px 8px;background:#fff;"><option value="inbox">받은메일함</option><option value="sent">보낸메일함</option><option value="draft">임시보관함</option><option value="spam">스팸메일함</option><option value="trash">휴지통</option><option value="archive">보관함</option></select>
         <span class="em-toolbar-count" id="emMailCount"></span>
         <div class="em-toolbar-right">
           <div class="em-search-box">
@@ -14360,7 +14485,7 @@ if ('serviceWorker' in navigator) {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </button>
           </div>
-          <button class="em-toolbar-btn" onclick="gmailRefresh()">
+          <button class="em-toolbar-btn" data-label="새로고침" onclick="gmailRefresh()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
             새로고침
           </button>
@@ -14674,7 +14799,7 @@ if ('serviceWorker' in navigator) {
 
   const FOLDER_LABELS = {
     inbox: '받은메일함', sent: '보낸메일함',
-    draft: '임시보관함', spam: '스팸메일함', trash: '휴지통'
+    draft: '임시보관함', spam: '스팸메일함', trash: '휴지통', archive: '보관함'
   };
 
   let _currentFolder = 'inbox';
@@ -14704,7 +14829,7 @@ if ('serviceWorker' in navigator) {
     // 일괄 작업 바: Gmail 폴더(받은/스팸/휴지통/커스텀 라벨)는 읽음/안읽음/스팸/삭제 전부,
     // 보낸메일함/임시보관함(로컬 저장)은 전체선택+삭제만 표시
     const bulk = document.getElementById('emBulkBar');
-    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash'].includes(folder) || !!customLabel);
+    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash','archive'].includes(folder) || !!customLabel);
     const isLocalFolder = ['sent','draft'].includes(folder);
     if (bulk) bulk.style.display = (isGmailFolder || isLocalFolder) ? 'flex' : 'none';
     const gmailBtns = document.getElementById('emBulkGmailBtns');
@@ -15037,7 +15162,7 @@ if ('serviceWorker' in navigator) {
 
   // 새로고침 — Gmail 폴더(고정 폴더 + 커스텀 라벨 폴더)는 캐시 무시 재조회, 그 외(보낸/임시)는 목록 재렌더
   window.gmailRefresh = function() {
-    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash'].includes(_currentFolder) || (_emailLabels||[]).some(l => l.id === _currentFolder));
+    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash','archive'].includes(_currentFolder) || (_emailLabels||[]).some(l => l.id === _currentFolder));
     if (isGmailFolder) {
       _fetchGmailAndRender(_currentFolder, true);
     } else {
@@ -15073,7 +15198,7 @@ if ('serviceWorker' in navigator) {
     _allEmailItems = items;
     if (countEl) countEl.textContent = items.length ? `전체메일 ${items.length}` : '';
     if (!items.length) {
-      const emptyMsgs = { inbox:'받은 메일이 없습니다.', spam:'스팸 메일이 없습니다.', trash:'휴지통이 비어있습니다.' };
+      const emptyMsgs = { inbox:'받은 메일이 없습니다.', spam:'스팸 메일이 없습니다.', trash:'휴지통이 비어있습니다.', archive:'보관된 메일이 없습니다.' };
       listEl.innerHTML = `<div class="em-empty">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
         <p>${emptyMsgs[folder] || '메일이 없습니다.'}</p></div>`;
@@ -15355,22 +15480,22 @@ if ('serviceWorker' in navigator) {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <button onclick="backToEmailList()" style="background:none;border:none;color:var(--brand);font-size:13px;cursor:pointer;">← 목록으로</button>
           <div class="em-detail-actions" style="display:flex;gap:8px;">
-            <button class="em-detail-action-btn" onclick="quickAddSenderToAddressBook()">
+            <button class="em-detail-action-btn" data-label="주소록추가" onclick="quickAddSenderToAddressBook()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>주소록추가
             </button>
-            <button class="em-detail-action-btn" onclick="replyEmail()">
+            <button class="em-detail-action-btn" data-label="답장" onclick="replyEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>답장
             </button>
-            <button class="em-detail-action-btn" onclick="forwardEmail()">
+            <button class="em-detail-action-btn" data-label="전달" onclick="forwardEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>전달
             </button>
-            <button class="em-detail-action-btn" onclick="openLabelPicker(event)">
+            <button class="em-detail-action-btn" data-label="폴더지정" onclick="openLabelPicker(event)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83a2 2 0 0 0-1.41-.58H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .58 1.41l9.59 9.59a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1"/></svg>폴더지정
             </button>
-            <button class="em-detail-action-btn" onclick="archiveCurrentEmail()">
+            <button class="em-detail-action-btn" data-label="보관" onclick="archiveCurrentEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="4" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>보관
             </button>
-            <button class="em-detail-action-btn" onclick="deleteCurrentEmail()" style="color:#c0392b;border-color:#e6b8b3;">
+            <button class="em-detail-action-btn" data-label="삭제" onclick="deleteCurrentEmail()" style="color:#c0392b;border-color:#e6b8b3;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제
             </button>
           </div>
@@ -15555,6 +15680,7 @@ if ('serviceWorker' in navigator) {
         draft: '임시저장된 메일이 없습니다.',
         spam: window.USE_GMAIL_API ? '스팸 메일이 없습니다.' : 'Google Workspace 연동 후 사용 가능합니다.',
         trash: window.USE_GMAIL_API ? '휴지통이 비어있습니다.' : 'Google Workspace 연동 후 사용 가능합니다.',
+        archive: window.USE_GMAIL_API ? '보관된 메일이 없습니다.' : 'Google Workspace 연동 후 사용 가능합니다.',
       };
       listEl.innerHTML = `<div class="em-empty">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
@@ -15597,7 +15723,7 @@ if ('serviceWorker' in navigator) {
 
   window.filterEmailList = function() {
     const q = ((document.getElementById('emSearchInput')||{}).value || '').trim();
-    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash'].includes(_currentFolder) || (_emailLabels||[]).some(l => l.id === _currentFolder));
+    const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash','archive'].includes(_currentFolder) || (_emailLabels||[]).some(l => l.id === _currentFolder));
     if (isGmailFolder) {
       _fetchGmailAndRender(_currentFolder, false, q);
     } else {
