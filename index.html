@@ -13961,15 +13961,15 @@ if ('serviceWorker' in navigator) {
 
   window.loadApprovalList = async function() {
     const user = window._currentUser;
-    const tbody = document.getElementById('approvalTableBody');
-    if (!user || !tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#aaa;">불러오는 중...</td></tr>';
+    const listEl = document.getElementById('approvalList');
+    if (!user || !listEl) return;
+    listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">불러오는 중...</div>';
     try {
       let allRows = [];
       const res = await fetchWithRetry(RESERVE_URL + '?action=getLeaves&id=' + encodeURIComponent(user.id) + '&role=' + encodeURIComponent(user.role||'staff'));
       const data = await res.json();
       if (data.status !== 'ok') {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#aaa;">불러오기 실패: ' + (data.message||'') + '</td></tr>';
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">불러오기 실패: ' + (data.message||'') + '</div>';
         return;
       }
       allRows = data.rows || [];
@@ -13983,58 +13983,95 @@ if ('serviceWorker' in navigator) {
       renderApprovalTable();
       updateApprovalBadge(user, allRows);
     } catch(e) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#e74c3c;">오류: ' + e.message + '</td></tr>';
+      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#e74c3c;">오류: ' + e.message + '</div>';
     }
   };
 
+  // yyyy-mm-dd → yy.mm.dd (카드 너비 절약용 — 결재대기 목록 전용)
+  function _approvalShortDate(s) {
+    var m = String(s||'').match(/^\d{2}(\d{2})-(\d{2})-(\d{2})/);
+    return m ? (m[1] + '.' + m[2] + '.' + m[3]) : String(s||'');
+  }
+
+  // ★ 결재대기를 표 대신 카드 목록으로 — 신청자/부서/종류/기간/일수/사유만 요약으로 보여주고,
+  //   클릭하면 그 아래로 승인/반려 버튼이 아코디언처럼 펼쳐진다(좁은 화면에서 열이 잘리거나
+  //   세로로 글자가 쪼개지던 문제를 애초에 열이 없는 구조로 바꿔서 해결).
   function renderApprovalTable() {
     const user = window._currentUser;
-    const tbody = document.getElementById('approvalTableBody');
-    if (!tbody) return;
+    const listEl = document.getElementById('approvalList');
+    if (!listEl) return;
     if (_approvalRows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#aaa;">결재 대기 건이 없습니다.</td></tr>';
+      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">결재 대기 건이 없습니다.</div>';
       return;
     }
-    // yyyy-mm-dd → yy.mm.dd (표 너비 절약용 — 결재대기 표 전용)
-    function _approvalShortDate(s) {
-      var m = String(s||'').match(/^\d{2}(\d{2})-(\d{2})-(\d{2})/);
-      return m ? (m[1] + '.' + m[2] + '.' + m[3]) : String(s||'');
-    }
-    tbody.innerHTML = _approvalRows.map(function(r) {
-      var statusColor = r.status==='확정'?'#1a7a45':r.status==='반려'?'#c0392b':'#e67e22';
-      var statusBg    = r.status==='대기'?'#fff3cd':r.status==='반려'?'#fdecea':'#d1f0e0';
+    listEl.innerHTML = _approvalRows.map(function(r) {
       var approverRole = (user.isHead && r.status === '대표승인대기') ? 'head' : 'manager';
       var canApprove   = (user.isManager && r.status === '대기') || (user.isHead && r.status === '대표승인대기');
       const docId = r.rowIdx;
-      var actionBtns = canApprove
-        ? '<button onclick="doApprove(\'' + docId + '\',\'approve\',\'' + approverRole + '\')" style="padding:5px 12px;background:#1a7a45;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;margin-right:4px;">승인</button>'
-          + '<button onclick="doApprove(\'' + docId + '\',\'reject\',\'' + approverRole + '\')" style="padding:5px 12px;background:#c0392b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;">반려</button>'
-        : '<span style="font-size:11px;color:#bbb;white-space:nowrap;">처리완료</span>';
-      return '<tr style="border-bottom:1px solid #f0f0f0;cursor:default;">'
-        + '<td style="padding:12px;font-weight:700;white-space:nowrap;">' + (r.name||'') + '</td>'
-        + '<td style="padding:12px;color:#888;white-space:nowrap;">' + (r.dept||'-') + '</td>'
-        + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + (r.leaveType||'') + '</td>'
-        + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + _approvalShortDate(r.startDate) + ' ~ ' + _approvalShortDate(r.endDate) + '</td>'
-        + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + (r.days||0) + '일</td>'
-        + '<td style="padding:12px;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + String(r.reason||'').replace(/"/g,'&quot;') + '">' + (r.reason||'-') + '</td>'
-        + '<td style="padding:12px;text-align:center;white-space:nowrap;"><span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;color:' + statusColor + ';background:' + statusBg + ';">' + r.status + '</span></td>'
-        + '<td style="padding:12px;text-align:center;white-space:nowrap;position:sticky;right:0;background:#fff;box-shadow:-4px 0 6px -4px rgba(0,0,0,0.15);">' + actionBtns + '</td>'
-        + '</tr>';
+      var actionsHtml = canApprove
+        ? '<div class="appr-card-actions-inner">'
+          + '<button onclick="event.stopPropagation();doApprove(\'' + docId + '\',\'approve\',\'' + approverRole + '\',this)" style="background:#1a7a45;color:#fff;">승인</button>'
+          + '<button onclick="event.stopPropagation();doApprove(\'' + docId + '\',\'reject\',\'' + approverRole + '\',this)" style="background:#c0392b;color:#fff;">반려</button>'
+          + '</div>'
+        : '<div class="appr-done-note">' + (r.status === '대기' || r.status === '대표승인대기' ? '다른 결재자 확인 대기중' : '처리완료 (' + r.status + ')') + '</div>';
+      return '<div class="appr-card">'
+        + '<div class="appr-card-summary" onclick="toggleApprovalCard(this)">'
+        + '<div class="appr-card-main">'
+        + '<div class="appr-card-top">'
+        + '<span class="appr-name">' + (r.name||'') + '</span>'
+        + '<span class="appr-dept">' + (r.dept||'-') + '</span>'
+        + '<span class="appr-type">' + (r.leaveType||'') + '</span>'
+        + '</div>'
+        + '<div class="appr-card-sub">'
+        + '<span>' + _approvalShortDate(r.startDate) + ' ~ ' + _approvalShortDate(r.endDate) + '</span>'
+        + '<span>' + (r.days||0) + '일</span>'
+        + '</div>'
+        + '<div class="appr-reason">' + (r.reason||'-') + '</div>'
+        + '</div>'
+        + '<svg class="appr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>'
+        + '</div>'
+        + '<div class="appr-card-actions">' + actionsHtml + '</div>'
+        + '</div>';
     }).join('');
   }
 
-  window.doApprove = async function(docId, action, approverRole) {
+  // 카드 클릭 시 아래로 승인/반려 펼치기 — 한 번에 하나만 열리게(다른 카드는 자동으로 닫힘)
+  window.toggleApprovalCard = function(el) {
+    const card = el.closest('.appr-card');
+    if (!card) return;
+    const wasOpen = card.classList.contains('open');
+    document.querySelectorAll('#approvalList .appr-card.open').forEach(c => c.classList.remove('open'));
+    if (!wasOpen) card.classList.add('open');
+  };
+
+  window.doApprove = async function(docId, action, approverRole, btnEl) {
     const user = window._currentUser;
     if (!user) return;
     if (!confirm(action === 'approve' ? '승인하시겠습니까?' : '반려하시겠습니까?')) return;
+    // ★ 응답 기다리는 동안 버튼이 "처리 중..."으로 바뀌고 비활성화 — 예전엔 아무 표시가 없어서
+    //   무반응처럼 보였고, 그 사이 중복 클릭하면 두 건이 한꺼번에 처리돼버리는 문제가 있었다.
+    const actionsInner = btnEl ? btnEl.closest('.appr-card-actions-inner') : null;
+    const siblingBtns = actionsInner ? actionsInner.querySelectorAll('button') : [];
+    const originalLabel = btnEl ? btnEl.textContent : '';
+    siblingBtns.forEach(b => { b.disabled = true; });
+    if (btnEl) btnEl.textContent = '처리 중...';
     try {
       const params = new URLSearchParams({ action:'approveLeave', rowIdx: docId, approveAction: action, approverRole, approverId: user.id });
       const res = await fetchWithRetry(RESERVE_URL + '?' + params.toString());
       const data = await res.json();
-      if (data.status !== 'ok') { alert('처리 실패: ' + (data.message||'')); return; }
+      if (data.status !== 'ok') {
+        alert('처리 실패: ' + (data.message||''));
+        siblingBtns.forEach(b => { b.disabled = false; });
+        if (btnEl) btnEl.textContent = originalLabel;
+        return;
+      }
       loadApprovalList();
       checkLeavePending(user);
-    } catch(e) { alert('오류: ' + e.message); }
+    } catch(e) {
+      alert('오류: ' + e.message);
+      siblingBtns.forEach(b => { b.disabled = false; });
+      if (btnEl) btnEl.textContent = originalLabel;
+    }
   };
 
 })();
@@ -14047,24 +14084,28 @@ if ('serviceWorker' in navigator) {
     <div style="font-size:16px;font-weight:800;color:#222;">결재대기</div>
     <button onclick="loadApprovalList()" style="padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;">새로고침</button>
   </div>
-  <div style="overflow-x:auto;">
-    <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead>
-        <tr style="background:var(--cream);">
-          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">신청자</th>
-          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">부서</th>
-          <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">종류</th>
-          <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">기간</th>
-          <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">일수</th>
-          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">사유</th>
-          <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">상태</th>
-          <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;position:sticky;right:0;background:var(--cream);box-shadow:-4px 0 6px -4px rgba(0,0,0,0.15);">처리</th>
-        </tr>
-      </thead>
-      <tbody id="approvalTableBody">
-        <tr><td colspan="8" style="text-align:center;padding:40px;color:#aaa;">불러오는 중...</td></tr>
-      </tbody>
-    </table>
+  <style>
+    .appr-card { border:1px solid #eee; border-radius:12px; margin-bottom:10px; overflow:hidden; background:#fff; transition:border-color .15s; }
+    .appr-card.open { border-color:var(--border-2,#ddd); }
+    .appr-card-summary { padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px; }
+    .appr-card-main { flex:1; min-width:0; }
+    .appr-card-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+    .appr-name { font-weight:800; font-size:14px; color:#222; white-space:nowrap; }
+    .appr-dept { font-size:12px; color:#888; white-space:nowrap; }
+    .appr-type { font-size:11px; padding:2px 9px; border-radius:999px; background:var(--cream-2); color:var(--brand); font-weight:700; white-space:nowrap; }
+    .appr-card-sub { display:flex; gap:10px; flex-wrap:wrap; font-size:12.5px; color:#666; white-space:nowrap; }
+    .appr-reason { font-size:12px; color:#999; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .appr-chevron { flex-shrink:0; transition:transform .2s ease; color:#bbb; }
+    .appr-card.open .appr-chevron { transform:rotate(180deg); }
+    .appr-card-actions { max-height:0; overflow:hidden; transition:max-height .28s ease; background:var(--cream); }
+    .appr-card.open .appr-card-actions { max-height:90px; }
+    .appr-card-actions-inner { display:flex; gap:8px; padding:12px 16px; }
+    .appr-card-actions-inner button { flex:1; padding:9px 0; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .appr-card-actions-inner button:disabled { opacity:.6; cursor:default; }
+    .appr-done-note { padding:12px 16px; font-size:12px; color:#999; background:var(--cream); }
+  </style>
+  <div id="approvalList">
+    <div style="text-align:center;padding:40px;color:#aaa;">불러오는 중...</div>
   </div>
 </div>
 </section>
