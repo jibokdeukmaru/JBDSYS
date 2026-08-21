@@ -239,7 +239,10 @@ window.fetchEmployeesFS = async function() {
   }
   .hamburger-btn { min-width:36px; height:36px; border:1px solid var(--border); border-radius:8px; background:#FFFFFF; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; flex-shrink:0; padding:0; }
   .hamburger-btn span { display:block; width:16px; height:2px; background:var(--muted); border-radius:2px; }
-  .tabs { display:flex; gap:8px; align-items:center; overflow-x:auto; flex:1; scrollbar-width:none; -ms-overflow-style:none; cursor:grab; user-select:none; }
+  /* ★ overflow-x만 auto로 두면 브라우저가 overflow-y도 auto(스크롤 가능)로 취급해서,
+     알약모양 탭 버튼의 둥근 아랫부분이 그 스크롤 경계에 살짝 잘려 보인다 — overflow-y를
+     명시적으로 visible로 둬서(가로 스크롤은 그대로 유지) 안 잘리게 한다. */
+  .tabs { display:flex; gap:8px; align-items:center; overflow-x:auto; overflow-y:visible; flex:1; scrollbar-width:none; -ms-overflow-style:none; cursor:grab; user-select:none; }
   .tabs::-webkit-scrollbar { display:none; }
   .tabs.dragging { cursor:grabbing; }
   .tab-btn { min-height:36px; padding:0 15px; border:1px solid var(--tab-border); border-radius:999px; background:var(--tab-bg); color:var(--tab-text); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; transition:background .14s ease, color .14s ease, border-color .14s ease; }
@@ -1235,7 +1238,7 @@ window.fetchEmployeesFS = async function() {
                 </label>
                 <input type="file" id="excelUpload" accept=".xlsx,.xls" style="display:none;" />
                 <div id="uploadStatus" style="font-size:12px; color:#888; white-space:nowrap; max-width:160px; overflow:hidden; text-overflow:ellipsis;">선택된 파일 없음</div>
-                <button id="uploadBtn" type="button" style="display:none; height:38px; padding:0 18px; background:#111; color:#fff; border:none; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">
+                <button id="uploadBtn" type="button" style="display:none; align-items:center; justify-content:center; text-align:center; height:38px; padding:0 18px; background:#111; color:#fff; border:none; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; line-height:1;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>구글시트에 반영
                 </button>
             </div>
@@ -14008,9 +14011,9 @@ if ('serviceWorker' in navigator) {
         + '<td style="padding:12px;text-align:center;">' + (r.leaveType||'') + '</td>'
         + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + (r.startDate||'') + ' ~ ' + (r.endDate||'') + '</td>'
         + '<td style="padding:12px;text-align:center;">' + (r.days||0) + '일</td>'
-        + '<td style="padding:12px;color:#888;">' + (r.reason||'-') + '</td>'
+        + '<td style="padding:12px;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + String(r.reason||'').replace(/"/g,'&quot;') + '">' + (r.reason||'-') + '</td>'
         + '<td style="padding:12px;text-align:center;"><span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:' + statusColor + ';background:' + statusBg + ';">' + r.status + '</span></td>'
-        + '<td style="padding:12px;text-align:center;">' + actionBtns + '</td>'
+        + '<td style="padding:12px;text-align:center;white-space:nowrap;position:sticky;right:0;background:#fff;box-shadow:-4px 0 6px -4px rgba(0,0,0,0.15);">' + actionBtns + '</td>'
         + '</tr>';
     }).join('');
   }
@@ -14050,7 +14053,7 @@ if ('serviceWorker' in navigator) {
           <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">일수</th>
           <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;">사유</th>
           <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">상태</th>
-          <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">처리</th>
+          <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;position:sticky;right:0;background:var(--cream);box-shadow:-4px 0 6px -4px rgba(0,0,0,0.15);">처리</th>
         </tr>
       </thead>
       <tbody id="approvalTableBody">
