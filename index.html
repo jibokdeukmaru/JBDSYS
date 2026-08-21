@@ -14007,17 +14007,17 @@ if ('serviceWorker' in navigator) {
       var canApprove   = (user.isManager && r.status === '대기') || (user.isHead && r.status === '대표승인대기');
       const docId = r.rowIdx;
       var actionBtns = canApprove
-        ? '<button onclick="doApprove(\'' + docId + '\',\'approve\',\'' + approverRole + '\')" style="padding:5px 12px;background:#1a7a45;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;margin-right:4px;">승인</button>'
-          + '<button onclick="doApprove(\'' + docId + '\',\'reject\',\'' + approverRole + '\')" style="padding:5px 12px;background:#c0392b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">반려</button>'
-        : '<span style="font-size:11px;color:#bbb;">처리완료</span>';
+        ? '<button onclick="doApprove(\'' + docId + '\',\'approve\',\'' + approverRole + '\')" style="padding:5px 12px;background:#1a7a45;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;margin-right:4px;">승인</button>'
+          + '<button onclick="doApprove(\'' + docId + '\',\'reject\',\'' + approverRole + '\')" style="padding:5px 12px;background:#c0392b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;">반려</button>'
+        : '<span style="font-size:11px;color:#bbb;white-space:nowrap;">처리완료</span>';
       return '<tr style="border-bottom:1px solid #f0f0f0;cursor:default;">'
         + '<td style="padding:12px;font-weight:700;white-space:nowrap;">' + (r.name||'') + '</td>'
         + '<td style="padding:12px;color:#888;white-space:nowrap;">' + (r.dept||'-') + '</td>'
         + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + (r.leaveType||'') + '</td>'
         + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + _approvalShortDate(r.startDate) + ' ~ ' + _approvalShortDate(r.endDate) + '</td>'
-        + '<td style="padding:12px;text-align:center;">' + (r.days||0) + '일</td>'
+        + '<td style="padding:12px;text-align:center;white-space:nowrap;">' + (r.days||0) + '일</td>'
         + '<td style="padding:12px;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + String(r.reason||'').replace(/"/g,'&quot;') + '">' + (r.reason||'-') + '</td>'
-        + '<td style="padding:12px;text-align:center;"><span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:' + statusColor + ';background:' + statusBg + ';">' + r.status + '</span></td>'
+        + '<td style="padding:12px;text-align:center;white-space:nowrap;"><span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;color:' + statusColor + ';background:' + statusBg + ';">' + r.status + '</span></td>'
         + '<td style="padding:12px;text-align:center;white-space:nowrap;position:sticky;right:0;background:#fff;box-shadow:-4px 0 6px -4px rgba(0,0,0,0.15);">' + actionBtns + '</td>'
         + '</tr>';
     }).join('');
@@ -14056,7 +14056,7 @@ if ('serviceWorker' in navigator) {
           <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">종류</th>
           <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">기간</th>
           <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">일수</th>
-          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;">사유</th>
+          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">사유</th>
           <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;">상태</th>
           <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700;white-space:nowrap;position:sticky;right:0;background:var(--cream);box-shadow:-4px 0 6px -4px rgba(0,0,0,0.15);">처리</th>
         </tr>
