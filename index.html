@@ -4062,7 +4062,8 @@ window.fetchEmployeesFS = async function() {
   // \u2605 \uc608\uc804\uc5d4 Firestore \uc811\ub450\uc5b4 \ucffc\ub9ac(\uc774\ub984/\uc5c5\uccb4\uba85\uc774 \uac80\uc0c9\uc5b4\ub85c "\uc2dc\uc791\ud558\ub294" \uac83\ub9cc)\ub85c \ucc3e\uc558\ub294\ub370,
   //   \ud604\uc7a5\uc8fc\uc18c\ucc98\ub7fc \uac80\uc0c9\uc5b4\uac00 \uc911\uac04\uc5d0 \ub07c\uc5b4\uc788\ub294 \ud544\ub4dc\ub294 \uc544\uc608 \ubabb \ucc3e\uc558\ub2e4("\ubc18\ud3ec"\uac00 "\uc11c\uc6b8 \uc11c\ucd08\uad6c
   //   \ubc18\ud3ec\ub3d9..."\ucc98\ub7fc \uc911\uac04\uc5d0 \uc788\uc73c\uba74 0\uac74). \ud544\ud130/CSV\ub2e4\uc6b4\ub85c\ub4dc \ub54c \uc4f0\ub294 \uc804\uccb4 \ub370\uc774\ud130 \uce90\uc2dc\ub97c
-  //   \uc7ac\uc0ac\uc6a9\ud574\uc11c, \uc774\ub984/\uc5c5\uccb4\uba85/\ud604\uc7a5\uc8fc\uc18c/\uc5f0\ub77d\ucc98 \uc804\ubd80\uc5d0\uc11c \uac80\uc0c9\uc5b4\uac00 \uc5b4\ub514\uc5d0 \uc788\ub4e0 \ucc3e\uc544\uc9c0\uac8c \ud55c\ub2e4.
+  //   \uc7ac\uc0ac\uc6a9\ud574\uc11c, \uc774\ub984/\uc5c5\uccb4\uba85/\ud604\uc7a5\uc8fc\uc18c/\uc5f0\ub77d\ucc98/\uad00\uc2ec\uc81c\ud488/\uc804\ub2ec\uc0ac\ud56d \uc804\ubd80\uc5d0\uc11c \uac80\uc0c9\uc5b4\uac00 \uc5b4\ub514\uc5d0 \uc788\ub4e0 \ucc3e\uc544\uc9c0\uac8c \ud55c\ub2e4.
+  //   (\uc804\ub2ec\uc0ac\ud56d\uc740 \ud604\uc7ac \ud544\ub4dc\uba85 content, \uc608\uc804 \uae30\ub85d\uc740 memo\uc5d0 \ub0a8\uc544\uc788\uc5b4 \ub458 \ub2e4 \ubcf8\ub2e4)
   async function _searchConsultsAll(q) {
     const all = await ensureFullConsults();
     const ql = q.toLowerCase();
@@ -4071,6 +4072,9 @@ window.fetchEmployeesFS = async function() {
       String(r.name || '').toLowerCase().includes(ql) ||
       String(r.company || '').toLowerCase().includes(ql) ||
       String(r.address || '').toLowerCase().includes(ql) ||
+      String(r.products || '').toLowerCase().includes(ql) ||
+      String(r.content || '').toLowerCase().includes(ql) ||
+      String(r.memo || '').toLowerCase().includes(ql) ||
       (qDigits && String(r.phoneDigits || r.phone || '').replace(/[^0-9]/g, '').includes(qDigits))
     );
   }
