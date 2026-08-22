@@ -3310,12 +3310,13 @@ window.fetchEmployeesFS = async function() {
               <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:90px;">상태</th>
               <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:110px;">성함</th>
               <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);">업체명</th>
+              <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);">현장주소</th>
               <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:110px;">일정</th>
               <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:130px;">연락처</th>
             </tr>
           </thead>
           <tbody id="cfRevisitResultsBody">
-            <tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>
+            <tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>
           </tbody>
         </table>
       </div>
@@ -4431,7 +4432,7 @@ function csDateInputValue(val) {
     if (document.getElementById('cfRevisitSearchBox')) document.getElementById('cfRevisitSearchBox').style.display = 'none';
     if (document.getElementById('cfRevisitInput')) document.getElementById('cfRevisitInput').value = '';
     const _rrbReset = document.getElementById('cfRevisitResultsBody');
-    if (_rrbReset) _rrbReset.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
+    if (_rrbReset) _rrbReset.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
     document.getElementById('cfMsg').textContent = '';
     if (document.getElementById('cfLastEditWrap')) document.getElementById('cfLastEditWrap').style.display = 'none';
     if (document.getElementById('cfReceiptWrap')) document.getElementById('cfReceiptWrap').style.display = 'none';
@@ -4658,7 +4659,7 @@ function csDateInputValue(val) {
     const _inp = document.getElementById('cfRevisitInput');
     if (_inp) _inp.value = '';
     const _rrb = document.getElementById('cfRevisitResultsBody');
-    if (_rrb) _rrb.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
+    if (_rrb) _rrb.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색어를 입력하세요</td></tr>';
 
     // 지난 상담이력 요약 생성 → 참고용 박스 표시 + 히든 필드 저장
     const summary = buildPastHistorySummary(r);
