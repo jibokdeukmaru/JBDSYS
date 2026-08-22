@@ -4567,9 +4567,10 @@ function csDateInputValue(val) {
         return window.FB.getDocs(window.FB.query(
           window.FB.collection(window.FB.db, 'consults'),
           window.FB.orderBy(f[0]),
+          window.FB.orderBy("createdAtMs", "desc"),
           window.FB.where(f[0], '>=', f[1]),
           window.FB.where(f[0], '<=', f[1] + ''),
-          window.FB.limit(4)
+          window.FB.limit(20)
         ));
       });
       const snaps = await Promise.all(queries);
