@@ -4818,6 +4818,27 @@ function csDateInputValue(val) {
     if (e.target === this && _csOverlayMouseDownTarget === this) window.closeConsultForm();
   });
 
+  // ── 공용 확인창 (window.confirm() 대체) ──
+  // ★ window.confirm()이 이 앱에서 간헐적으로 화면에 안 뜨거나 응답을 못 받아 저장/입력이
+  //   멈춘 것처럼 보이는 문제가 있었다(이전에 확인된 window.prompt() 미동작과 같은 종류의
+  //   문제로 추정). 저장 자체가 이 확인창 응답을 기다리며 막히지 않도록, 호출부는 결과를
+  //   기다리지 않고 콜백만 넘기고 바로 다음 코드를 계속 진행한다.
+  let _appConfirmCb = null;
+  window.showAppConfirm = function(msg, onYes) {
+    const modal = document.getElementById('appConfirmModal');
+    if (!modal) { if (onYes) onYes(); return; } // 혹시 모달이 없으면 기존처럼 그냥 진행
+    document.getElementById('appConfirmMsg').textContent = msg;
+    _appConfirmCb = onYes;
+    modal.style.display = 'flex';
+  };
+  window._appConfirmResolve = function(ok) {
+    const modal = document.getElementById('appConfirmModal');
+    if (modal) modal.style.display = 'none';
+    const cb = _appConfirmCb;
+    _appConfirmCb = null;
+    if (ok && cb) cb();
+  };
+
   // ── 저장 (신규 등록 + 기존 수정 겸용) ──
   // ★ 이 폼은 "저장" 버튼 외에도 성함/업체명/연락처/현장주소/제품 5개 입력창의 Enter 키로도
   //   같은 함수가 호출된다. 재진입 방지 없이는 짧은 시간에 두 번 트리거되면 신규 등록이
@@ -4922,11 +4943,11 @@ function csDateInputValue(val) {
         //   (다른 필드만 수정했거나 일정이 그대로면 발송 안 함)
         const dateChanged = (selectedConsult.date||'') !== (payload.date||'') || (selectedConsult.time||'') !== (payload.time||'');
         if (payload.status === '예약' && payload.phone && payload.date && dateChanged && typeof sendSMS === 'function') {
-          if (confirm('예약변경 문자를 발송하시겠습니까?')) {
+          showAppConfirm('예약변경 문자를 발송하시겠습니까?', () => {
             const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(payload.date) : payload.date;
             const schedule = `${dateFormatted} ${payload.time||''}`.trim();
             sendSMS(payload.phone, payload.name||'', schedule, payload.counselor||'', 'change');
-          }
+          });
         }
       } else {
         // 신규: 접수일시 기록 후 자동 ID로 생성
@@ -4941,14 +4962,17 @@ function csDateInputValue(val) {
         if (_consultsMode === 'recent' && allConsults !== _consultsCache) {
           allConsults.unshift(created);
         }
+        // ★ 전체캐시(검색·나의상담내역용)에도 반영 — 안 해주면 신규 등록 건이 새로고침 전까지
+        //   "나의상담내역"이나 검색 결과에 안 잡히는 문제가 있었다.
+        if (_consultsFullCache) _consultsFullCache.unshift(created);
         // ★ 신규 등록 시 상태가 "예약"이고 연락처+일정이 모두 있으면, 확인 후 예약확정안내 문자 발송
         //   (상담완료 등 다른 상태에는 발송 안 함 — 실제 예약 건일 때만)
         if (payload.status === '예약' && payload.phone && payload.date && typeof sendSMS === 'function') {
-          if (confirm('예약확정 문자를 발송하시겠습니까?')) {
+          showAppConfirm('예약확정 문자를 발송하시겠습니까?', () => {
             const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(payload.date) : payload.date;
             const schedule = `${dateFormatted} ${payload.time||''}`.trim();
             sendSMS(payload.phone, payload.name||'', schedule, payload.counselor||'', 'confirm');
-          }
+          });
         }
       }
       _syncConsultRefs();
@@ -6781,6 +6805,18 @@ function csDateInputValue(val) {
           </div>
           <button onclick="importFromDaouSheet()" class="admin-btn primary" style="padding:8px 20px;">다우 시트 변환 실행</button>
         </div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
+        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          쇼룸상담 검색용 필드 채우기
+        </div>
+        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+          재방문 검색(이름/업체명/현장주소)에 쓰이는 nameLower/companyLower/addressLower 필드가 없는 예전 상담 건들을 찾아서 채워줍니다. 이미 채워진 건은 건드리지 않으니 여러 번 실행해도 안전합니다.
+        </div>
+        <button onclick="runConsultSearchFieldBackfill()" class="admin-btn primary" style="padding:8px 20px;">누락된 검색필드 채우기 실행</button>
+        <div id="searchFieldBackfillProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
       </div>
 
   </div>
@@ -8693,6 +8729,46 @@ function csDateInputValue(val) {
       }
     } catch(e) {
       if (progEl) progEl.textContent = `마이그레이션 오류 (성공 ${successCount}건까지 반영됨): ` + e.message;
+    }
+  };
+
+  // ── 재방문 검색용 파생 필드(nameLower/companyLower/addressLower) 누락분 채우기 ──
+  //   예전에 저장됐거나 특정 경로로 등록된 상담 건은 이 필드들이 아예 없어서, Firestore
+  //   범위검색(where >= / <=) 대상에서 통째로 빠지는 문제가 있었다(재방문 검색에 안 뜸).
+  //   이미 값이 있는 필드는 그대로 두고, 없는 필드만 채운다 — 여러 번 실행해도 안전.
+  window.runConsultSearchFieldBackfill = async function() {
+    const progEl = document.getElementById('searchFieldBackfillProgress');
+    if (progEl) progEl.textContent = '전체 상담 데이터 조회 중...';
+    try {
+      await window.fbEnsureAuth();
+      const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, 'consults'));
+      const targets = [];
+      snap.forEach(d => {
+        const r = d.data();
+        const patch = {};
+        if (r.nameLower === undefined && r.name) patch.nameLower = String(r.name).toLowerCase();
+        if (r.companyLower === undefined && r.company) patch.companyLower = String(r.company).toLowerCase();
+        if (r.addressLower === undefined && r.address) patch.addressLower = String(r.address).toLowerCase();
+        if (Object.keys(patch).length) targets.push({ ref: d.ref, patch });
+      });
+      if (!targets.length) {
+        if (progEl) { progEl.style.color = '#1a7a45'; progEl.textContent = '✔ 누락된 건이 없습니다 — 전부 채워져 있어요.'; }
+        return;
+      }
+      const CHUNK = 400;
+      let done = 0;
+      for (let i = 0; i < targets.length; i += CHUNK) {
+        const slice = targets.slice(i, i + CHUNK);
+        const batch = window.FB.writeBatch(window.FB.db);
+        slice.forEach(t => batch.update(t.ref, t.patch));
+        await batch.commit();
+        done += slice.length;
+        if (progEl) progEl.textContent = `채우는 중... (${done}/${targets.length})`;
+      }
+      if (progEl) { progEl.style.color = '#1a7a45'; progEl.textContent = `✔ 완료: ${targets.length}건 채움`; }
+      if (typeof _invalidateConsultsCache === 'function') _invalidateConsultsCache();
+    } catch(e) {
+      if (progEl) { progEl.style.color = '#c0392b'; progEl.textContent = '오류: ' + e.message; }
     }
   };
 
@@ -17053,6 +17129,19 @@ window.submitFindPw = async function() {
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button onclick="closeNewFolderModal()" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">취소</button>
       <button onclick="confirmCreateEmailLabel()" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">만들기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ★ 공용 확인창 — window.confirm()이 이 앱(Electron)에서 간헐적으로 응답을 못 받아
+     저장이 멈춘 것처럼 보이는 문제(window.prompt() 미동작과 같은 종류)가 있어서,
+     confirm이 필요한 곳은 이걸로 대체한다. showAppConfirm(메시지, 확인시콜백) 형태로 사용. -->
+<div id="appConfirmModal" onclick="if(event.target===this)_appConfirmResolve(false)" style="display:none;position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:360px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <p id="appConfirmMsg" style="margin:0 0 18px;font-size:13.5px;line-height:1.6;color:#222;white-space:pre-line;"></p>
+    <div style="display:flex;gap:8px;">
+      <button onclick="_appConfirmResolve(false)" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">아니요</button>
+      <button onclick="_appConfirmResolve(true)" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">예</button>
     </div>
   </div>
 </div>
