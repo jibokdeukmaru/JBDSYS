@@ -7534,34 +7534,34 @@ function csDateInputValue(val) {
             set('myiTenure', tenure);
         }
 
-        // 연차 계산 (한국 근로기준법)
+        // 연차 계산 — calcAnnualLeave(연차현황 카드, 직원수정모달)와 반드시 같은 공식(달력연도
+        // 기준)을 써야 한다. 예전엔 여기만 실제 경과일수/365, /30 방식이라 근속연수가 또
+        // 다르게 나와서 세 군데 숫자가 다 어긋났었다 — 전 화면 동일 기준으로 통일.
         const today2 = new Date();
         const join = new Date(u.joinDate);
         const end = u.leaveDate ? new Date(u.leaveDate) : today2;
-        const diffDays = Math.floor((end - join) / (1000*60*60*24));
-        const years = Math.floor(diffDays / 365);
-        const months = Math.floor(diffDays / 30);
-
-        let generated = 0;
-        if (years < 1) {
-          // 1년 미만: 매월 1개 (최대 11개)
-          generated = Math.min(months, 11);
+        const diffMs = end - join;
+        const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
+        const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+        let generated;
+        if (diffYears < 1) {
+          generated = Math.min(Math.floor(diffMonths), 11);
         } else {
-          // 1년 이상: 15개 기본 + 2년마다 1개 추가 (최대 25개)
+          const years = end.getFullYear() - join.getFullYear();
           generated = Math.min(15 + Math.floor((years - 1) / 2), 25);
         }
 
-        const used = parseInt(u.usedLeave || 0);
-        const remaining = Math.max(generated - used, 0);
+        const baseUsed = parseInt(u.usedLeave || 0);
 
-        set('myiLeaveLeft', remaining);
         const totalEl = document.getElementById('myiLeaveTotal');
         if (totalEl) totalEl.textContent = `/ ${generated} 일`;
 
-        // 3구간(사용/예정/남은) 프로그레스 렌더 — scheduled는 비동기로 채움
-        const _renderLeaveSegments = (scheduled) => {
+        // 3구간(사용/예정/남은) 프로그레스 렌더
+        const _renderLeaveSegments = (used, scheduled) => {
+          const remaining = Math.max(generated - used, 0);
           const sched = Math.max(0, Math.min(scheduled || 0, remaining)); // 예정은 남은 범위 내로 클램프
           const realRemain = Math.max(remaining - sched, 0);
+          set('myiLeaveLeft', realRemain);
           const g = generated > 0 ? generated : 1;
           const usedPct  = Math.min(100, Math.round((used / g) * 100));
           const schedPct = Math.min(100 - usedPct, Math.round((sched / g) * 100));
@@ -7579,21 +7579,23 @@ function csDateInputValue(val) {
           if (legU) legU.textContent = used;
           if (legS) legS.textContent = sched;
         };
-        _renderLeaveSegments(0); // 우선 예정 0으로 즉시 표시
+        _renderLeaveSegments(baseUsed, 0); // 실제 신청내역 오기 전 우선 수동값 기준으로 즉시 표시
 
-        // 예정연차(확정 & 종료일 미도래) 비동기 조회 후 반영
+        // ★ 실제 신청내역 중 확정된 것 — 이미 지난 건은 "사용"에 자동 합산, 아직 안 지난 건은
+        //   "예정"으로 반영한다 (휴가신청 탭의 updateLeaveBalance()와 동일한 방식).
         (async () => {
           try {
             const res = await fetchWithRetry(`${RESERVE_URL}?action=getLeaves&id=${encodeURIComponent(u.id)}&role=${encodeURIComponent(u.role||'staff')}&nocache=${Date.now()}`, undefined, 0, 20000);
             const data = await res.json();
             if (data.status === 'ok') {
               const todayStr = new Date().toISOString().slice(0,10);
-              const scheduledDays = (data.rows||[])
-                .filter(r => String(r.id) === String(u.id) && r.status === '확정' && String(r.endDate||'') >= todayStr)
-                .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
-              _renderLeaveSegments(scheduledDays);
+              const isDeduct = t => { const s = String(t||''); return s.indexOf('건강검진') === -1 && s.indexOf('출산') === -1; };
+              const myConfirmed = (data.rows||[]).filter(r => String(r.id) === String(u.id) && r.status === '확정' && isDeduct(r.leaveType));
+              const pastUsed = myConfirmed.filter(r => String(r.endDate||'') < todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
+              const scheduledDays = myConfirmed.filter(r => String(r.endDate||'') >= todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
+              _renderLeaveSegments(baseUsed + pastUsed, scheduledDays);
             }
-          } catch(e) { /* 실패 시 예정 0 유지 */ }
+          } catch(e) { /* 실패 시 수동값 기준으로 유지 */ }
         })();
     }
 
