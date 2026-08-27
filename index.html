@@ -13491,6 +13491,10 @@ if ('serviceWorker' in navigator) {
     // ★ 제출/취소 없이 그냥 탭을 나갔다 와도 이전에 클릭했던 날짜 테두리가 남아있던 문제 —
     //   달력 화면에 새로 들어올 때마다 선택 상태를 비운다.
     _selectedDates = [];
+    // ★ 달력을 다른 달로 넘겨두고 탭을 나갔다 다시 들어와도 그 달에 그대로 머물러있던 문제 —
+    //   탭에 새로 들어올 때마다 오늘 날짜 기준 연/월로 되돌린다.
+    _leaveYear = new Date().getFullYear();
+    _leaveMon  = new Date().getMonth();
     if (typeof setLeaveType === 'function') setLeaveType('연차');
     if (typeof switchLeaveTab === 'function') switchLeaveTab('apply');
     renderLeaveCal();
