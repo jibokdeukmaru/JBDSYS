@@ -13448,17 +13448,26 @@ if ('serviceWorker' in navigator) {
   }
 
   // 잔여 연차 업데이트
+  // ★ 예전엔 "사용"이 관리자가 수동으로 입력해두는 usedLeave 필드만 봐서, 캘린더에서
+  //   연차를 신청·확정받아도 이 숫자가 자동으로 안 올라갔다. 게다가 "사용예정"은 계산까지
+  //   해놓고 정작 "잔여" 계산식에는 반영을 안 시켜서, 앞으로 쓸 휴가를 신청해도 잔여가
+  //   그대로였다 — 확정된 신청 중 이미 지난 건 usedLeave에 더해 "사용"으로, 아직 안 지난
+  //   건 "사용예정"으로 자동 반영하고, 잔여는 부여-사용-사용예정으로 계산한다.
   function updateLeaveBalance() {
     const user = window._currentUser;
     if (!user) return;
     const total = calcAnnualLeave(user.joinDate);
-    const used  = parseFloat(user.usedLeave) || 0;
+    const baseUsed = parseFloat(user.usedLeave) || 0;
     const today = new Date().toISOString().slice(0,10);
-    // 사용예정: 확정됐지만 종료일이 아직 안 지난 것
-    const scheduledDays = _allLeaves
-      .filter(r => r.id === user.id && r.status === '확정' && String(r.endDate||'') >= today)
-      .reduce((s, r) => s + parseFloat(r.days||0), 0);
-    const remain = total - used;
+    const myConfirmed = _allLeaves.filter(r => r.id === user.id && r.status === '확정' && _isDeductType(r.leaveType));
+    const pastUsed = myConfirmed
+      .filter(r => String(r.endDate||'') < today)
+      .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
+    const scheduledDays = myConfirmed
+      .filter(r => String(r.endDate||'') >= today)
+      .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
+    const used = baseUsed + pastUsed;
+    const remain = total - used - scheduledDays;
     document.getElementById('leaveTotal').textContent    = total + '일';
     document.getElementById('leaveUsed').textContent     = used + '일';
     const schedEl = document.getElementById('leaveScheduled');
@@ -13531,8 +13540,11 @@ if ('serviceWorker' in navigator) {
     const sameAsAnchor = (((weeksDiff % 2) + 2) % 2) === 0;
     return sameAsAnchor ? _TEAM_ANCHOR_TEAM : (_TEAM_ANCHOR_TEAM === 'A' ? 'B' : 'A');
   }
+  // 물류팀은 하남(물류창고) 소속, 나머지 부서는 쇼룸 소속 — A/B 조 표시할 때 어디 근무자인지
+  // 구분해서 붙여준다.
+  function _teamLocationLabel(emp) { return emp.dept === '물류' ? '(하남)' : '(쇼룸)'; }
   function teamMemberNames(team) {
-    return (window._allEmployees || []).filter(e => e.team === team && !e.leaveDate).map(e => e.name);
+    return (window._allEmployees || []).filter(e => e.team === team && !e.leaveDate).map(e => e.name + ' ' + _teamLocationLabel(e));
   }
   function _teamEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function renderTeamRoster() {
@@ -13540,11 +13552,11 @@ if ('serviceWorker' in navigator) {
     if (!wrap) return;
     const emps = window._allEmployees || [];
     const teamCard = (team, label, color) => {
-      const names = emps.filter(e => e.team === team && !e.leaveDate).map(e => e.name);
+      const members = emps.filter(e => e.team === team && !e.leaveDate);
       return `<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-        <div style="font-size:14px;font-weight:800;color:${color};margin-bottom:10px;">${label} (${names.length}명)</div>
+        <div style="font-size:14px;font-weight:800;color:${color};margin-bottom:10px;">${label} (${members.length}명)</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${names.length ? names.map(n => `<span style="font-size:12.5px;font-weight:700;color:#333;background:#f5f5f5;border-radius:999px;padding:5px 12px;">${_teamEsc(n)}</span>`).join('') : '<span style="font-size:12px;color:#bbb;">지정된 인원 없음</span>'}
+          ${members.length ? members.map(e => `<span style="font-size:12.5px;font-weight:700;color:#333;background:#f5f5f5;border-radius:999px;padding:5px 12px;">${_teamEsc(e.name)} <span style="color:#999;font-weight:600;">${_teamLocationLabel(e)}</span></span>`).join('') : '<span style="font-size:12px;color:#bbb;">지정된 인원 없음</span>'}
         </div>
       </div>`;
     };
