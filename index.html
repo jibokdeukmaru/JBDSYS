@@ -905,6 +905,38 @@ window.fetchEmployeesFS = async function() {
     </div>
   </div>
 
+  <script>
+  // ★ 상단 탭 메뉴(#mainTabBar) — 창을 넓게 안 키우면 탭이 넘쳐서 뒤쪽 메뉴로 못 넘어가던
+  //   문제. CSS엔 이미 overflow-x:auto와 cursor:grab이 준비돼 있었는데(알약모양이 스크롤
+  //   경계에 안 잘리게 하려고 overflow-y는 visible로 따로 뒀음), 정작 마우스로 눌러서 끄는
+  //   드래그 스크롤 동작 자체가 빠져 있어서 커서만 손모양이고 실제로는 안 끌렸다.
+  (function(){
+    const el = document.getElementById('mainTabBar');
+    if (!el) return;
+    let isDown = false, startX = 0, startScroll = 0, moved = false;
+    el.addEventListener('mousedown', (e) => {
+      isDown = true; moved = false;
+      startX = e.pageX;
+      startScroll = el.scrollLeft;
+      el.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      const dx = e.pageX - startX;
+      if (Math.abs(dx) > 3) moved = true;
+      el.scrollLeft = startScroll - dx;
+    });
+    window.addEventListener('mouseup', () => {
+      if (isDown) { isDown = false; el.classList.remove('dragging'); }
+    });
+    // 드래그였으면(탭 위치 이동이 목적) 그 직후 mouseup이 탭 클릭(전환)으로 이어지지
+    // 않게 캡처 단계에서 막는다 — 살짝만 눌렀다 뗀 경우(moved===false)는 정상적으로 클릭됨.
+    el.addEventListener('click', (e) => {
+      if (moved) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+  })();
+  </script>
+
   <!-- 유저 드롭다운 (body 직속 - stacking context 문제 방지) -->
   <div class="user-dropdown" id="userDropdown">
     <div class="user-dropdown-header" id="userDropdownHeader">
