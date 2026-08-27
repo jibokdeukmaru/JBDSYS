@@ -13547,12 +13547,19 @@ if ('serviceWorker' in navigator) {
     return (window._allEmployees || []).filter(e => e.team === team && !e.leaveDate).map(e => e.name + ' ' + _teamLocationLabel(e));
   }
   function _teamEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  // 직급 순서 — 높은 직급 먼저 (관리자 연차현황 카드 정렬과 동일한 순서)
+  const _TEAM_TITLE_ORDER = ['대표이사','CEO','부회장','회장','사장','부사장','전무','상무','이사','본부장','실장','부장','차장','과장','팀장','대리','주임','사원','인턴'];
+  function _teamTitleRank(title) {
+    const i = _TEAM_TITLE_ORDER.findIndex(o => String(title||'').includes(o));
+    return i === -1 ? 999 : i;
+  }
   function renderTeamRoster() {
     const wrap = document.getElementById('teamRosterList');
     if (!wrap) return;
     const emps = window._allEmployees || [];
     const teamCard = (team, label, color) => {
-      const members = emps.filter(e => e.team === team && !e.leaveDate);
+      const members = emps.filter(e => e.team === team && !e.leaveDate)
+        .sort((a, b) => _teamTitleRank(a.title) - _teamTitleRank(b.title));
       return `<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
         <div style="font-size:14px;font-weight:800;color:${color};margin-bottom:10px;">${label} (${members.length}명)</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
