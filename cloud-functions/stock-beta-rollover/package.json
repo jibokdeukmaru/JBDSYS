@@ -1,0 +1,8 @@
+{
+  "name": "stock-beta-rollover",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/firestore": "^7.6.0"
+  }
+}
