@@ -119,9 +119,14 @@ async function getGmailMessages(p) {
   const q = (p.q || '').trim();
   const pageToken = (p.pageToken || '').trim();
   try {
+    // ★ Gmail엔 "보관함"이라는 실제 라벨이 없다 — 받은편지함 라벨만 뗀 상태라서, labelIds
+    //   필터 대신 검색어로 "받은편지함/스팸/휴지통/보낸/임시보관함이 아닌 것"을 찾아야 한다.
+    const isArchive = folder === 'archive';
     const listRes = await gmail.users.messages.list({
-      userId: 'me', maxResults: max, labelIds: [label],
-      q: q || undefined, pageToken: pageToken || undefined,
+      userId: 'me', maxResults: max,
+      labelIds: isArchive ? undefined : [label],
+      q: isArchive ? ('-in:inbox -in:sent -in:draft -in:spam -in:trash' + (q ? ' ' + q : '')) : (q || undefined),
+      pageToken: pageToken || undefined,
     });
     const ids = (listRes.data.messages || []).map((m) => m.id);
     const items = await Promise.all(ids.map(async (id) => {
@@ -390,19 +395,11 @@ async function sendEmailFromERP(p) {
 
   const senderName = (p.senderName || '').trim();
   const senderTitle = (p.senderTitle || '').trim();
-  const senderDept = (p.senderDept || '').trim();
-  const senderPhone = (p.senderPhone || '').trim();
+  const senderCardUrl = (p.senderCardUrl || '').trim();
 
-  const signature = senderName ? (
-    '<table style="margin-top:32px;padding-top:20px;border-top:2px solid #E5D9C6;font-family:Arial,\'Noto Sans KR\',sans-serif;border-collapse:collapse;"><tr><td style="vertical-align:top;">' +
-    '<div style="font-size:16px;font-weight:800;color:#2B2521;margin-bottom:2px;">' + senderName + (senderTitle ? ' <span style="font-size:13px;font-weight:600;color:#A2693E;">' + senderTitle + '</span>' : '') + '</div>' +
-    (senderDept ? '<div style="font-size:12px;color:#888;margin-bottom:6px;">' + senderDept + '</div>' : '') +
-    '<table style="border-collapse:collapse;font-size:12px;color:#666;line-height:1.9;">' +
-    (senderPhone ? '<tr><td style="color:#A2693E;font-weight:700;padding-right:10px;white-space:nowrap;">T.</td><td>' + senderPhone + '</td></tr>' : '') +
-    (senderEmail ? '<tr><td style="color:#A2693E;font-weight:700;padding-right:10px;">E.</td><td><a href="mailto:' + senderEmail + '" style="color:#A2693E;text-decoration:none;">' + senderEmail + '</a></td></tr>' : '') +
-    '<tr><td style="color:#A2693E;font-weight:700;padding-right:10px;">W.</td><td><a href="https://jibokdeukmaru.com" style="color:#A2693E;text-decoration:none;">jibokdeukmaru.com</a></td></tr>' +
-    '</table>' +
-    '<div style="margin-top:10px;"><img src="https://sys.jibokdeukmaru.com/%EB%A1%9C%EA%B3%A0.png" alt="지복득마루" width="459" height="18" style="display:block;width:100%;max-width:459px;height:auto;"></div>' +
+  const signature = senderCardUrl ? (
+    '<table style="margin-top:32px;padding-top:20px;border-top:2px solid #E5D9C6;border-collapse:collapse;"><tr><td style="vertical-align:top;">' +
+    '<img src="' + senderCardUrl + '" alt="서명" style="display:block;max-width:420px;width:100%;height:auto;">' +
     '</td></tr></table>'
   ) : '';
 
