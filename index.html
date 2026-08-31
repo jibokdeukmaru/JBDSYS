@@ -1846,6 +1846,68 @@ window.runStockBetaSpecFix = async function(){
     if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
   }
 };
+// 9월 데이터가 예전(평/헤베수 버그 있던 시절) 로직으로 이미 만들어져서 잘못된 값으로 굳어있는
+// 문제 — 9월 문서를 전부 지우고, 8월(실제 달력상 이번 달)의 현재 값 기준으로 지금 코드의
+// 정확한 계산식으로 다시 만든다. 9월에 따로 추가한 내용은 없다고 확인받아서 보존 없이 통째로 교체.
+async function _runStockBetaRegenerateNextMonth(onProgress){
+  await window.fbEnsureAuth();
+  const sourceMonth = _stockBetaCurrentRealMonth();
+  const target = _stockBetaNextMonth(sourceMonth);
+
+  const targetSnap = await window.FB.getDocs(window.FB.query(
+    window.FB.collection(window.FB.db, 'stockBetaLots'),
+    window.FB.where('month', '==', target)
+  ));
+  const delDocs = targetSnap.docs;
+  let deleted = 0;
+  for (let i = 0; i < delDocs.length; i += 400) {
+    const batch = window.FB.writeBatch(window.FB.db);
+    delDocs.slice(i, i + 400).forEach(d => { batch.delete(d.ref); deleted++; });
+    await batch.commit();
+  }
+
+  const sourceSnap = await window.FB.getDocs(window.FB.query(
+    window.FB.collection(window.FB.db, 'stockBetaLots'),
+    window.FB.where('month', '==', sourceMonth)
+  ));
+  const sourceLots = sourceSnap.docs.map(d => d.data());
+  let created = 0;
+  for (let i = 0; i < sourceLots.length; i += 400) {
+    const batch = window.FB.writeBatch(window.FB.db);
+    sourceLots.slice(i, i + 400).forEach(lot => {
+      const shipSum = (lot.ship || []).reduce((s, x) => s + (typeof x.box === 'number' ? x.box : 0), 0);
+      const finalBox = Math.round((Number(lot.box || 0) - shipSum) * 10) / 10;
+      const heibeiNum = parseFloat(lot.heibei) || 0;
+      const finalPy = Math.round((finalBox * heibeiNum / 3.24) * 100) / 100;
+      const id = _stockBetaDocId(lot.sheetName, lot.code, lot.cha, target);
+      const ref = window.FB.doc(window.FB.db, 'stockBetaLots', id);
+      batch.set(ref, {
+        sheetName: lot.sheetName, code: lot.code, cha: lot.cha, month: target,
+        inDate: lot.inDate || '', spec: lot.spec || '', heibei: lot.heibei || '',
+        box: finalBox, py: finalPy, ship: [], resv: lot.resv || [], _merged: !!lot._merged,
+        updatedAtMs: Date.now(),
+      });
+      created++;
+    });
+    await batch.commit();
+    if (onProgress) onProgress(created, sourceLots.length);
+  }
+  await _stockBetaAddMonthToList(target);
+  return { deleted, created, sourceMonth, target };
+}
+window.runStockBetaRegenerateNextMonth = async function(){
+  if (!confirm('다음 달 데이터를 전부 지우고 이번 달(실제 달력 기준) 현재 값으로 다시 만듭니다.\n다음 달에 직접 추가한 내용이 있다면 사라집니다. 계속할까요?')) return;
+  const prog = document.getElementById('stockBetaRegenProgress');
+  if (prog) { prog.style.color = '#888'; prog.textContent = '재생성 중...'; }
+  try {
+    const { deleted, created, sourceMonth, target } = await _runStockBetaRegenerateNextMonth((done, total) => {
+      if (prog) prog.textContent = `재생성 중... (${done}/${total})`;
+    });
+    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: ${target} 기존 ${deleted}건 삭제 → ${sourceMonth} 기준 ${created}건 새로 생성`; }
+  } catch (e) {
+    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
+  }
+};
 window.runStockBetaPyRecalc = async function(){
   if (!confirm('재고현황(BETA)에 이미 저장된 모든 차수의 "평" 수치를 (BOX × 헤베수 ÷ 3.24) 기준으로 다시 계산해서 덮어씁니다.\n계속할까요?')) return;
   const prog = document.getElementById('stockBetaPyRecalcProgress');
@@ -7501,6 +7563,18 @@ function csDateInputValue(val) {
         </div>
         <button onclick="runStockBetaSpecFix()" class="admin-btn primary" style="padding:8px 20px;">규격/헤베수 일괄 보정 실행</button>
         <div id="stockBetaSpecFixProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
+        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          재고현황(BETA) 다음달 데이터 재생성
+        </div>
+        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+          다음 달(이번 달의 다음 달) 데이터가 예전 버그 있는 로직으로 이미 만들어져서 잘못된 값으로 굳어있을 때 씁니다. 다음 달 데이터를 전부 지우고, 이번 달 현재 값 기준으로 지금 코드의 정확한 계산식으로 다시 만듭니다. <b>다음 달에 직접 추가한 내용이 있으면 사라지니 주의하세요.</b>
+        </div>
+        <button onclick="runStockBetaRegenerateNextMonth()" class="admin-btn primary" style="padding:8px 20px;">다음달 데이터 재생성 실행</button>
+        <div id="stockBetaRegenProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
       </div>
 
   </div>
