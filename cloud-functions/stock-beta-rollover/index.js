@@ -55,7 +55,7 @@ exports.stockBetaMonthlyRollover = async (req, res) => {
       const shipSum = (lot.ship || []).reduce((s, x) => s + (typeof x.box === 'number' ? x.box : 0), 0);
       const finalBox = Math.round((Number(lot.box || 0) - shipSum) * 10) / 10;
       const ratio = (parseFloat(lot.heibei) || 0) / 3.24;
-      const finalPy = Math.round(finalBox * ratio * 10) / 10;
+      const finalPy = Math.round(finalBox * ratio * 100) / 100;
       const newId = cleanIdPart(lot.sheetName) + '__' + cleanIdPart(lot.code) + '__' + cleanIdPart(lot.cha || '-') + '__' + cleanIdPart(target);
       const ref = firestore.collection('stockBetaLots').doc(newId);
       batch.set(ref, {
