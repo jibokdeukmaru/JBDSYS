@@ -1120,14 +1120,15 @@ window.fetchEmployeesFS = async function() {
 
 <section id="memoTab" class="tab-panel" style="display:none;">
     <div class="card" style="display: flex; flex-direction: column; box-sizing: border-box;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-shrink: 0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink: 0;">
         <h2 class="title" style="margin-bottom:0;">업무 메모</h2>
         <div style="display:flex; gap:8px;">
           <button type="button" id="saveMemoBtn" style="background:var(--brand); color:white; border:none; border-radius:4px; padding:6px 14px; cursor:pointer; font-size:13px; font-weight:700;">저장</button>
-          <button type="button" id="clearMemo" style="background:#ff4d4d; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; font-size:13px;">전체삭제</button>
+          <button type="button" id="clearMemo" style="background:#ff4d4d; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; font-size:13px;">현재탭 지우기</button>
         </div>
       </div>
-      <textarea id="workMemo" spellcheck="false" style="width:100%; min-height: calc(100dvh - 200px); padding:15px; border:1px solid #ddd; border-radius:8px; font-size:15px; line-height:1.6; resize:vertical; box-sizing:border-box; background:#fdfdfd;" placeholder="업무 내용을 자유롭게 입력하세요..."></textarea>
+      <div id="memoTabBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0;"></div>
+      <textarea id="workMemo" spellcheck="false" style="width:100%; min-height: calc(100dvh - 240px); padding:15px; border:1px solid #ddd; border-radius:8px; font-size:15px; line-height:1.6; resize:vertical; box-sizing:border-box; background:#fdfdfd;" placeholder="업무 내용을 자유롭게 입력하세요..."></textarea>
     </div>
 </section>
 
@@ -9339,6 +9340,7 @@ function csDateInputValue(val) {
     (function() {
         const memoArea = document.getElementById('workMemo');
         if (!memoArea) return;
+        const tabBar = document.getElementById('memoTabBar');
 
         // 현재 로그인 직원 ID 가져오기
         function getCurrentUserId() {
@@ -9346,44 +9348,134 @@ function csDateInputValue(val) {
           return user ? (user.id || 'guest') : 'guest';
         }
 
-        // ★ 메모는 기기별이 아니라 사용자별로 같아야 한다(같은 계정이면 모바일/PC 어디서든 동일 내용).
-        //   근데 서버 응답이 오기 전에 기기별 로컬 캐시를 먼저 보여주고 편집을 허용하면, 다른 기기에서
-        //   그 사이 새로 저장한 내용을 이 기기의 옛 캐시로 덮어써버리는 경합이 생겼다. 서버 확인이
-        //   끝나기 전까지는 편집(저장)을 막아 이 문제를 없앤다.
+        // ★ 메모는 이제 구글시트(RESERVE_URL) 대신 Firestore(personalMemos/{uid})에 페이지
+        //   배열로 저장한다 — 재고현황(BETA)/위키처럼 다른 기능들도 이미 Firestore로 옮겨간
+        //   흐름과 맞추고, 탭(페이지) 여러 개를 한 문서 안에 자연스럽게 담을 수 있어서다.
+        //   서버 확인 전까지는 편집(저장)을 막는 원칙은 그대로 유지 — 경합 방지.
+        let _memoPages = [];        // [{ id, name, content }]
+        let _memoActiveId = null;
         let _memoServerSynced = false;
 
-        // 1. 서버에서 메모 로드 (직원별)
+        function _memoNewId() { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+        function _memoEsc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+        // 지금 열려있는 탭의 편집 내용을 메모리에 반영 — 탭 전환/저장/추가/삭제 직전에 항상 먼저 호출
+        function _memoSyncActiveFromTextarea() {
+          const page = _memoPages.find(p => p.id === _memoActiveId);
+          if (page) page.content = memoArea.value;
+        }
+
+        function renderMemoTabs() {
+          if (!tabBar) return;
+          tabBar.innerHTML = _memoPages.map(p => {
+            const active = p.id === _memoActiveId;
+            return '<span class="memo-tab" data-id="' + p.id + '" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;user-select:none;'
+              + (active ? 'background:var(--brand);color:#fff;' : 'background:#f0eee9;color:#666;') + '">'
+              + '<span class="memo-tab-name">' + _memoEsc(p.name) + '</span>'
+              + (_memoPages.length > 1 ? '<span class="memo-tab-close" style="opacity:.75;">&times;</span>' : '')
+              + '</span>';
+          }).join('') + '<span class="memo-tab-add" title="새 메모 탭" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:#f0eee9;color:#666;cursor:pointer;font-weight:800;">＋</span>';
+        }
+
+        function switchMemoTab(id) {
+          if (id === _memoActiveId) return;
+          _memoSyncActiveFromTextarea();
+          _memoActiveId = id;
+          const page = _memoPages.find(p => p.id === id);
+          memoArea.value = page ? page.content : '';
+          renderMemoTabs();
+        }
+
+        if (tabBar) {
+          tabBar.addEventListener('click', (e) => {
+            if (e.target.closest('.memo-tab-add')) {
+              _memoSyncActiveFromTextarea();
+              const page = { id: _memoNewId(), name: '메모' + (_memoPages.length + 1), content: '' };
+              _memoPages.push(page);
+              _memoActiveId = page.id;
+              memoArea.value = '';
+              renderMemoTabs();
+              return;
+            }
+            const closeBtn = e.target.closest('.memo-tab-close');
+            if (closeBtn) {
+              const tabEl = closeBtn.closest('.memo-tab');
+              const id = tabEl.dataset.id;
+              const page = _memoPages.find(p => p.id === id);
+              if (!confirm((page ? page.name : '이 메모') + ' 탭을 삭제하시겠습니까?')) return;
+              const idx = _memoPages.findIndex(p => p.id === id);
+              _memoPages.splice(idx, 1);
+              if (_memoActiveId === id) {
+                const next = _memoPages[Math.max(0, idx - 1)] || _memoPages[0];
+                _memoActiveId = next ? next.id : null;
+                memoArea.value = next ? next.content : '';
+              }
+              renderMemoTabs();
+              return;
+            }
+            const tabEl = e.target.closest('.memo-tab');
+            if (tabEl) switchMemoTab(tabEl.dataset.id);
+          });
+          // 더블클릭으로 탭 이름 수정 — 재고현황 시트탭처럼 이름표 바꾸듯이
+          tabBar.addEventListener('dblclick', (e) => {
+            const nameEl = e.target.closest('.memo-tab-name');
+            if (!nameEl) return;
+            const tabEl = nameEl.closest('.memo-tab');
+            const page = _memoPages.find(p => p.id === tabEl.dataset.id);
+            if (!page) return;
+            const next = prompt('탭 이름 변경', page.name);
+            if (next && next.trim()) { page.name = next.trim(); renderMemoTabs(); }
+          });
+        }
+
+        async function _memoSaveToFirestore(uid) {
+          await window.fbEnsureAuth();
+          await window.FB.setDoc(window.FB.doc(window.FB.db, 'personalMemos', uid), {
+            pages: _memoPages.map(p => ({ id: p.id, name: p.name, content: p.content })),
+            updatedAt: Date.now(),
+          });
+        }
+
+        // 1. Firestore에서 메모 로드 (직원별) — 아직 Firestore로 안 넘어온 사람(예전 구글시트
+        //    메모만 있는 경우)은 그 내용을 1회 자동으로 가져와 첫 페이지로 만들고 바로 확정 저장한다.
         async function loadMemo() {
           const uid = getCurrentUserId();
           _memoServerSynced = false;
-          // 로컬 캐시 먼저 "미리보기"로만 표시 — 서버 확인 전까지는 편집 못 하게 잠근다
-          memoArea.value = localStorage.getItem(`memo_${uid}`) || '';
           memoArea.disabled = true;
           try {
-            const res = await fetchWithRetry(`${RESERVE_URL}?action=getMemo&userId=${encodeURIComponent(uid)}`);
-            const data = await res.json();
-            if (data.status === 'ok' && data.memo !== undefined) {
-              memoArea.value = data.memo;
-              localStorage.setItem(`memo_${uid}`, data.memo);
+            await window.fbEnsureAuth();
+            const snap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'personalMemos', uid));
+            const data = snap.exists() ? (snap.data() || {}) : {};
+            if (Array.isArray(data.pages) && data.pages.length) {
+              _memoPages = data.pages.map(p => ({ id: p.id || _memoNewId(), name: p.name || '메모', content: p.content || '' }));
+            } else {
+              let legacy = '';
+              try {
+                const res = await fetchWithRetry(`${RESERVE_URL}?action=getMemo&userId=${encodeURIComponent(uid)}`);
+                const legacyData = await res.json();
+                if (legacyData.status === 'ok' && legacyData.memo) legacy = legacyData.memo;
+              } catch(e) { /* 이전할 옛 메모 조회 실패 — 빈 메모로 시작 */ }
+              _memoPages = [{ id: _memoNewId(), name: '메모1', content: legacy }];
+              if (legacy) await _memoSaveToFirestore(uid);
             }
-          } catch(e) { /* 서버 확인 실패 — 로컬 캐시로 계속 진행(오프라인 대비) */ }
+          } catch(e) {
+            _memoPages = [{ id: _memoNewId(), name: '메모1', content: '' }];
+          }
+          _memoActiveId = _memoPages[0].id;
+          memoArea.value = _memoPages[0].content;
+          renderMemoTabs();
           _memoServerSynced = true;
           memoArea.disabled = false;
         }
 
-        // 2. 서버에 메모 저장
+        // 2. Firestore에 메모 저장
         async function saveMemo() {
           if (!_memoServerSynced) return; // 서버 값 확인 전엔 저장 금지(기기별 옛 캐시로 덮어쓰기 방지)
+          _memoSyncActiveFromTextarea();
           const uid = getCurrentUserId();
-          const content = memoArea.value;
-          localStorage.setItem(`memo_${uid}`, content);
           try {
-            await fetchWithRetry(RESERVE_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain' },
-              body: JSON.stringify({ action: 'saveMemo', userId: uid, memo: content })
-            });
-          } catch(e) { /* 로컬에는 저장됨 */ }
+            await _memoSaveToFirestore(uid);
+          } catch(e) { /* 저장 실패 — 사용자가 다시 저장 버튼을 누르면 재시도됨 */ }
         }
 
         const keepEyesLevel = () => {
@@ -9429,8 +9521,11 @@ function csDateInputValue(val) {
         const clearBtn = document.getElementById('clearMemo');
         if (clearBtn) {
             clearBtn.addEventListener('click', async () => {
-                if (confirm('메모장의 모든 내용을 정말로 삭제하시겠습니까?')) {
+                const page = _memoPages.find(p => p.id === _memoActiveId);
+                const label = page ? page.name : '이 메모';
+                if (confirm(label + ' 탭의 내용을 정말로 삭제하시겠습니까?')) {
                     memoArea.value = '';
+                    if (page) page.content = '';
                     await saveMemo();
                 }
             });
