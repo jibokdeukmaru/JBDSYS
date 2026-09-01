@@ -1135,14 +1135,12 @@ window.fetchEmployeesFS = async function() {
 
 <section id="personalCalTab" class="tab-panel" style="display:none;">
   <div class="card" style="display:flex;flex-direction:column;box-sizing:border-box;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
-      <h2 class="title" style="margin-bottom:0;">개인달력</h2>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button type="button" onclick="personalCalMove(-1)" style="background:#fff;border:1px solid #ddd;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:14px;">‹</button>
-        <span id="personalCalTitle" style="font-size:15px;font-weight:800;min-width:100px;text-align:center;"></span>
-        <button type="button" onclick="personalCalMove(1)" style="background:#fff;border:1px solid #ddd;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:14px;">›</button>
-        <button type="button" onclick="personalCalToday()" style="background:var(--brand);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;margin-left:4px;">오늘</button>
-      </div>
+    <h2 class="title" style="margin-bottom:10px;">개인달력</h2>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+      <button type="button" onclick="personalCalMove(-1)" style="background:#fff;border:1px solid #ddd;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:14px;">‹</button>
+      <span id="personalCalTitle" style="font-size:15px;font-weight:800;min-width:100px;text-align:center;"></span>
+      <button type="button" onclick="personalCalMove(1)" style="background:#fff;border:1px solid #ddd;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:14px;">›</button>
+      <button type="button" onclick="personalCalToday()" style="background:var(--brand);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;margin-left:4px;">오늘</button>
     </div>
     <div style="font-size:11px;color:#999;margin-bottom:12px;">이 달력은 본인만 볼 수 있으며 다른 직원에게 공유되지 않습니다.</div>
     <div id="personalCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
