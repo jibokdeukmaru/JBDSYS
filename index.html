@@ -1544,9 +1544,6 @@ async function _stockBetaCascadeHeibei(sheetName, code, cha, fromMonth, newHeibe
 }
 
 // ── BETA(iframe) ↔ 부모 postMessage 라우팅 ──
-// 현재 병합된 스냅샷(재고현황 원본 + 그동안 BETA에서 저장한 수정분)을 전부 파이어스토어에
-// 확정 저장하고 migrated 플래그를 켠다 — postMessage 경로(BETA 안 버튼)와 관리자 탭의
-// [재고현황 BETA완전이관] 버튼 양쪽에서 공용으로 쓴다.
 // ★ 매달 자동 롤오버는 원래 서버(Cloud Scheduler + stock-beta-rollover 함수)가 하는 게
 //   맞지만, 그 배포가 아직 안 됐거나 하루 어쩌다 실패해도 기능이 끊기지 않도록 — 누군가
 //   재고현황(예약/실시간)를 열 때(getSnapshot) "이번달의 다음달"이 없으면 여기서도 만들어준다.
@@ -1575,66 +1572,6 @@ async function _stockBetaEnsureNextMonth(){
       });
     }
   } catch(e) { /* 실패해도 서버 쪽(예약된 함수)이 처리할 수 있으니 조용히 무시 */ }
-}
-async function _runStockBetaMigration(onProgress){
-  const db = await _buildStockBetaSnapshot();
-  let count = 0, total = 0;
-  Object.keys(db).forEach(s => db[s].products.forEach(p => { total += p.lots.length; }));
-  for (const sheetName of Object.keys(db)) {
-    for (const prod of db[sheetName].products) {
-      for (const lot of prod.lots) {
-        await _stockBetaSaveLot({ sheetName, code: prod.code, ...lot });
-        count++;
-        if (onProgress) onProgress(count, total);
-      }
-    }
-  }
-  await window.fbEnsureAuth();
-  await window.FB.setDoc(window.FB.doc(window.FB.db, 'stockBetaMeta', 'status'), { migrated: true, migratedAtMs: Date.now() }, { merge: true });
-  return count;
-}
-// 관리자 탭 [재고현황 BETA완전이관] 버튼
-window.runStockBetaFullMigration = async function(){
-  if (!confirm('현재 재고현황(예약/실시간)에 보이는 내용을 파이어스토어에 확정 저장합니다.\n이후로는 구글시트를 보지 않고 파이어스토어만으로 동작하며, 되돌릴 수 없습니다.\n계속할까요?')) return;
-  const prog = document.getElementById('stockBetaMigrationProgress');
-  if (prog) prog.textContent = '이관 준비 중...';
-  try {
-    const count = await _runStockBetaMigration((done, total) => {
-      if (prog) prog.textContent = `이관 중... (${done}/${total})`;
-    });
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: ${count}개 LOT 이관됨. 이제 재고현황(예약/실시간)는 파이어스토어로만 동작합니다.`; }
-  } catch (e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
-  }
-};
-
-// 재고현황(예약/실시간) "평" 계산 오류 수정용 일회성 재계산 — 이관 이전 코드가 STOCK시트의 ㎡값을
-// 3.24로 안 나누고 그대로 평에 저장했던 문제가 있어서, 이미 파이어스토어에 저장된 기존
-// 문서들의 평(py)을 (BOX × 헤베수 ÷ 3.24) 기준으로 다시 계산해서 덮어쓴다.
-async function _runStockBetaPyRecalc(onProgress){
-  await window.fbEnsureAuth();
-  const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, 'stockBetaLots'));
-  const docs = snap.docs;
-  let count = 0, changed = 0;
-  const CHUNK = 400;
-  for (let i = 0; i < docs.length; i += CHUNK) {
-    const chunk = docs.slice(i, i + CHUNK);
-    const batch = window.FB.writeBatch(window.FB.db);
-    chunk.forEach(d => {
-      const data = d.data();
-      const box = Number(data.box) || 0;
-      const heibei = parseFloat(data.heibei) || 0;
-      const newPy = Math.round((box * heibei / 3.24) * 100) / 100;
-      if (newPy !== Number(data.py)) {
-        batch.set(d.ref, { py: newPy, updatedAtMs: Date.now() }, { merge: true });
-        changed++;
-      }
-      count++;
-    });
-    await batch.commit();
-    if (onProgress) onProgress(count, docs.length);
-  }
-  return { count, changed };
 }
 // 재고현황(예약/실시간) 수정기록 — 누가(로그인한 실제 이름+직급) 언제 뭘 고쳤는지 영구 저장.
 // editorName/editorTitle은 클라이언트가 보낸 값을 안 믿고, 부모(ERP)가 이미 알고 있는
@@ -1715,156 +1652,6 @@ async function _stockBetaSaveProductOrder(sheetName, order){
   update[sheetName] = order;
   await window.FB.setDoc(window.FB.doc(window.FB.db, 'stockBetaMeta', 'productOrder'), update, { merge: true });
 }
-// 요청받은 규격/헤베수 일괄 보정 — A#16/A#17/A#171/A#18/C#18 → 14*190*1900(2.166),
-// A#19/C#19 → 15*240*2200(2.112). 평(py)도 그 헤베수 기준으로 같이 재계산한다.
-async function _runStockBetaSpecFix(onProgress){
-  await window.fbEnsureAuth();
-  const GROUPS = [
-    { sheets: ['A#16', 'A#17', 'A#171', 'A#18', 'C#18'], spec: '14*190*1900', heibei: 2.166 },
-    { sheets: ['A#19', 'C#19'], spec: '15*240*2200', heibei: 2.112 },
-  ];
-  const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, 'stockBetaLots'));
-  const docs = snap.docs;
-  let count = 0, changed = 0;
-  const CHUNK = 400;
-  for (let i = 0; i < docs.length; i += CHUNK) {
-    const chunk = docs.slice(i, i + CHUNK);
-    const batch = window.FB.writeBatch(window.FB.db);
-    chunk.forEach(d => {
-      const data = d.data();
-      const group = GROUPS.find(g => g.sheets.includes(data.sheetName));
-      if (group) {
-        const box = Number(data.box) || 0;
-        const py = Math.round((box * group.heibei / 3.24) * 100) / 100;
-        batch.set(d.ref, { spec: group.spec, heibei: String(group.heibei), py, updatedAtMs: Date.now() }, { merge: true });
-        changed++;
-      }
-      count++;
-    });
-    await batch.commit();
-    if (onProgress) onProgress(count, docs.length);
-  }
-  return { count, changed };
-}
-window.runStockBetaSpecFix = async function(){
-  if (!confirm('A#16/A#17/A#171/A#18/C#18 → 규격 14*190*1900(헤베 2.166),\nA#19/C#19 → 규격 15*240*2200(헤베 2.112)\n전체 품번에 일괄 적용합니다. 계속할까요?')) return;
-  const prog = document.getElementById('stockBetaSpecFixProgress');
-  if (prog) { prog.style.color = '#888'; prog.textContent = '적용 중...'; }
-  try {
-    const { count, changed } = await _runStockBetaSpecFix((done, total) => {
-      if (prog) prog.textContent = `적용 중... (${done}/${total})`;
-    });
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: 전체 ${count}건 중 ${changed}건 수정됨`; }
-  } catch (e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
-  }
-};
-// 9월 데이터가 예전(평/헤베수 버그 있던 시절) 로직으로 이미 만들어져서 잘못된 값으로 굳어있는
-// 문제 — 9월 문서를 전부 지우고, 8월(실제 달력상 이번 달)의 현재 값 기준으로 지금 코드의
-// 정확한 계산식으로 다시 만든다. 9월에 따로 추가한 내용은 없다고 확인받아서 보존 없이 통째로 교체.
-async function _runStockBetaRegenerateNextMonth(onProgress){
-  await window.fbEnsureAuth();
-  const sourceMonth = _stockBetaCurrentRealMonth();
-  const target = _stockBetaNextMonth(sourceMonth);
-
-  const targetSnap = await window.FB.getDocs(window.FB.query(
-    window.FB.collection(window.FB.db, 'stockBetaLots'),
-    window.FB.where('month', '==', target)
-  ));
-  const delDocs = targetSnap.docs;
-  let deleted = 0;
-  for (let i = 0; i < delDocs.length; i += 400) {
-    const batch = window.FB.writeBatch(window.FB.db);
-    delDocs.slice(i, i + 400).forEach(d => { batch.delete(d.ref); deleted++; });
-    await batch.commit();
-  }
-
-  const sourceSnap = await window.FB.getDocs(window.FB.query(
-    window.FB.collection(window.FB.db, 'stockBetaLots'),
-    window.FB.where('month', '==', sourceMonth)
-  ));
-  const sourceLots = sourceSnap.docs.map(d => d.data());
-  let created = 0;
-  for (let i = 0; i < sourceLots.length; i += 400) {
-    const batch = window.FB.writeBatch(window.FB.db);
-    sourceLots.slice(i, i + 400).forEach(lot => {
-      const shipSum = (lot.ship || []).reduce((s, x) => s + (typeof x.box === 'number' ? x.box : 0), 0);
-      const finalBox = Math.round((Number(lot.box || 0) - shipSum) * 10) / 10;
-      const heibeiNum = parseFloat(lot.heibei) || 0;
-      const finalPy = Math.round((finalBox * heibeiNum / 3.24) * 100) / 100;
-      const id = _stockBetaDocId(lot.sheetName, lot.code, lot.cha, target);
-      const ref = window.FB.doc(window.FB.db, 'stockBetaLots', id);
-      batch.set(ref, {
-        sheetName: lot.sheetName, code: lot.code, cha: lot.cha, month: target,
-        inDate: lot.inDate || '', spec: lot.spec || '', heibei: lot.heibei || '',
-        box: finalBox, py: finalPy, ship: [], resv: lot.resv || [], _merged: !!lot._merged,
-        updatedAtMs: Date.now(),
-      });
-      created++;
-    });
-    await batch.commit();
-    if (onProgress) onProgress(created, sourceLots.length);
-  }
-  await _stockBetaAddMonthToList(target);
-  return { deleted, created, sourceMonth, target };
-}
-window.runStockBetaRegenerateNextMonth = async function(){
-  if (!confirm('다음 달 데이터를 전부 지우고 이번 달(실제 달력 기준) 현재 값으로 다시 만듭니다.\n다음 달에 직접 추가한 내용이 있다면 사라집니다. 계속할까요?')) return;
-  const prog = document.getElementById('stockBetaRegenProgress');
-  if (prog) { prog.style.color = '#888'; prog.textContent = '재생성 중...'; }
-  try {
-    const { deleted, created, sourceMonth, target } = await _runStockBetaRegenerateNextMonth((done, total) => {
-      if (prog) prog.textContent = `재생성 중... (${done}/${total})`;
-    });
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: ${target} 기존 ${deleted}건 삭제 → ${sourceMonth} 기준 ${created}건 새로 생성`; }
-  } catch (e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
-  }
-};
-// "다음달 데이터 재생성" 버튼이 실제 달력이 9월로 넘어간 뒤에 눌려서 의도치 않게 10월
-// 데이터를 만들어버린 일회성 사고 정리용 — 지정한 달의 LOT 문서를 전부 지우고 월 목록에서도 뺀다.
-async function _runStockBetaDeleteMonth(month){
-  await window.fbEnsureAuth();
-  const targetSnap = await window.FB.getDocs(window.FB.query(
-    window.FB.collection(window.FB.db, 'stockBetaLots'),
-    window.FB.where('month', '==', month)
-  ));
-  const delDocs = targetSnap.docs;
-  let deleted = 0;
-  for (let i = 0; i < delDocs.length; i += 400) {
-    const batch = window.FB.writeBatch(window.FB.db);
-    delDocs.slice(i, i + 400).forEach(d => { batch.delete(d.ref); deleted++; });
-    await batch.commit();
-  }
-  const list = (await _stockBetaGetMonthsList()).filter(m => m !== month);
-  await window.FB.setDoc(window.FB.doc(window.FB.db, 'stockBetaMeta', 'months'), { list }, { merge: true });
-  return { deleted, month };
-}
-window.runStockBetaDeleteOctober = async function(){
-  if (!confirm("2026-10 데이터를 전부 지웁니다. 되돌릴 수 없습니다. 계속할까요?")) return;
-  const prog = document.getElementById('stockBetaDeleteOctProgress');
-  if (prog) { prog.style.color = '#888'; prog.textContent = '삭제 중...'; }
-  try {
-    const { deleted } = await _runStockBetaDeleteMonth('2026-10');
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: 2026-10 문서 ${deleted}건 삭제, 월 목록에서도 제거됨`; }
-  } catch (e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
-  }
-};
-window.runStockBetaPyRecalc = async function(){
-  if (!confirm('재고현황(예약/실시간)에 이미 저장된 모든 차수의 "평" 수치를 (BOX × 헤베수 ÷ 3.24) 기준으로 다시 계산해서 덮어씁니다.\n계속할까요?')) return;
-  const prog = document.getElementById('stockBetaPyRecalcProgress');
-  if (prog) { prog.style.color = '#888'; prog.textContent = '재계산 중...'; }
-  try {
-    const { count, changed } = await _runStockBetaPyRecalc((done, total) => {
-      if (prog) prog.textContent = `재계산 중... (${done}/${total})`;
-    });
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: 전체 ${count}건 중 ${changed}건 수정됨`; }
-  } catch (e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
-  }
-};
-
 window.addEventListener('message', async (e) => {
   const data = e.data;
   if (!data || data.type !== 'stockBetaRequest') return;
@@ -1912,9 +1699,6 @@ window.addEventListener('message', async (e) => {
     } else if (action === 'cascadeHeibei') {
       const r = await _stockBetaCascadeHeibei(payload.sheetName, payload.code, payload.cha, payload.fromMonth, payload.newHeibei);
       reply(true, r);
-    } else if (action === 'migrateAll') {
-      const count = await _runStockBetaMigration();
-      reply(true, { count });
     } else {
       reply(false, { message: '알 수 없는 요청: ' + action });
     }
@@ -7436,68 +7220,6 @@ function csDateInputValue(val) {
         </div>
         <button onclick="runConsultSearchFieldBackfill()" class="admin-btn primary" style="padding:8px 20px;">누락된 검색필드 채우기 실행</button>
         <div id="searchFieldBackfillProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-      </div>
-
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          재고현황(예약/실시간) 파이어스토어 완전이관
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          지금까지 재고현황(예약/실시간)는 [재고현황] 탭 데이터에 그동안 BETA에서 직접 수정·등록한 내용을 얹어서 보여주는 중입니다. 이 버튼을 누르면 그 시점의 최종 내용을 파이어스토어에 통째로 확정 저장하고, 그 뒤로는 재고현황(예약/실시간)가 구글시트를 전혀 보지 않고 파이어스토어만으로 동작합니다. <b>한 번 실행하면 되돌릴 수 없습니다.</b>
-        </div>
-        <button onclick="runStockBetaFullMigration()" class="admin-btn primary" style="padding:8px 20px;">재고현황 BETA완전이관</button>
-        <div id="stockBetaMigrationProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-      </div>
-
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          재고현황(예약/실시간) 평(py) 재계산
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          예전 코드가 구글시트의 ㎡값을 3.24로 나누지 않고 그대로 "평"에 저장한 버그가 있었습니다. 이미 파이어스토어에 저장된 모든 차수의 평을 (BOX × 헤베수 ÷ 3.24) 기준으로 다시 계산해서 덮어씁니다. 여러 번 눌러도 안전합니다.
-        </div>
-        <button onclick="runStockBetaPyRecalc()" class="admin-btn primary" style="padding:8px 20px;">재고현황 BETA 평 재계산</button>
-        <div id="stockBetaPyRecalcProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-      </div>
-
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          재고현황(예약/실시간) 규격/헤베수 일괄 보정
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          A#16 / A#17 / A#171 / A#18 / C#18 전체 품번 → 규격 14*190*1900(헤베 2.166)<br>
-          A#19 / C#19 전체 품번 → 규격 15*240*2200(헤베 2.112)<br>
-          위 기준으로 규격·헤베수·평을 한 번에 덮어씁니다. 여러 번 눌러도 안전합니다.
-        </div>
-        <button onclick="runStockBetaSpecFix()" class="admin-btn primary" style="padding:8px 20px;">규격/헤베수 일괄 보정 실행</button>
-        <div id="stockBetaSpecFixProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-      </div>
-
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          재고현황(예약/실시간) 다음달 데이터 재생성
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          다음 달(이번 달의 다음 달) 데이터가 예전 버그 있는 로직으로 이미 만들어져서 잘못된 값으로 굳어있을 때 씁니다. 다음 달 데이터를 전부 지우고, 이번 달 현재 값 기준으로 지금 코드의 정확한 계산식으로 다시 만듭니다. <b>다음 달에 직접 추가한 내용이 있으면 사라지니 주의하세요.</b>
-        </div>
-        <button onclick="runStockBetaRegenerateNextMonth()" class="admin-btn primary" style="padding:8px 20px;">다음달 데이터 재생성 실행</button>
-        <div id="stockBetaRegenProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-      </div>
-
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          재고현황(예약/실시간) 10월 데이터 삭제
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          달력이 9월로 넘어간 뒤 "다음달 데이터 재생성"이 잘못 눌려서 생긴 2026-10 데이터를 정리합니다. 2026-10 LOT 문서를 전부 지우고 월 선택 목록에서도 뺍니다. <b>되돌릴 수 없습니다.</b>
-        </div>
-        <button onclick="runStockBetaDeleteOctober()" class="admin-btn primary" style="padding:8px 20px;">10월 데이터 삭제 실행</button>
-        <div id="stockBetaDeleteOctProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
       </div>
 
       <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
