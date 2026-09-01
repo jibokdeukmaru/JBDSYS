@@ -2747,7 +2747,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
   //   피하기 위함(2026-08-14). 설정 저장/조회(saveSolapiSettings 등)는 그대로 SMS_URL(Apps Script) 사용.
   var SMS_CF_URL = 'https://sendsms-qk3y5nxsda-du.a.run.app';
   // ★ 이메일 탭 전체(목록/본문/읽음처리/첨부/발송)도 Cloud Function으로 이전 (2026-08-14).
-  var GMAIL_CF_URL = 'https://gmailapi-qk3y5nxsda-du.a.run.app';
+  var GMAIL_CF_URL = 'https://asia-northeast3-jibokdeukmaru-erp-504904.cloudfunctions.net/gmailApi';
   window.GMAIL_CF_URL = GMAIL_CF_URL;
   // ★ 코드에 저장된 최신 기본값을 별도로 보존 (하위호환용 참조)
   window._DEFAULT_RESERVE_URL = RESERVE_URL;
@@ -8708,7 +8708,7 @@ function csDateInputValue(val) {
           document.getElementById('empModalPhone').value = src.dataset.phone || '';
           document.getElementById('empModalBirthday').value = src.dataset.birthday || '';
           document.getElementById('empModalCardUrl').value = src.dataset.cardurl || '';
-          const usedLeave = parseInt(src.dataset.annualleave || '0');
+          const usedLeave = parseFloat(src.dataset.annualleave || '0');
           document.getElementById('empModalAnnualLeave').value = usedLeave;
           document.getElementById('empModalIsHead').checked    = src.dataset.ishead === 'true';
           document.getElementById('empModalIsManager').checked = src.dataset.ismanager === 'true';
@@ -10408,6 +10408,13 @@ window.addEventListener('popstate', function(e) {
     if (typeof closeDownloadPage === 'function') { closeDownloadPage(); return; }
   }
   const tabId = e.state && e.state.tab;
+  // ★ 모달이 X버튼 등으로 닫히면서 그 모달이 쌓아둔 히스토리 한 칸을 자체적으로 back()해서
+  //   정리하는데(위 MutationObserver 참고), 그 back()도 이 popstate를 다시 한 번 발생시킨다.
+  //   이때 도착하는 상태가 "원래 있던 그 탭"과 같다면(=실제로 탭을 나간 게 아니라 그 탭 위에
+  //   떠 있던 모달만 닫힌 것) setTab을 다시 부를 필요가 없다 — 다시 부르면 그 탭의 데이터를
+  //   또 불러오면서 "보기만 했는데 새로고침된다"/"메일 작성 중이었는데 받은편지함으로 튕긴다"
+  //   같은 문제가 생긴다.
+  if (tabId && tabId === sessionStorage.getItem('baram_last_tab')) return;
   if (tabId && document.getElementById(tabId)) {
     setTab(tabId, true);
   } else {
