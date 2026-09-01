@@ -1514,14 +1514,20 @@ async function _stockBetaCascadeAdjust(sheetName, code, cha, fromMonth, deltaBox
   for (const m of laterMonths) {
     const id = _stockBetaDocId(sheetName, code, cha, m);
     const ref = window.FB.doc(window.FB.db, 'stockBetaLots', id);
-    const snap = await window.FB.getDoc(ref);
-    if (!snap.exists()) continue;
-    const data = snap.data();
-    await window.FB.setDoc(ref, {
-      box: Math.round(((Number(data.box)||0) + deltaBox) * 10) / 10,
-      py: Math.round(((Number(data.py)||0) + deltaPy) * 100) / 100,
-      updatedAtMs: Date.now(),
-    }, { merge: true });
+    // ★ 트랜잭션으로 읽고 쓴다 — "삭제 후 재등록"처럼 캐스케이드 요청이 거의 동시에 두 번
+    //   들어오면(각각 읽고 → 쓰기), 나중에 쓰는 쪽이 먼저 쓴 결과를 그대로 덮어써서 델타
+    //   하나가 조용히 사라지는 문제가 있었다. 트랜잭션은 여러 개가 겹쳐도 서로 순서대로
+    //   안전하게 재시도되므로 델타가 절대 유실되지 않는다.
+    await window.FB.runTransaction(window.FB.db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      tx.set(ref, {
+        box: Math.round(((Number(data.box)||0) + deltaBox) * 10) / 10,
+        py: Math.round(((Number(data.py)||0) + deltaPy) * 100) / 100,
+        updatedAtMs: Date.now(),
+      }, { merge: true });
+    });
   }
   return { adjustedMonths: laterMonths };
 }
@@ -1534,12 +1540,14 @@ async function _stockBetaCascadeHeibei(sheetName, code, cha, fromMonth, newHeibe
   for (const m of laterMonths) {
     const id = _stockBetaDocId(sheetName, code, cha, m);
     const ref = window.FB.doc(window.FB.db, 'stockBetaLots', id);
-    const snap = await window.FB.getDoc(ref);
-    if (!snap.exists()) continue;
-    const data = snap.data();
-    const box = Number(data.box) || 0;
-    const py = Math.round((box * newHeibei / 3.24) * 100) / 100;
-    await window.FB.setDoc(ref, { heibei: String(newHeibei), py, updatedAtMs: Date.now() }, { merge: true });
+    await window.FB.runTransaction(window.FB.db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const box = Number(data.box) || 0;
+      const py = Math.round((box * newHeibei / 3.24) * 100) / 100;
+      tx.set(ref, { heibei: String(newHeibei), py, updatedAtMs: Date.now() }, { merge: true });
+    });
   }
   return { adjustedMonths: laterMonths };
 }
