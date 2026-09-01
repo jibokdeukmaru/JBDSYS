@@ -53,35 +53,52 @@ exports.gmailPushHandler = async (message) => {
         labelId: 'INBOX',
       });
       const seen = new Set();
-      const batch = firestore.batch();
       let notifyCount = 0;
       for (const h of (hist.data.history || [])) {
         for (const m of (h.messagesAdded || [])) {
           const msgId = m.message.id;
           if (!msgId || seen.has(msgId)) continue;
           seen.add(msgId);
-          const msg = await gmail.users.messages.get({
-            userId: 'me', id: msgId, format: 'metadata',
-            metadataHeaders: ['Subject', 'From'],
-          });
+          // 메일 하나에 Gmail이 거의 동시에 푸시를 여러 번 보내는 경우가 있는데, 그럴 때마다
+          // 이 함수가 겹쳐 실행되면서(둘 다 갱신 전 historyId를 기준으로 읽음) 같은 메일에
+          // 대해 알림 문서를 중복 생성하는 문제가 있었다 — 문서 ID를 메시지마다 고정값으로
+          // 만들고 create()(이미 있으면 실패)를 써서, 몇 개가 동시에 처리하든 같은 메일엔
+          // 알림이 정확히 1개만 만들어지도록 한다.
+          const ref = firestore.collection('notifications').doc(email + '_' + msgId);
+          let msg;
+          try {
+            msg = await gmail.users.messages.get({
+              userId: 'me', id: msgId, format: 'metadata',
+              metadataHeaders: ['Subject', 'From'],
+            });
+          } catch (e) {
+            console.error(`메일 조회 실패(${email}, ${msgId}):`, e.message);
+            continue;
+          }
           const headers = {};
           (msg.data.payload.headers || []).forEach((hd) => { headers[hd.name] = hd.value; });
-          const ref = firestore.collection('notifications').doc();
-          batch.set(ref, {
-            toEmail: email,
-            type: 'mail',
-            title: '새 메일 도착',
-            body: headers.Subject || '(제목없음)',
-            relatedId: msgId,
-            createdAtMs: Date.now(),
-            read: false,
-            sent: false,
-            pushSent: false,
-          });
-          notifyCount++;
+          try {
+            await ref.create({
+              toEmail: email,
+              type: 'mail',
+              title: '새 메일 도착',
+              body: headers.Subject || '(제목없음)',
+              relatedId: msgId,
+              createdAtMs: Date.now(),
+              read: false,
+              sent: false,
+              pushSent: false,
+            });
+            notifyCount++;
+          } catch (e) {
+            if (e.code === 6) {
+              // ALREADY_EXISTS — 동시에 처리된 다른 실행이 이미 이 메일 알림을 만들어놓음, 정상 상황
+              continue;
+            }
+            throw e;
+          }
         }
       }
-      if (notifyCount > 0) await batch.commit();
     } catch (e) {
       console.error(`Gmail history 조회 실패(${email}):`, e.message);
     }
