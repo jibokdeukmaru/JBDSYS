@@ -2801,58 +2801,71 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
   let _rsvActionBusy = false;
 
   // ── 체크된 예약 확정 (문자발송) ──
-  window.confirmCheckedRsv = async function() {
+  // ★ 예전엔 네이티브 confirm()을 썼는데, Electron에서 간헐적으로 안 뜨면서도 자바스크립트가
+  //   그 응답을 기다리며 멈춰버리는 문제가 있어 showAppConfirm(비차단 앱 내 확인창)으로 교체.
+  //   또한 _rsvActionBusy를 세운 뒤 try/finally 없이 진행해서, 처리 도중(렌더링 등) 예외가
+  //   하나만 나도 이 플래그가 영원히 true로 고정돼 확정/취소 버튼이 그 뒤로 계속 먹통이 되는
+  //   버그가 있었다(옆에 있는 deleteCheckedRsv는 이미 올바르게 try/finally로 고쳐져 있었음).
+  window.confirmCheckedRsv = function() {
     if (_rsvActionBusy) return;
     const targets = allReservations.filter(r => _rsvCheckedIds.has(r.receiptNo));
     if (!targets.length) return;
-    if (!confirm(`선택한 ${targets.length}건을 확정하시겠습니까?`)) return;
-    _rsvActionBusy = true;
-    let successCount = 0, failCount = 0;
-    for (const rsv of targets) {
+    showAppConfirm(`선택한 ${targets.length}건을 확정하시겠습니까?`, async () => {
+      _rsvActionBusy = true;
+      let successCount = 0, failCount = 0;
       try {
-        await _applyReservationStatus(rsv, '예약');
-        successCount++;
-        if (typeof sendSMS === 'function' && rsv.phone) {
-          const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(rsv.date||'') : (rsv.date||'');
-          const schedule = `${dateFormatted} ${rsv.time||''}`.trim();
-          await sendSMS(rsv.phone, rsv.name||'', schedule, rsv.counselor||'', 'confirm');
+        for (const rsv of targets) {
+          try {
+            await _applyReservationStatus(rsv, '예약');
+            successCount++;
+            if (typeof sendSMS === 'function' && rsv.phone) {
+              const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(rsv.date||'') : (rsv.date||'');
+              const schedule = `${dateFormatted} ${rsv.time||''}`.trim();
+              await sendSMS(rsv.phone, rsv.name||'', schedule, rsv.counselor||'', 'confirm');
+            }
+          } catch(e) { failCount++; }
         }
-      } catch(e) { failCount++; }
-    }
-    _rsvCheckedIds.clear();
-    renderRsvList();
-    updateRsvCheckedActionsBar();
-    if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
-    _rsvActionBusy = false;
-    alert(`확정 완료: 성공 ${successCount}건${failCount ? `, 실패 ${failCount}건` : ''}`);
+        _rsvCheckedIds.clear();
+        renderRsvList();
+        updateRsvCheckedActionsBar();
+        if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
+      } finally {
+        _rsvActionBusy = false;
+      }
+      showToast(`확정 완료: 성공 ${successCount}건${failCount ? `, 실패 ${failCount}건` : ''}`);
+    });
   };
 
   // ── 체크된 예약 취소 (문자발송) ──
-  window.cancelCheckedRsv = async function() {
+  window.cancelCheckedRsv = function() {
     if (_rsvActionBusy) return;
     const targets = allReservations.filter(r => _rsvCheckedIds.has(r.receiptNo));
     if (!targets.length) return;
-    if (!confirm(`선택한 ${targets.length}건을 취소 처리하시겠습니까?`)) return;
-    _rsvActionBusy = true;
-    let successCount = 0, failCount = 0;
-    for (const rsv of targets) {
+    showAppConfirm(`선택한 ${targets.length}건을 취소 처리하시겠습니까?`, async () => {
+      _rsvActionBusy = true;
+      let successCount = 0, failCount = 0;
       try {
-        await _applyReservationStatus(rsv, '취소');
-        rsv.status = '취소';
-        successCount++;
-        if (typeof sendSMS === 'function' && rsv.phone) {
-          const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(rsv.date||'') : (rsv.date||'');
-          const schedule = `${dateFormatted} ${rsv.time||''}`.trim();
-          await sendSMS(rsv.phone, rsv.name||'', schedule, rsv.counselor||'', 'cancel');
+        for (const rsv of targets) {
+          try {
+            await _applyReservationStatus(rsv, '취소');
+            rsv.status = '취소';
+            successCount++;
+            if (typeof sendSMS === 'function' && rsv.phone) {
+              const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(rsv.date||'') : (rsv.date||'');
+              const schedule = `${dateFormatted} ${rsv.time||''}`.trim();
+              await sendSMS(rsv.phone, rsv.name||'', schedule, rsv.counselor||'', 'cancel');
+            }
+          } catch(e) { failCount++; }
         }
-      } catch(e) { failCount++; }
-    }
-    _rsvCheckedIds.clear();
-    renderRsvList();
-    updateRsvCheckedActionsBar();
-    if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
-    _rsvActionBusy = false;
-    alert(`취소 처리 완료: 성공 ${successCount}건${failCount ? `, 실패 ${failCount}건` : ''}`);
+        _rsvCheckedIds.clear();
+        renderRsvList();
+        updateRsvCheckedActionsBar();
+        if (typeof window._triggerRsvCheck === 'function') window._triggerRsvCheck();
+      } finally {
+        _rsvActionBusy = false;
+      }
+      showToast(`취소 처리 완료: 성공 ${successCount}건${failCount ? `, 실패 ${failCount}건` : ''}`);
+    });
   };
 
   // ── 체크된 예약 삭제 (문자발송 없음, 복구 불가) ──
@@ -5079,11 +5092,19 @@ function csDateInputValue(val) {
       box.style.display = 'block';
     }
 
-    alert(`${r.name} 님의 기존 데이터를 불러왔습니다!`);
+    // ★ 여기서 네이티브 alert()를 쓰면 Electron에서 간헐적으로 안 뜨면서도 자바스크립트
+    //   실행 자체는 그 응답을 기다리며 멈춰버려(alert는 동기 호출), 재방문 검색을 쓸 때마다
+    //   화면 전체가 조용히 먹통되는 원인이 됐다 — 다른 곳처럼 비차단 토스트로 대체.
+    showToast(`${r.name} 님의 기존 데이터를 불러왔습니다!`);
   };
 
   window.openConsultDetail = async function(idx) {
     if (idx < 0 || idx >= allConsults.length) return;
+    // ★ 이 함수는 onclick에서 await 없이 그냥 호출되는데, 예전엔 try/catch가 전혀 없어서
+    //   중간에 네트워크 요청(loadAllStaffMap)이나 필드 채우기 도중 뭔가 하나만 실패해도
+    //   예외가 콘솔에만 조용히 찍히고 모달은 아예 안 뜬 채로 끝나버렸다 — 클릭했는데
+    //   아무 반응도 없는 것처럼 보이는 원인 중 하나. 이제 실패하면 최소한 토스트로 알린다.
+    try {
     selectedConsult = allConsults[idx];
     const r = selectedConsult;
     const map = await loadAllStaffMap();
@@ -5204,6 +5225,10 @@ function csDateInputValue(val) {
     window._consultFormOpen = true;
     try { history.pushState({ consultFormOpen: true }, '', ''); } catch(_) {}
     const fp2 = document.querySelector('.dw-form-page'); if (fp2) fp2.scrollTop = 0;
+    } catch(e) {
+      console.error('openConsultDetail 오류:', e);
+      showToast('⚠ 상담 상세보기를 여는 중 오류가 발생했습니다. 다시 시도해주세요.');
+    }
   };
 
   window.closeConsultForm = function() {
