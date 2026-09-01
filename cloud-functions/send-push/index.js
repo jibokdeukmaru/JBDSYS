@@ -29,6 +29,25 @@ exports.sendPush = async () => {
 
   for (const doc of pending.docs) {
     const n = doc.data();
+    // ★ 알림이 짧은 간격으로 여러 개 생기면 이 함수가 겹쳐 실행될 수 있는데, 그때 둘 다 같은
+    //   pushSent==false 문서를 집어서 중복 발송하는 문제가 있었다(gmail-push와 같은 유형의
+    //   버그) — 실제 발송 전에 트랜잭션으로 먼저 이 문서를 "내가 처리한다"고 선점(pushSent:true)
+    //   해두고, 선점에 실패(이미 처리됨)하면 조용히 건너뛴다.
+    let claimed = false;
+    try {
+      await firestore.runTransaction(async (tx) => {
+        const fresh = await tx.get(doc.ref);
+        if (!fresh.exists || fresh.data().pushSent) return;
+        tx.update(doc.ref, { pushSent: true });
+        claimed = true;
+      });
+    } catch (e) {
+      console.error('[sendPush] 선점 실패(docId=' + doc.id + '):', e.message);
+    }
+    if (!claimed) {
+      console.log('[sendPush] 이미 다른 실행이 처리 중이라 건너뜀(docId=' + doc.id + ')');
+      continue;
+    }
     try {
       const tokenSnap = await firestore.collection('pushTokens').doc(n.toEmail || '').get();
       const tokenData = tokenSnap.exists ? (tokenSnap.data() || {}) : null;
@@ -66,12 +85,6 @@ exports.sendPush = async () => {
     } catch (e) {
       console.error('[sendPush] 예외(docId=' + doc.id + '):', e.message);
     }
-    // ★ 발송 성공/실패와 무관하게 반드시 표시 — 이 update 자체가 실패해서 예외가 나가버리면
-    //   같은 알림이 pushSent=false로 계속 남아 다음 트리거 때마다 또 몰려서 재발송된다.
-    try {
-      await doc.ref.update({ pushSent: true });
-    } catch (e) {
-      console.error('[sendPush] pushSent 표시 실패(docId=' + doc.id + '):', e.message);
-    }
+    // pushSent는 위 트랜잭션 선점 단계에서 이미 true로 표시했으므로 여기서 다시 표시할 필요 없음.
   }
 };

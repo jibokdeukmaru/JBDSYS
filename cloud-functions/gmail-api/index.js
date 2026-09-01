@@ -315,27 +315,10 @@ async function gmailModifyLabel(p) {
 }
 
 // ── 발신주소 → 라벨 자동분류 (Gmail 필터) ──
-// ★ 이 3개 액션(필터 조회/생성/삭제)은 gmail.modify 권한만으로는 안 되고, 관리콘솔에서
+// ★ 이 액션(필터 생성)은 gmail.modify 권한만으로는 안 되고, 관리콘솔에서
 //   서비스계정 도메인 위임 범위에 https://www.googleapis.com/auth/gmail.settings.basic 를
 //   추가로 허용해줘야 동작한다. 라벨(폴더) 기능은 기존 권한으로 바로 되지만 필터는 이 권한이
 //   없으면 403 에러가 난다.
-async function getGmailFilters(p) {
-  const email = (p.email || '').trim();
-  if (!email) return { status: 'error', message: 'email 없음' };
-  const gmail = gmailClientFor(email);
-  try {
-    const res = await gmail.users.settings.filters.list({ userId: 'me' });
-    const filters = (res.data.filter || []).map((f) => ({
-      id: f.id,
-      from: (f.criteria && f.criteria.from) || '',
-      labelIds: (f.action && f.action.addLabelIds) || [],
-    }));
-    return { status: 'ok', filters };
-  } catch (err) {
-    return { status: 'error', message: err.message };
-  }
-}
-
 // 발신주소 조건 → 라벨 자동적용 필터 생성. applyToExisting이면 이미 받은 메일에도 즉시 일괄 적용.
 async function createGmailFilter(p) {
   const email = (p.email || '').trim();
@@ -364,19 +347,6 @@ async function createGmailFilter(p) {
     //   진짜 원인(스코프 문제인지, 다른 이유인지) 구분이 안 될 때가 있어 상세 필드를 다 넣는다.
     const detail = (err.response && err.response.data) || err.errors || null;
     return { status: 'error', message: err.message, code: err.code, detail: detail ? JSON.stringify(detail) : undefined };
-  }
-}
-
-async function deleteGmailFilter(p) {
-  const email = (p.email || '').trim();
-  const filterId = (p.filterId || '').trim();
-  if (!email || !filterId) return { status: 'error', message: '필수 파라미터 누락(email, filterId)' };
-  const gmail = gmailClientFor(email);
-  try {
-    await gmail.users.settings.filters.delete({ userId: 'me', id: filterId });
-    return { status: 'ok' };
-  } catch (err) {
-    return { status: 'error', message: err.message };
   }
 }
 
@@ -495,9 +465,7 @@ exports.gmailApi = async (req, res) => {
       case 'createGmailLabel': result = await createGmailLabel(params); break;
       case 'deleteGmailLabel': result = await deleteGmailLabel(params); break;
       case 'gmailModifyLabel': result = await gmailModifyLabel(params); break;
-      case 'getGmailFilters': result = await getGmailFilters(params); break;
       case 'createGmailFilter': result = await createGmailFilter(params); break;
-      case 'deleteGmailFilter': result = await deleteGmailFilter(params); break;
       default: result = { status: 'error', message: '알 수 없는 action: ' + action };
     }
     res.json(result);
