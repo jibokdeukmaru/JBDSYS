@@ -817,6 +817,7 @@ window.fetchEmployeesFS = async function() {
       <button type="button" class="tab-btn" data-tab="contactsTab">연락처</button>
       <button type="button" class="tab-btn" data-tab="floorplanTab">면적분석</button>
       <button type="button" class="tab-btn" data-tab="memoTab">메모장</button>
+      <button type="button" class="tab-btn" data-tab="personalCalTab">개인달력</button>
       <button type="button" class="tab-btn" data-tab="noticeTab">전사게시판</button>
       <button type="button" class="tab-btn" id="wikiTabBtn" data-tab="wikiTab">지복득마루위키</button>
       <button type="button" class="tab-btn" data-tab="leaveTab" id="leaveTabBtn" style="display:none;">휴가신청</button>
@@ -1131,6 +1132,154 @@ window.fetchEmployeesFS = async function() {
       <textarea id="workMemo" spellcheck="false" style="width:100%; min-height: calc(100dvh - 240px); padding:15px; border:1px solid #ddd; border-radius:8px; font-size:15px; line-height:1.6; resize:vertical; box-sizing:border-box; background:#fdfdfd;" placeholder="업무 내용을 자유롭게 입력하세요..."></textarea>
     </div>
 </section>
+
+<section id="personalCalTab" class="tab-panel" style="display:none;">
+  <div class="card" style="display:flex;flex-direction:column;box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+      <h2 class="title" style="margin-bottom:0;">개인달력</h2>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" onclick="personalCalMove(-1)" style="background:#fff;border:1px solid #ddd;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:14px;">‹</button>
+        <span id="personalCalTitle" style="font-size:15px;font-weight:800;min-width:100px;text-align:center;"></span>
+        <button type="button" onclick="personalCalMove(1)" style="background:#fff;border:1px solid #ddd;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:14px;">›</button>
+        <button type="button" onclick="personalCalToday()" style="background:var(--brand);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;margin-left:4px;">오늘</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#999;margin-bottom:12px;">이 달력은 본인만 볼 수 있으며 다른 직원에게 공유되지 않습니다.</div>
+    <div id="personalCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+
+    <div id="personalCalNoteBox" style="display:none;margin-top:18px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--cream-2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span id="personalCalNoteDate" style="font-size:13px;font-weight:800;color:var(--brand);"></span>
+        <button type="button" onclick="closePersonalCalNote()" style="background:none;border:none;color:#999;font-size:16px;cursor:pointer;">&times;</button>
+      </div>
+      <textarea id="personalCalNoteText" rows="4" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;line-height:1.6;resize:vertical;box-sizing:border-box;" placeholder="이 날짜에 대한 메모를 입력하세요..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button type="button" onclick="savePersonalCalNote()" style="background:var(--brand);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
+        <button type="button" onclick="deletePersonalCalNote()" style="background:#fff;color:#c0392b;border:1px solid #e74c3c;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:700;">삭제</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  let _pcalYear = new Date().getFullYear();
+  let _pcalMonth = new Date().getMonth(); // 0-based
+  let _pcalNotes = {}; // { "YYYY-MM-DD": "메모" }
+  let _pcalSelectedDate = null;
+  let _pcalLoaded = false;
+
+  function _pcalUid() {
+    const user = JSON.parse(localStorage.getItem('baram_user') || sessionStorage.getItem('baram_user') || 'null');
+    return user ? (user.id || 'guest') : 'guest';
+  }
+
+  async function _pcalLoad() {
+    const uid = _pcalUid();
+    try {
+      await window.fbEnsureAuth();
+      const snap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'personalCalendar', uid));
+      _pcalNotes = (snap.exists() && snap.data().notes) || {};
+    } catch(e) {
+      _pcalNotes = {};
+    }
+    _pcalLoaded = true;
+  }
+
+  async function _pcalSave() {
+    const uid = _pcalUid();
+    try {
+      await window.fbEnsureAuth();
+      await window.FB.setDoc(window.FB.doc(window.FB.db, 'personalCalendar', uid), { notes: _pcalNotes, updatedAt: Date.now() });
+    } catch(e) {
+      showToast('⚠ 저장 실패: ' + e.message);
+    }
+  }
+
+  function _pcalPad(n) { return String(n).padStart(2, '0'); }
+  function _pcalDateKey(y, m, d) { return y + '-' + _pcalPad(m + 1) + '-' + _pcalPad(d); }
+  function _pcalEsc(s) { return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+  function renderPersonalCal() {
+    const titleEl = document.getElementById('personalCalTitle');
+    const gridEl = document.getElementById('personalCalGrid');
+    if (!titleEl || !gridEl) return;
+    titleEl.textContent = _pcalYear + '년 ' + (_pcalMonth + 1) + '월';
+    const days = ['일','월','화','수','목','금','토'];
+    const firstDay = new Date(_pcalYear, _pcalMonth, 1).getDay();
+    const lastDate = new Date(_pcalYear, _pcalMonth + 1, 0).getDate();
+    const now = new Date();
+    const todayKey = _pcalDateKey(now.getFullYear(), now.getMonth(), now.getDate());
+    let html = days.map(d => '<div style="text-align:center;font-size:11px;font-weight:700;color:#aaa;padding:4px 0;">' + d + '</div>').join('');
+    for (let i = 0; i < firstDay; i++) html += '<div></div>';
+    for (let d = 1; d <= lastDate; d++) {
+      const key = _pcalDateKey(_pcalYear, _pcalMonth, d);
+      const note = _pcalNotes[key];
+      const isToday = key === todayKey;
+      const isSelected = key === _pcalSelectedDate;
+      html += '<div onclick="openPersonalCalNote(\'' + key + '\')" style="cursor:pointer;padding:6px 4px;border-radius:8px;min-height:64px;text-align:left;'
+        + 'background:' + (isSelected ? 'var(--brand)' : (note ? 'var(--cream)' : 'transparent')) + ';'
+        + 'border:1px solid ' + (isToday ? 'var(--brand)' : (note ? 'var(--border)' : '#f0f0f0')) + ';">'
+        + '<div style="font-size:12px;font-weight:700;' + (isSelected ? 'color:#fff;' : 'color:#333;') + '">' + d + '</div>'
+        + (note ? '<div style="font-size:10px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (isSelected ? 'color:#fff;' : 'color:#888;') + '">' + _pcalEsc(note) + '</div>' : '')
+        + '</div>';
+    }
+    gridEl.innerHTML = html;
+  }
+
+  window.personalCalMove = function(delta) {
+    _pcalMonth += delta;
+    if (_pcalMonth < 0) { _pcalMonth = 11; _pcalYear--; }
+    else if (_pcalMonth > 11) { _pcalMonth = 0; _pcalYear++; }
+    closePersonalCalNote();
+  };
+  window.personalCalToday = function() {
+    const now = new Date();
+    _pcalYear = now.getFullYear();
+    _pcalMonth = now.getMonth();
+    closePersonalCalNote();
+  };
+
+  window.openPersonalCalNote = function(dateKey) {
+    _pcalSelectedDate = dateKey;
+    const box = document.getElementById('personalCalNoteBox');
+    const dateEl = document.getElementById('personalCalNoteDate');
+    const textEl = document.getElementById('personalCalNoteText');
+    if (dateEl) dateEl.textContent = dateKey;
+    if (textEl) textEl.value = _pcalNotes[dateKey] || '';
+    if (box) box.style.display = 'block';
+    renderPersonalCal();
+  };
+  window.closePersonalCalNote = function() {
+    _pcalSelectedDate = null;
+    const box = document.getElementById('personalCalNoteBox');
+    if (box) box.style.display = 'none';
+    renderPersonalCal();
+  };
+  window.savePersonalCalNote = async function() {
+    if (!_pcalSelectedDate) return;
+    const textEl = document.getElementById('personalCalNoteText');
+    const val = (textEl ? textEl.value : '').trim();
+    if (val) _pcalNotes[_pcalSelectedDate] = val;
+    else delete _pcalNotes[_pcalSelectedDate];
+    await _pcalSave();
+    showToast('저장됨');
+    renderPersonalCal();
+  };
+  window.deletePersonalCalNote = async function() {
+    if (!_pcalSelectedDate) return;
+    delete _pcalNotes[_pcalSelectedDate];
+    await _pcalSave();
+    closePersonalCalNote();
+    showToast('삭제됨');
+  };
+
+  window.loadPersonalCal = async function() {
+    if (!_pcalLoaded) await _pcalLoad();
+    renderPersonalCal();
+  };
+})();
+</script>
 
 <section id="wikiTab" class="tab-panel" style="display:none;">
   <div class="card" style="display:flex;flex-direction:column;box-sizing:border-box;">
@@ -8102,7 +8251,7 @@ function csDateInputValue(val) {
       {id:'stockBetaTab',label:'재고현황(예약/실시간)'},{id:'invoiceTab',label:'견적서'},
       {id:'consultTab',label:'쇼룸상담'},{id:'reservationTab',label:'예약관리'},
       {id:'cardScanTab',label:'명함스캐닝'},{id:'contactsTab',label:'연락처'},
-      {id:'floorplanTab',label:'면적분석'},{id:'memoTab',label:'메모장'},
+      {id:'floorplanTab',label:'면적분석'},{id:'memoTab',label:'메모장'},{id:'personalCalTab',label:'개인달력'},
       {id:'noticeTab',label:'전사게시판'},{id:'leaveTab',label:'휴가신청'},{id:'emailTab',label:'이메일'},{id:'smsTab',label:'문자발송'},{id:'wikiTab',label:'지복득마루위키'}
     ];
 
@@ -9865,6 +10014,7 @@ function setTab(tabId, fromPopstate) {
   if (tabId === 'memoTab') {
     document.dispatchEvent(new CustomEvent('tabChanged', { detail: 'memoTab' }));
   }
+  if (tabId === 'personalCalTab' && typeof loadPersonalCal === 'function') loadPersonalCal();
   if (tabId === 'smsTab' && typeof loadSmsTemplates === 'function') {
     Promise.all([
       loadSmsTemplates(),
@@ -9983,7 +10133,7 @@ const TAB_LABELS = {
   pricingTab:'단가표', calculatorTab:'계산기', stockBetaTab:'재고현황(예약/실시간)',
   invoiceTab:'견적서', consultTab:'쇼룸상담', reservationTab:'예약관리',
   cardScanTab:'명함스캐닝', contactsTab:'연락처', floorplanTab:'면적분석',
-  memoTab:'메모장', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득마루위키'
+  memoTab:'메모장', personalCalTab:'개인달력', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득마루위키'
 };
 
 // ── 내 홈 화면 설정 ──
