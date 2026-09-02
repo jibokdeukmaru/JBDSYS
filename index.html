@@ -2073,7 +2073,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-header-rule { border-bottom:1px solid #e1e0e0; margin:11px 0; }
 /* 상단 제목(예: "ESTIMATE  |  가견적서"): Pretendard Medium */
 .inv-title { margin:11px 0 90px 0; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:600; letter-spacing:-.2px; line-height:1; color:#373130; }
-.inv-meta-grid { display:grid; grid-template-columns:4fr 2fr; align-items:end; margin-bottom:38px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
+.inv-meta-grid { display:grid; grid-template-columns:4fr 2fr; align-items:end; margin-bottom:165px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
 .inv-meta-grid .right-block { align-self:end; }
 /* 원본 시안의 6등분 그리드(레이아웃 가이드 이미지 실측) 기준 — 좌측 블록은 1열(키):3열(값),
    우측 블록은 1열(키):1열(값)로 각각 정확히 그리드 칸에 맞춘다. */
@@ -11991,8 +11991,9 @@ function renderInvoice() {
     const makeTotal = (label, val, cls='normal') => {
         const tr = document.createElement('tr');
         tr.className = cls;
-        const sign = val < 0 ? '-' : '';
-        tr.innerHTML = `<td class="total-label">${label}</td><td class="amount">${sign}￦ ${fmtNum(Math.abs(val))}</td>`;
+        // 품목이 하나도 없어서 값이 0이면 "₩ 0"을 찍는 대신 빈칸으로 둔다(시안 기준).
+        const amountHtml = val === 0 ? '' : (val < 0 ? '-' : '') + '￦ ' + fmtNum(Math.abs(val));
+        tr.innerHTML = `<td class="total-label">${label}</td><td class="amount">${amountHtml}</td>`;
         totalBody?.appendChild(tr);
     };
 
