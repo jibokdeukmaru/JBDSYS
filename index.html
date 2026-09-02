@@ -1251,7 +1251,7 @@ window.fetchEmployeesFS = async function() {
         + 'background:' + (isSelected ? 'var(--brand)' : (note ? 'var(--cream)' : 'transparent')) + ';'
         + 'border:1px solid ' + (isToday ? 'var(--brand)' : (note ? 'var(--border)' : '#f0f0f0')) + ';">'
         + '<div style="font-size:12px;font-weight:700;' + (isSelected ? 'color:#fff;' : 'color:#333;') + '">' + d + '</div>'
-        + (note ? '<div style="font-size:10px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (isSelected ? 'color:#fff;' : 'color:#888;') + '">' + _pcalEsc(note) + '</div>' : '')
+        + (note ? '<div style="font-size:10px;margin-top:3px;line-height:1.3;white-space:pre-line;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;' + (isSelected ? 'color:#fff;' : 'color:#888;') + '">' + _pcalEsc(note) + '</div>' : '')
         + '</div>';
     }
     gridEl.innerHTML = html;
@@ -11853,14 +11853,14 @@ function getInvItemFromBox(box, splitCosts=false) {
                 ? ceilTo(discount / PY_FACTOR, 100)
                 : discount;
             return [
-                { name: `BARAM\n${p.code}`, size: formatInvSize(p.spec), unit, qty: splitQty, unitPrice: materialPrice, total: Math.round(splitQty * materialPrice) },
+                { name: `바람 ${p.code}`, size: formatInvSize(p.spec), unit, qty: splitQty, unitPrice: materialPrice, total: Math.round(splitQty * materialPrice) },
                 { name: '인건비, 부자재비', isLaborCost: true, size: '', unit, qty: splitQty, unitPrice: laborPrice, total: Math.round(splitQty * laborPrice) }
             ];
         }
     }
 
     return {
-        name: `BARAM\n${p.code}`,
+        name: `바람 ${p.code}`,
         size: formatInvSize(p.spec),
         unit,
         qty: displayQty,
