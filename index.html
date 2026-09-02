@@ -206,15 +206,6 @@ window.fetchEmployeesFS = async function() {
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
-  /* GmarketSans Bold(700) → font-weight:900으로 매핑하여 기존 CSS(font-weight:900) 그대로 사용 */
-  @font-face {
-    font-family: 'GmarketSans';
-    font-weight: 900;
-    font-style: normal;
-    font-display: swap;
-    src: url('https://cdn.jsdelivr.net/gh/fonts-archive/GmarketSans/GmarketSansBold.woff2') format('woff2'),
-         url('https://cdn.jsdelivr.net/gh/fonts-archive/GmarketSans/GmarketSansBold.woff') format('woff');
-  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -2014,28 +2005,29 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 /* A4 견적서 본체 */
 #invoiceDoc {
   width:930px; min-height:1312px; margin:0 auto; background:#fff;
-  padding:84px 82px 82px; font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic','Pretendard','Arial',sans-serif;
-  font-size:11px; color:#0f172a; border:1px solid #111; border-radius:0;
+  padding:84px 82px 82px; font-family:'Pretendard','Noto Sans KR','Malgun Gothic','Arial',sans-serif;
+  font-size:11px; color:#000; border:1px solid #111; border-radius:0;
   box-shadow:0 8px 24px rgba(0,0,0,.08); position:relative;
 }
-.inv-brand { display:block; margin-left:10px; font-family:'Times New Roman','Tinos',serif; font-size:10.6px; color:#111; line-height:1; letter-spacing:20px; white-space:nowrap; }
-/* INVOICE 타이틀: G마켓 산스 Bold 31.5pt → px환산 ~42px, 실제 크기는 56px 유지하되 font-family만 교체 */
-.inv-title { margin:8px 0 94px 7px; font-family:'GmarketSans','G마켓 산스','Gmarket Sans','NanumGothicExtraBold','맑은 고딕',sans-serif; font-size:50px; font-weight:900; letter-spacing:-1px; line-height:.86; color:#242424; }
-.inv-meta-grid { display:grid; grid-template-columns:1fr auto; gap:20px; align-items:end; margin-bottom:38px; padding-bottom:5px; border-bottom:1px solid #9a9a9a; }
+.inv-brand { display:block; width:200px; height:auto; margin:0 0 0 7px; }
+.inv-brand svg { display:block; width:100%; height:auto; }
+/* 상단 제목(예: "ESTIMATE  |  가견적서"): Pretendard Medium */
+.inv-title { margin:16px 0 90px 7px; font-family:'Pretendard',sans-serif; font-size:22px; font-weight:500; letter-spacing:-.2px; line-height:1; color:#373130; }
+.inv-meta-grid { display:grid; grid-template-columns:1fr auto; gap:20px; align-items:end; margin-bottom:38px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
 .inv-meta-grid .right-block { align-self:end; justify-self:end; width:auto; min-width:0; }
 .inv-meta-row { display:grid; grid-template-columns:62px 1fr; min-height:22px; align-items:center; }
 .right-block .inv-meta-row { grid-template-columns:44px auto; gap:6px; }
 .right-block .inv-meta-val { white-space:nowrap; }
-/* BILL TO, 시공예정일, 현장, 담당자, DATE 키: KoPubWorld돋움체 Bold 7pt */
-.inv-meta-key { font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:9.3px; font-weight:700; color:#020617; white-space:nowrap; }
+/* 분류, 업체명, 시공예정일, 현장주소, 담당자, 작성일 키: Pretendard Medium */
+.inv-meta-key { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; white-space:nowrap; }
 .inv-meta-grid > div:first-child .inv-meta-key { width:62px; }
-/* 출력결과값: KoPubWorld돋움체 Light 7pt */
-.inv-meta-val { font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:9.3px; font-weight:300; color:#172033; line-height:1.35; }
-.inv-table { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:0; color:#172033; }
-/* ITEM DESCRIPTION, SIZE, UNIT, Q'TY, PRICE, TOTAL: Century Gothic 8pt Bold */
-.inv-table thead th { height:38px; padding:0 8px; background:#efefef; border:0; font-family:'CenturyGothic','Century Gothic','AppleGothic','맑은 고딕',sans-serif; font-size:10.7px; font-weight:700; color:#020617; vertical-align:middle; }
-/* 출력결과: KoPubWorld돋움체 Light 8pt */
-.inv-table td { border:0; padding:8px 8px; font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:10.7px; font-weight:300; line-height:1.45; vertical-align:top; }
+/* 출력결과값: Pretendard Light */
+.inv-meta-val { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.35; }
+.inv-table { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:0; color:#000; }
+/* ITEM, SIZE, UNIT, Q'TY, PRICE, TOTAL: Pretendard Medium */
+.inv-table thead th { height:38px; padding:0 8px; background:#efefef; border:0; font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:500; color:#373130; vertical-align:middle; }
+/* 출력결과: Pretendard Light */
+.inv-table td { border:0; padding:8px 8px; font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:300; line-height:1.45; vertical-align:top; }
 .inv-table td.td-item { text-align:left; padding-left:2px; }
 .inv-table td.td-center { text-align:center; }
 .inv-table td.td-right { text-align:right; }
@@ -2049,40 +2041,40 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-table th:nth-child(6), .inv-table td:nth-child(6) { width:13% !important; }
 .inv-table th:nth-child(7), .inv-table td:nth-child(7) { width:4% !important; }
 .inv-table th:nth-child(8), .inv-table td:nth-child(8) { width:11% !important; }
-.td-won { width:18px; text-align:center !important; color:#020617; }
-.inv-total-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-top:54px; padding-top:0; border-top:1px solid #9a9a9a; border-bottom:0; }
-.inv-total-table td { height:24px; padding:3px 8px; border:0; color:#172033; }
-/* SUB TOTAL, GRAND TOTAL 라벨: Century Gothic 8pt Bold */
-.inv-total-table .total-label { font-family:'CenturyGothic','Century Gothic','AppleGothic','맑은 고딕',sans-serif; font-size:10.7px; font-weight:700; color:#020617; padding-left:2px; }
-/* 일반 라벨 (Tax Vat, 단수정리): KoPubWorld돋움체 Light */
-.inv-total-table .normal .total-label { font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:10.7px; font-weight:300; color:#172033; }
-/* 출력결과값 (SUB/Tax/단수/GRAND 금액): KoPubWorld돋움체 Light */
-.inv-total-table .amount { font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:10.7px; font-weight:300; text-align:right; white-space:nowrap; }
-/* GRAND TOTAL 금액값: KoPubWorld돋움체 Bold */
-.inv-total-table .grand .amount { font-weight:700; }
-.inv-total-table .grand td { height:31px; font-weight:900; color:#020617; }
-.inv-total-table .grand td { border-top:1px solid #9a9a9a; }
+.td-won { width:18px; text-align:center !important; color:#373130; }
+.inv-total-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-top:54px; padding-top:0; border-top:1px solid #9b9898; border-bottom:0; }
+.inv-total-table td { height:24px; padding:3px 8px; border:0; color:#000; }
+/* SUB TOTAL, GRAND TOTAL 라벨: Pretendard Medium */
+.inv-total-table .total-label { font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:500; color:#373130; padding-left:2px; }
+/* 일반 라벨 (Tax Vat, 단수정리): Pretendard Light */
+.inv-total-table .normal .total-label { font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:300; color:#000; }
+/* 출력결과값 (SUB/Tax/단수/GRAND 금액): Pretendard Light */
+.inv-total-table .amount { font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:300; text-align:right; white-space:nowrap; }
+/* GRAND TOTAL 금액값: Pretendard Medium */
+.inv-total-table .grand .amount { font-weight:500; }
+.inv-total-table .grand td { height:31px; font-weight:500; color:#373130; background:#ece5d7; }
+.inv-total-table .grand td { border-top:1px solid #e1e0e0; }
 /* 단수정리 -₩ 우측 정렬 */
 .inv-total-table .negative-won { white-space:nowrap; letter-spacing:-.5px; text-align:right !important; }
 .inv-total-table td.td-won { text-align:right !important; }
 .inv-lower { display:grid; grid-template-columns:1fr 235px; gap:34px; margin-top:64px; }
-/* REMARKS 내용: KoPubWorld돋움체 Light 7pt */
-.inv-remarks { font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:9.3px; font-weight:300; color:#172033; line-height:1.55; border:0; padding:0; margin:0; min-height:100px; }
-/* REMARKS 타이틀: Century Gothic 7pt Bold */
-.inv-remarks-title { font-family:'CenturyGothic','Century Gothic','AppleGothic','맑은 고딕',sans-serif; font-size:9.3px; font-weight:700; color:#020617; margin-bottom:5px; }
+/* REMARKS 내용: Pretendard Light */
+.inv-remarks { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.55; border:0; padding:0; margin:0; min-height:100px; }
+/* REMARKS 타이틀: Pretendard Medium */
+.inv-remarks-title { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; margin-bottom:5px; }
 #invRemarksEditor:empty:before { content: attr(data-placeholder); color:#aaa; }
-/* CONTACT 타이틀: Century Gothic 7pt Bold */
-.inv-contact-title { font-family:'CenturyGothic','Century Gothic','AppleGothic','맑은 고딕',sans-serif; font-size:9.3px; font-weight:700; color:#020617; margin-bottom:5px; }
-/* ACCOUNT INFO 타이틀: Century Gothic 7pt Bold */
-.inv-account-title { font-family:'CenturyGothic','Century Gothic','AppleGothic','맑은 고딕',sans-serif; font-size:9.3px; font-weight:700; color:#020617; margin-bottom:8px; }
-.inv-red { color:#ff0000; }
-/* CONTACT 내용: KoPubWorld돋움체 Light 7pt */
-.inv-contact { margin-top:80px; font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:9.3px; font-weight:300; color:#172033; line-height:1.55; }
-/* ACCOUNT INFO 내용: KoPubWorld돋움체 Light 7pt */
-.inv-account-wrap { align-self:end; margin-top:140px; text-align:right; font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:9.3px; font-weight:300; color:#172033; line-height:1.6; }
+/* CONTACT 타이틀: Pretendard Medium */
+.inv-contact-title { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; margin-bottom:5px; }
+/* ACCOUNT INFO 타이틀: Pretendard Medium */
+.inv-account-title { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; margin-bottom:8px; }
+.inv-red { color:#a72527; }
+/* CONTACT 내용: Pretendard Light */
+.inv-contact { margin-top:80px; font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.55; }
+/* ACCOUNT INFO 내용: Pretendard Light */
+.inv-account-wrap { align-self:end; margin-top:140px; text-align:right; font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.6; }
 .inv-sign-line { width:138px; margin:43px 0 5px auto; border-top:1px solid #111; }
-/* ㈜지복득마루: KoPubWorld돋움체 Light 7pt */
-.inv-company { font-family:'KoPubWorldDotum','KoPubWorld Dotum','맑은 고딕','Malgun Gothic',sans-serif; font-size:9.3px; font-weight:300; color:#172033; }
+/* ㈜지복득마루: Pretendard Light */
+.inv-company { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; }
 .inv-hidden { display:none !important; }
 .inv-add-item { width:100%; margin:-2px 0 12px; min-height:38px; border-style:dashed; }
 
@@ -2183,7 +2175,16 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
     <h2>견적서 작성</h2>
 
     <div class="inv-field">
-      <div class="inv-label">BILL TO</div>
+      <div class="inv-label">분류</div>
+      <select id="invCategory" onchange="renderInvoice()">
+        <option value="일반">일반</option>
+        <option value="자재">자재</option>
+        <option value="A/S">A/S</option>
+      </select>
+    </div>
+
+    <div class="inv-field">
+      <div class="inv-label">업체명</div>
       <input type="text" id="invBillTo">
     </div>
 
@@ -2203,7 +2204,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
         <input type="text" id="invManager">
       </div>
       <div class="inv-field">
-        <div class="inv-label">DATE</div>
+        <div class="inv-label">작성일</div>
         <input type="text" id="invDate">
       </div>
     </div>
@@ -2273,11 +2274,11 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
     <div id="invRemarksEditWrap" style="display:none; margin-bottom:12px;">
       <div class="inv-label" style="margin-bottom:6px;">REMARKS 내용 직접입력</div>
       <div style="display:flex; gap:6px; margin-bottom:6px;">
-        <button type="button" onmousedown="event.preventDefault()" onclick="remarksApplyColor('#e11d48')" title="선택 글자를 빨강으로" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#e11d48;">
-          <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#e11d48;"></span>빨강
+        <button type="button" onmousedown="event.preventDefault()" onclick="remarksApplyColor('#a72527')" title="선택 글자를 강조색으로" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#a72527;">
+          <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#a72527;"></span>강조
         </button>
         <button type="button" onmousedown="event.preventDefault()" onclick="remarksApplyColor('')" title="선택 글자 색 지우기(검정)" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-weight:700;color:#333;">
-          <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#172033;"></span>기본
+          <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#000;"></span>기본
         </button>
         <span style="font-size:11px;color:#aaa;align-self:center;">글자를 드래그한 뒤 버튼을 누르세요</span>
       </div>
@@ -2324,20 +2325,21 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
     </div>
     <div style="overflow-x:auto;">
       <div id="invoiceDoc">
-        <div class="inv-brand">JIBOKDEUKMARU</div>
-        <div class="inv-title">INVOICE<span id="pvInvoiceSubtitle" style="font-size:50px; font-family:'GmarketSans','G마켓 산스','Gmarket Sans','NanumGothicExtraBold','맑은 고딕',sans-serif; font-weight:900; letter-spacing:-1px;"></span></div>
+        <div class="inv-brand"><svg viewBox="0 0 676.5 26.21" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="JIBOKDEUKMARU"><defs><style>.inv-logo-fill{fill:#373130;}</style></defs><g class="inv-logo-fill"><path d="M8.56,1.46c-2.44.22-2.73.4-2.73,2.99v11.85c0,4.29-.74,6.35-2.6,8.14-1.01.93-1.97,1.45-2.73,1.76l-.5-1c1.82-.9,2.76-2.37,3.14-4.19.26-1.48.3-3.21.3-5.89V4.45c0-2.59-.25-2.77-2.85-2.99v-.95h7.97v.95Z"/><path d="M45.19,20.96v-.97c2.61-.18,2.9-.32,2.9-3.01V4.45c0-2.66-.29-2.77-2.9-2.99v-.95h8.13v.95c-2.58.22-2.87.33-2.87,2.99v12.52c0,2.72.3,2.84,2.87,3.01v.97h-8.13Z"/><path d="M100.52,9.86c2.93.51,5.31,1.84,5.31,5.02,0,2.13-1.12,3.78-3.02,4.82-1.64.9-3.63,1.26-6.08,1.26h-6.78v-.97c2.8-.2,2.95-.35,2.95-2.95V4.39c0-2.55-.13-2.7-2.71-2.92v-.95h7.94c2.37,0,3.64.35,4.64,1.04,1.11.78,1.72,2.19,1.72,3.63,0,2.95-2.46,4.18-3.96,4.64v.03ZM96.95,9.48c3.4,0,4.94-1.35,4.94-3.98,0-2-1.18-3.95-4.36-3.95-.79,0-1.57.16-1.84.31-.32.22-.43.52-.43,1.57v6.05h1.68ZM95.26,17c0,2.26.55,2.8,2.66,2.8,2.73-.02,5.07-1.26,5.07-4.59s-2.33-4.56-6.08-4.56h-1.65v6.35Z"/><path d="M152.93,0c5.15,0,10.01,4.11,10.01,10.48,0,6.84-4.72,10.98-10.44,10.98-5.42,0-10.03-4.35-10.03-10.47,0-5.74,4.01-10.99,10.44-10.99h.02ZM152.17,1.25c-3.4,0-6.74,2.82-6.74,8.83s3.37,10.12,7.78,10.12c3.52,0,6.75-2.81,6.75-8.9,0-6.66-3.64-10.05-7.76-10.05h-.03Z"/><path d="M214.54,20.96c-2.54-2.84-4.97-5.76-7.94-9.19-.77-.86-1.26-1-1.81-.82v5.98c0,2.67.3,2.88,2.91,3.06v.97h-7.99v-.97c2.41-.18,2.73-.39,2.73-3.06V4.64c0-2.85-.32-2.96-2.86-3.18v-.95h8.02v.95c-2.47.22-2.8.4-2.8,3.18v5.37c.73-.19,1.32-.58,2.18-1.37,1.68-1.57,3.73-3.7,5.31-5.54.86-1.12.86-1.37-.46-1.55l-.77-.09v-.95h7.51v.95c-2.49.24-3.13.52-5.09,2.35-1.08.97-3.41,3.32-5.62,5.58,2.39,2.96,5.99,6.96,7.36,8.44,1.65,1.73,2.33,1.97,3.94,2.15v.97h-4.61Z"/><path d="M264.71.51c4.03,0,6.91.75,8.84,2.66,1.53,1.51,2.64,3.81,2.64,6.78,0,3.73-1.44,6.59-3.83,8.42-2.37,1.83-5.36,2.59-9.19,2.59h-7.38v-.96c2.76-.19,3.02-.33,3.02-2.99V4.45c0-2.66-.25-2.75-2.7-2.97v-.97h8.6ZM261.23,16.74c0,2.38,1.04,2.99,3.44,2.99,6.1,0,8.76-4.45,8.76-9.38,0-3.15-1.23-6.03-3.85-7.53-1.43-.83-3.26-1.16-5.31-1.16-1.49,0-2.31.14-2.61.4-.32.25-.43.54-.43,1.76v12.93Z"/><path d="M328.98,15.95c-.15.97-.79,4.04-1.08,5.01h-15.07v-.96c2.87-.21,3.16-.45,3.16-3.02V4.51c0-2.74-.29-2.82-2.76-3.05v-.95h13.93c.02.71.14,2.9.26,4.61l-1.01.13c-.29-1.35-.55-2-.97-2.7-.39-.69-1.18-.9-3.41-.9h-2.66c-.97,0-1.01.08-1.01.99v7.09h3.08c2.83,0,2.96-.29,3.33-2.37h1.01v6h-1.01c-.43-2.24-.57-2.37-3.33-2.37h-3.08v5.83c0,1.48.24,2.19.79,2.59.62.4,1.68.4,3.33.4,2.36,0,3.26-.24,3.94-1.04.53-.55,1.15-1.63,1.54-2.92l1.04.11Z"/><path d="M387.13,1.46c-1.9.16-2.71.49-2.8,1.75-.1.9-.17,2.29-.17,5.36v2.19c0,3.85-.61,6.58-2.41,8.46-1.48,1.55-3.61,2.19-5.65,2.19-1.75,0-3.51-.43-4.94-1.51-1.79-1.45-2.75-3.81-2.75-7.56v-7.84c0-2.67-.24-2.8-2.8-3.05v-.95h7.98v.95c-2.51.19-2.76.33-2.76,3.05v7.12c0,5.5,2.3,8.03,5.99,8.03,4.37,0,5.97-3.56,5.97-9.07v-2.06c0-3.02-.09-4.39-.21-5.36-.19-1.22-.86-1.52-3.12-1.71v-.95h7.66v.95Z"/><path d="M438.73,20.96c-2.54-2.84-4.97-5.76-7.94-9.19-.77-.86-1.26-1-1.81-.82v5.98c0,2.67.3,2.88,2.91,3.06v.97h-7.99v-.97c2.41-.18,2.73-.39,2.73-3.06V4.64c0-2.85-.32-2.96-2.86-3.18v-.95h8.02v.95c-2.47.22-2.8.4-2.8,3.18v5.37c.73-.19,1.32-.58,2.18-1.37,1.68-1.57,3.73-3.7,5.31-5.54.86-1.12.86-1.37-.46-1.55l-.77-.09v-.95h7.51v.95c-2.49.24-3.13.52-5.09,2.35-1.08.97-3.41,3.32-5.62,5.58,2.39,2.96,5.99,6.96,7.36,8.44,1.65,1.73,2.33,1.97,3.94,2.15v.97h-4.61Z"/><path d="M498.03,20.96v-.97c2.62-.22,2.69-.39,2.69-3.88l-.15-12.76h-.07l-7.76,17.37h-.65l-7.01-16.9h-.07l-.43,9.08c-.15,2.72-.18,3.99-.15,5.16.11,1.48.9,1.71,2.95,1.88v1.02h-7.39v-1.02c1.79-.18,2.43-.47,2.65-1.88.18-1.05.39-2.38.59-5.7l.44-6.55c.26-4.01.18-4.08-2.71-4.34v-.95h5l7.17,15.95,7.4-15.95h5.27v.95c-2.8.27-3.04.24-2.91,3.66l.28,10.99c.08,3.49.21,3.66,2.97,3.88v.97h-8.12Z"/><path d="M555.66,20.96v-.97c2.11-.25,2.37-.47,1.97-1.68l-1.72-4.75h-6.87c-.46,1.27-.86,2.56-1.32,3.85-.72,2.12-.4,2.36,1.97,2.58v.97h-6.91v-.97c2.03-.29,2.44-.44,3.56-3.28l6.41-16.38.96-.32c1.89,5.25,4.12,11.55,6.06,16.88.9,2.64,1.37,2.9,3.42,3.1v.97h-7.52ZM552.62,3.85h-.07c-1,2.78-1.99,5.57-2.97,8.24h5.87l-2.83-8.24Z"/><path d="M618.22,21.2c-.45,0-.83,0-1.22-.07-1.94-.08-3.26-.73-4.8-2.8-1.08-1.54-2.29-3.58-3.17-5.05-.55-.86-1.08-1.21-2.82-1.21h-1.1v4.9c0,2.66.26,2.84,2.82,3.01v.97h-8.1v-.97c2.64-.18,2.93-.32,2.93-3.01V4.43c0-2.7-.29-2.75-2.76-2.97v-.95h7.66c2.15,0,3.71.28,4.83,1.01,1.3.83,2.16,2.26,2.16,4.11,0,2.74-1.63,4.45-3.99,5.49.55,1.04,1.87,3.15,2.8,4.54,1.19,1.66,1.72,2.3,2.51,3.17.81.93,1.67,1.33,2.39,1.48l-.13.89ZM606.76,10.99c1.65,0,2.64-.3,3.44-.95,1.22-.95,1.78-2.15,1.78-3.88,0-3.38-2.33-4.54-4.82-4.54-.92,0-1.43.11-1.68.29-.28.21-.36.58-.36,1.44v7.64h1.65Z"/><path d="M676.5,1.46c-1.9.16-2.71.49-2.8,1.75-.1.9-.17,2.29-.17,5.36v2.19c0,3.85-.61,6.58-2.41,8.46-1.48,1.55-3.61,2.19-5.65,2.19-1.75,0-3.51-.43-4.94-1.51-1.79-1.45-2.75-3.81-2.75-7.56v-7.84c0-2.67-.24-2.8-2.8-3.05v-.95h7.98v.95c-2.51.19-2.76.33-2.76,3.05v7.12c0,5.5,2.3,8.03,5.99,8.03,4.37,0,5.97-3.56,5.97-9.07v-2.06c0-3.02-.09-4.39-.21-5.36-.19-1.22-.86-1.52-3.12-1.71v-.95h7.66v.95Z"/></g></svg></div>
+        <div class="inv-title">QUOTATION&nbsp; ｜&nbsp; 견적서<span id="pvInvoiceSubtitle" style="display:none;"></span></div>
 
         <div class="inv-meta-grid">
           <div>
-            <div class="inv-meta-row" id="pvLeftSpacer" style="display:none;"><div class="inv-meta-key" style="background:transparent;"></div><div class="inv-meta-val"></div></div>
-            <div class="inv-meta-row"><div class="inv-meta-key">BILL&nbsp;&nbsp;&nbsp;&nbsp; TO</div><div class="inv-meta-val" id="pvBillTo">—</div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key">분&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;류</div><div class="inv-meta-val" id="pvCategory">일반</div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key">업&nbsp;&nbsp;&nbsp;&nbsp;체&nbsp;&nbsp;&nbsp;&nbsp;명</div><div class="inv-meta-val" id="pvBillTo">—</div></div>
             <div class="inv-meta-row"><div class="inv-meta-key">시공 예정일</div><div class="inv-meta-val" id="pvWorkDate">—</div></div>
-            <div class="inv-meta-row"><div class="inv-meta-key">현&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;장</div><div class="inv-meta-val" id="pvSite">—</div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key">현장주소</div><div class="inv-meta-val" id="pvSite">—</div></div>
           </div>
           <div class="right-block">
             <div class="inv-meta-row"><div class="inv-meta-key" style="background:transparent;"></div><div class="inv-meta-val"></div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key" style="background:transparent;"></div><div class="inv-meta-val"></div></div>
             <div class="inv-meta-row"><div class="inv-meta-key">담당자</div><div class="inv-meta-val" id="pvManager">—</div></div>
-            <div class="inv-meta-row"><div class="inv-meta-key">DATE</div><div class="inv-meta-val" id="pvDate">—</div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key">작성일</div><div class="inv-meta-val" id="pvDate">—</div></div>
           </div>
         </div>
 
@@ -2370,13 +2372,14 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
           <div>
             <div class="inv-remarks" id="pvRemarks">
               <div class="inv-remarks-title">REMARKS</div>
-              단&nbsp;&nbsp;&nbsp;&nbsp;위 : 원/M2<br>
-              <span class="inv-red">실측후 물량은 상이할수있음</span><br>
-              <span class="inv-red">걸레받이 별도</span><br>
-              시&nbsp;&nbsp;&nbsp;&nbsp;공 : 본드 - 친환경 황토풀 사용 기준<br>
-              결제조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
-              원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등 자연질감이 그대로 표현되므로 시공시<br>
-              이색현상이나 옹이 여부등은 하자사항이 아님을 알려드립니다.
+              단위: 원/m²<br>
+              시공: 본드(친환경 황토풀) 사용 기준<br>
+              결제 조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
+              <span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
+              <span class="inv-red">*걸레받이 별도</span><br>
+              원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+              자연 질감이 그대로 표현되므로,<br>
+              시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.
             </div>
             <div class="inv-contact">
               <div class="inv-contact-title">CONTACT</div>
@@ -11183,7 +11186,7 @@ function createInvoiceItem(index) {
             <div class="inv-field">
               <div class="inv-label">단위</div>
               <select id="invUnit${index}" class="inv-unit-select">
-                <option value="M2">M2</option>
+                <option value="M2">m²</option>
                 <option value="PY">PY</option>
                 <option value="BOX">BOX</option>
                 <option value="KG">KG</option>
@@ -11516,7 +11519,7 @@ function initInvoiceTab() {
     if (!editor.contains(sel.anchorNode)) return;
     try {
       document.execCommand('styleWithCSS', false, true);
-      document.execCommand('foreColor', false, color || '#172033');
+      document.execCommand('foreColor', false, color || '#000');
     } catch(e) {}
     renderInvoice();
   };
@@ -11748,55 +11751,6 @@ function fmtNum(n) {
     return Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-';
 }
 
-// 텍스트 노드 자체의 실제 렌더링 폭을 잰다(Range 이용) — 부모가 .inv-title처럼
-// display:block(너비가 텍스트 길이와 무관하게 부모 컨테이너 폭 전체)인 경우
-// getBoundingClientRect()를 부모 요소에 바로 쓰면 글자 폭이 아니라 컨테이너 전체
-// 폭이 잡혀버리는 문제가 있어, 반드시 텍스트 노드 자체를 Range로 측정해야 한다.
-function _measureTextNodeWidth(node) {
-    if (!node) return 0;
-    const range = document.createRange();
-    range.selectNodeContents(node);
-    const width = range.getBoundingClientRect().width;
-    if (range.detach) range.detach();
-    return width;
-}
-
-// ── "JIBOKDEUKMARU" 브랜드 텍스트의 폭을, 아래 제목(직접입력 텍스트)의 실제 렌더링 폭과
-//    맞춘다. ★ 이전 버전은 분리된 clone 요소를 getBoundingClientRect()로 재고, 제목 쪽은
-//    Range로 재는 식으로 서로 다른 두 측정 방식을 섞어썼는데, 이 둘이 완전히 같은 값을
-//    보장하지 않아 계속 살짝씩 어긋났다. 지금은 브랜드 텍스트도 제목과 똑같이 Range로
-//    재고, 실제 화면에 있는 요소에 이분탐색으로 letter-spacing을 직접 맞춰나간다 —
-//    측정 방식이 양쪽 다 동일해서 폰트/자간 계산 오차가 생길 여지가 없다.
-function _fitInvBrandWidth(brandEl, titleEl) {
-    if (!brandEl || !titleEl) return;
-    const textNode = brandEl.childNodes[0];
-    if (!textNode) return;
-    const apply = () => {
-        const targetWidth = _measureTextNodeWidth(titleEl.childNodes[0]);
-        if (!targetWidth) return;
-        let lo = 0, hi = 60;
-        brandEl.style.letterSpacing = hi + 'px';
-        let guard = 0;
-        while (_measureTextNodeWidth(textNode) < targetWidth && hi < 500 && guard < 20) {
-            hi *= 2;
-            brandEl.style.letterSpacing = hi + 'px';
-            guard++;
-        }
-        for (let i = 0; i < 24; i++) {
-            const mid = (lo + hi) / 2;
-            brandEl.style.letterSpacing = mid + 'px';
-            if (_measureTextNodeWidth(textNode) < targetWidth) lo = mid; else hi = mid;
-        }
-        brandEl.style.letterSpacing = hi.toFixed(2) + 'px';
-    };
-    apply();
-    // 커스텀 웹폰트(GmarketSans)가 이 시점에 아직 다운로드 중이었다면 제목 폭이 부정확하게
-    // 잡혔을 수 있어, 폰트 로딩이 끝난 뒤 한 번 더 맞춰준다(이미 로딩됐으면 즉시 재실행됨).
-    if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(apply).catch(() => {});
-    }
-}
-
 // 단수정리 단위(천원/만원) 선택 — 항상 둘 중 하나만 선택되게(라디오처럼) 동작
 window.onInvAdjustUnitChange = function(which) {
     const c1000 = document.getElementById('invAdjustUnit1000');
@@ -11809,6 +11763,7 @@ window.onInvAdjustUnitChange = function(which) {
 function renderInvoice() {
 
     // 메타
+    document.getElementById('pvCategory').textContent = document.getElementById('invCategory')?.value || '일반';
     document.getElementById('pvBillTo').textContent  = document.getElementById('invBillTo')?.value  || '—';
     document.getElementById('pvWorkDate').textContent = document.getElementById('invWorkDate')?.value || '—';
     document.getElementById('pvSite').textContent     = document.getElementById('invSite')?.value     || '—';
@@ -11871,11 +11826,11 @@ function renderInvoice() {
         tr.innerHTML = `
             <td class="td-item" style="white-space:pre-line;">${item.name}</td>
             <td class="td-center">${item.size}</td>
-            <td class="td-center">${item.unit}</td>
+            <td class="td-center">${item.unit === 'M2' ? 'm²' : item.unit}</td>
             <td class="td-center">${qtyDisplay}</td>
-            <td class="td-won">₩</td>
+            <td class="td-won">￦</td>
             <td class="td-right">${unitPriceDisplay}</td>
-            <td class="td-won">₩</td>
+            <td class="td-won">￦</td>
             <td class="td-right">${fmtNum(item.total)}</td>
         `;
         tbody.appendChild(tr);
@@ -11890,9 +11845,9 @@ function renderInvoice() {
         tr.innerHTML = `
             <td class="td-item">공과잡비</td>
             <td></td><td></td><td></td>
-            <td class="td-won">₩</td>
+            <td class="td-won">￦</td>
             <td class="td-right">${fmtNum(miscRaw)}</td>
-            <td class="td-won">₩</td>
+            <td class="td-won">￦</td>
             <td class="td-right">${fmtNum(miscRaw)}</td>
         `;
         tbody.appendChild(tr);
@@ -11919,9 +11874,9 @@ function renderInvoice() {
         const tr = document.createElement('tr');
         tr.className = cls;
         if (val < 0) {
-            tr.innerHTML = `<td class="total-label">${label}</td><td class="td-won" style="text-align:right; padding-right:2px;">-₩</td><td class="amount">${fmtNum(Math.abs(val))}</td>`;
+            tr.innerHTML = `<td class="total-label">${label}</td><td class="td-won" style="text-align:right; padding-right:2px;">-￦</td><td class="amount">${fmtNum(Math.abs(val))}</td>`;
         } else {
-            tr.innerHTML = `<td class="total-label">${label}</td><td class="td-won" style="text-align:right; padding-right:2px;">₩</td><td class="amount">${fmtNum(val)}</td>`;
+            tr.innerHTML = `<td class="total-label">${label}</td><td class="td-won" style="text-align:right; padding-right:2px;">￦</td><td class="amount">${fmtNum(val)}</td>`;
         }
         totalBody?.appendChild(tr);
     };
@@ -11962,47 +11917,35 @@ function renderInvoice() {
     });
     const pvWorkDateKey = document.querySelector('#pvWorkDate')?.closest('.inv-meta-row')?.querySelector('.inv-meta-key');
     if (pvWorkDateKey) pvWorkDateKey.textContent = isAs ? 'AS 예 정 일' : '시공 예정일';
-    // 정산서(FINAL INVOICE)이면: 시공예정일 행 숨기고 왼쪽 맨 위 빈 행을 보여서
-    //   BILL TO가 시공예정일 자리(둘째 줄)로 내려오고, 오른쪽 담당자/DATE 라인과 맞춰진다.
-    const pvWorkDateRow = document.querySelector('#pvWorkDate')?.closest('.inv-meta-row');
-    if (pvWorkDateRow) pvWorkDateRow.style.display = isFinal ? 'none' : '';
-    const pvLeftSpacer = document.getElementById('pvLeftSpacer');
-    if (pvLeftSpacer) pvLeftSpacer.style.display = isFinal ? '' : 'none';
 
-    // INVOICE / ESTIMATE / AS견적서 타이틀 + inv-brand letter-spacing 동적 조정
+    // 상단 제목 — "ESTIMATE  |  가견적서" 형식(영문 | 국문 병기). 로고는 고정폭 SVG라
+    //   제목 폭에 맞춰 자간을 조정하던 예전 로직은 더 이상 필요 없다.
     const subtitleEl = document.getElementById('pvInvoiceSubtitle');
     const titleEl    = document.querySelector('.inv-title');
-    const brandEl    = document.querySelector('.inv-brand');
     // 제목 직접입력이 체크돼 있으면 항상 최우선 적용 (AS견적서/가견적서/정산서 무관 — REMARKS 직접입력과 동일한 우선순위 방식)
     const titleEditCheck = !!document.getElementById('invTitleEditCheck')?.checked;
     const titleEditWrap = document.getElementById('invTitleEditWrap');
     if (titleEditWrap) titleEditWrap.style.display = titleEditCheck ? 'block' : 'none';
     if (titleEditCheck && titleEl && titleEl.childNodes[0]) {
         const customTitle = (document.getElementById('invTitleEditText')?.value || '').trim();
-        const customSize = parseFloat(document.getElementById('invTitleFontSize')?.value) || 50;
+        const customSize = parseFloat(document.getElementById('invTitleFontSize')?.value) || 22;
         const customSpacing = document.getElementById('invTitleLetterSpacing')?.value;
-        titleEl.childNodes[0].textContent = customTitle || 'INVOICE';
+        titleEl.childNodes[0].textContent = customTitle || 'INVOICE  |  정산서';
         titleEl.style.fontSize = customSize + 'px';
-        titleEl.style.letterSpacing = (customSpacing !== '' && customSpacing != null ? customSpacing : '-1') + 'px';
+        titleEl.style.letterSpacing = (customSpacing !== '' && customSpacing != null ? customSpacing : '-0.2') + 'px';
         if (subtitleEl) subtitleEl.textContent = '';
-        if (brandEl) { _fitInvBrandWidth(brandEl, titleEl); brandEl.style.marginRight = '0px'; }
     } else if (subtitleEl) {
         if (titleEl) { titleEl.style.fontSize = ''; titleEl.style.letterSpacing = ''; }
         const isDraft = document.getElementById('invDraftCheck')?.checked;
         // AS견적서 + 정산서가 동시에 체크되면 "AS정산서"로 표시
         let newTitle;
-        if (isAs && isFinal) newTitle = 'AS정산서';
-        else if (isAs) newTitle = 'AS견적서';
-        else if (isFinal) newTitle = '정산서';
-        else if (isDraft) newTitle = '가견적서';
-        else newTitle = '견적서';
+        if (isAs && isFinal) newTitle = 'INVOICE  |  AS정산서';
+        else if (isAs) newTitle = 'QUOTATION  |  AS견적서';
+        else if (isFinal) newTitle = 'INVOICE  |  정산서';
+        else if (isDraft) newTitle = 'ESTIMATE  |  가견적서';
+        else newTitle = 'QUOTATION  |  견적서';
         if (titleEl) titleEl.childNodes[0].textContent = newTitle;
         subtitleEl.textContent = '';
-        // ★ 제목마다 글자 폭이 다 다르므로(특히 한글은 영문과 폭 비율이 또 달라서), 예전처럼
-        //   경우마다 letter-spacing 값을 손으로 정해두지 않고 매번 실제 렌더링 폭에 맞춰
-        //   자동 계산한다(제목 직접입력 모드와 동일한 함수 재사용).
-        if (brandEl && titleEl) _fitInvBrandWidth(brandEl, titleEl);
-        if (brandEl) brandEl.style.marginRight = '0px';
     }
 
     // REMARKS 직접입력 / 자동 전환
@@ -12018,7 +11961,7 @@ function renderInvoice() {
     if (remarksEditCheck && remarksEditor) {
         // 에디터의 HTML(색상 span 포함)을 그대로 반영
         const customHtml = remarksEditor.innerHTML || '';
-        if (remarksDiv) remarksDiv.innerHTML = '<div class="inv-remarks-title">REMARKS</div><span style="font-family:\'KoPubWorldDotum\',\'KoPubWorld Dotum\',\'맑은 고딕\',sans-serif; font-size:9.3px; font-weight:300; color:#172033; line-height:1.55;">' + customHtml + '</span>';
+        if (remarksDiv) remarksDiv.innerHTML = '<div class="inv-remarks-title">REMARKS</div><span style="font-family:\'Pretendard\',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.55;">' + customHtml + '</span>';
         return;
     }
 
@@ -12060,31 +12003,34 @@ function renderInvoice() {
             const boxMeta = buildBoxMetaStr(unitLabel);
             if (remarksDiv) remarksDiv.innerHTML =
                 `<div class="inv-remarks-title">REMARKS</div>
-단&nbsp;&nbsp;&nbsp;&nbsp;위 : 원/${unitLabel}${boxMeta}<br>
-<span class="inv-red">결제조건 : 완납 후, 출고</span><br>
-<span class="inv-red">운임비 착불</span><br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등 자연질감이 그대로 표현되므로 시공시<br>
-이색현상이나 옹이 여부등은 하자사항이 아님을 알려드립니다.`;
+단위: 원/${unitLabel === 'M2' ? 'm²' : unitLabel}${boxMeta}<br>
+<span class="inv-red">결제 조건 : 완납 후, 출고</span><br>
+<span class="inv-red">*운임비 착불</span><br>
+원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+자연 질감이 그대로 표현되므로,<br>
+시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
         } else if (unit1 === 'PY') {
             if (remarksDiv) remarksDiv.innerHTML =
                 `<div class="inv-remarks-title">REMARKS</div>
-단&nbsp;&nbsp;&nbsp;&nbsp;위 : 원/PY<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있음</span><br>
-<span class="inv-red">걸레받이 별도</span><br>
-시&nbsp;&nbsp;&nbsp;&nbsp;공 : 본드 - 친환경 황토풀 사용 기준<br>
-결제조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등 자연질감이 그대로 표현되므로 시공시<br>
-이색현상이나 옹이 여부등은 하자사항이 아님을 알려드립니다.`;
+단위: 원/PY<br>
+시공: 본드(친환경 황토풀) 사용 기준<br>
+결제 조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
+<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
+<span class="inv-red">*걸레받이 별도</span><br>
+원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+자연 질감이 그대로 표현되므로,<br>
+시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
         } else {
             if (remarksDiv) remarksDiv.innerHTML =
                 `<div class="inv-remarks-title">REMARKS</div>
-단&nbsp;&nbsp;&nbsp;&nbsp;위 : 원/M2<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있음</span><br>
-<span class="inv-red">걸레받이 별도</span><br>
-시&nbsp;&nbsp;&nbsp;&nbsp;공 : 본드 - 친환경 황토풀 사용 기준<br>
-결제조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등 자연질감이 그대로 표현되므로 시공시<br>
-이색현상이나 옹이 여부등은 하자사항이 아님을 알려드립니다.`;
+단위: 원/m²<br>
+시공: 본드(친환경 황토풀) 사용 기준<br>
+결제 조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
+<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
+<span class="inv-red">*걸레받이 별도</span><br>
+원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+자연 질감이 그대로 표현되므로,<br>
+시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
         }
         setTimeout(updateInvoiceScale, 30);
         return;
@@ -12096,31 +12042,34 @@ function renderInvoice() {
         const boxMeta = buildBoxMetaStr(unitLabel);
         document.getElementById('pvRemarks').innerHTML =
             `<div class="inv-remarks-title">REMARKS</div>
-단&nbsp;&nbsp;&nbsp;&nbsp;위 : 원/${unitLabel}${boxMeta}<br>
-<span class="inv-red">결제조건 : 완납 후, 출고</span><br>
-<span class="inv-red">운임비 착불</span><br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등 자연질감이 그대로 표현되므로 시공시<br>
-이색현상이나 옹이 여부등은 하자사항이 아님을 알려드립니다.`;
+단위: 원/${unitLabel === 'M2' ? 'm²' : unitLabel}${boxMeta}<br>
+<span class="inv-red">결제 조건 : 완납 후, 출고</span><br>
+<span class="inv-red">*운임비 착불</span><br>
+원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+자연 질감이 그대로 표현되므로,<br>
+시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
     } else if (unit1 === 'PY') {
         document.getElementById('pvRemarks').innerHTML =
             `<div class="inv-remarks-title">REMARKS</div>
-단&nbsp;&nbsp;&nbsp;&nbsp;위 : 원/PY<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있음</span><br>
-<span class="inv-red">걸레받이 별도</span><br>
-시&nbsp;&nbsp;&nbsp;&nbsp;공 : 본드 - 친환경 황토풀 사용 기준<br>
-결제조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등 자연질감이 그대로 표현되므로 시공시<br>
-이색현상이나 옹이 여부등은 하자사항이 아님을 알려드립니다.`;
+단위: 원/PY<br>
+시공: 본드(친환경 황토풀) 사용 기준<br>
+결제 조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
+<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
+<span class="inv-red">*걸레받이 별도</span><br>
+원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+자연 질감이 그대로 표현되므로,<br>
+시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
     } else {
         document.getElementById('pvRemarks').innerHTML =
             `<div class="inv-remarks-title">REMARKS</div>
-단&nbsp;&nbsp;&nbsp;&nbsp;위 : 원/M2<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있음</span><br>
-<span class="inv-red">걸레받이 별도</span><br>
-시&nbsp;&nbsp;&nbsp;&nbsp;공 : 본드 - 친환경 황토풀 사용 기준<br>
-결제조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등 자연질감이 그대로 표현되므로 시공시<br>
-이색현상이나 옹이 여부등은 하자사항이 아님을 알려드립니다.`;
+단위: 원/m²<br>
+시공: 본드(친환경 황토풀) 사용 기준<br>
+결제 조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
+<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
+<span class="inv-red">*걸레받이 별도</span><br>
+원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+자연 질감이 그대로 표현되므로,<br>
+시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
     }
     // 내용 변경 후 높이 재계산
     setTimeout(updateInvoiceScale, 30);
@@ -12183,9 +12132,9 @@ async function saveInvoiceImage() {
             'position:static',
             'margin:0',
             'padding:84px 82px 82px',
-            'font-family:KoPubWorldDotum,맑은 고딕,Malgun Gothic,Pretendard,Arial,sans-serif',
+            'font-family:Pretendard,Malgun Gothic,Arial,sans-serif',
             'font-size:11px',
-            'color:#0f172a',
+            'color:#000',
         ].join(';');
         container.appendChild(clone);
         document.body.appendChild(container);
