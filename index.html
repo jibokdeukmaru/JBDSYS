@@ -2003,11 +2003,15 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-preview-label { font-size:11px; color:#888; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
 
 /* A4 견적서 본체 */
+/* A4 한 장 느낌을 유지하려고 flex column으로 만들어서, 품목이 적을 땐 REMARKS/CONTACT/
+   ACCOUNT INFO 블록(.inv-lower)이 margin-top:auto로 페이지 하단에 고정되고, 품목이 많아져
+   min-height를 넘어서면 자연스럽게 그 아래로 이어진다(시안의 "하단 정보 고정위치" 요구사항). */
 #invoiceDoc {
   width:930px; min-height:1312px; margin:0 auto; background:#fff;
   padding:84px 82px 82px; font-family:'Pretendard','Noto Sans KR','Malgun Gothic','Arial',sans-serif;
   font-size:11px; color:#000; border:1px solid #111; border-radius:0;
   box-shadow:0 8px 24px rgba(0,0,0,.08); position:relative;
+  display:flex; flex-direction:column;
 }
 .inv-brand { display:block; width:200px; height:auto; margin:0 0 0 7px; }
 .inv-brand svg { display:block; width:100%; height:auto; }
@@ -2022,14 +2026,14 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .right-block .inv-meta-key { text-align:right; }
 .right-block .inv-meta-val { white-space:nowrap; text-align:right; }
 /* 분류, 업체명, 시공예정일, 현장주소, 담당자, 작성일 키: Pretendard Medium */
-.inv-meta-key { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; white-space:nowrap; }
+.inv-meta-key { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; white-space:nowrap; }
 /* 출력결과값: Pretendard Light */
-.inv-meta-val { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.35; }
+.inv-meta-val { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.35; }
 .inv-table { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:0; color:#000; }
 /* ITEM, SIZE, UNIT, Q'TY, PRICE, TOTAL: Pretendard Medium */
-.inv-table thead th { height:38px; padding:0 8px; background:transparent; border:0; font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:500; color:#373130; vertical-align:middle; }
+.inv-table thead th { height:38px; padding:0 8px; background:transparent; border:0; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:500; color:#373130; vertical-align:middle; }
 /* 출력결과: Pretendard Light */
-.inv-table td { border:0; padding:8px 8px; font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:300; line-height:1.45; vertical-align:top; }
+.inv-table td { border:0; padding:8px 8px; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; line-height:1.45; vertical-align:top; }
 .inv-table td.td-item { text-align:left; padding-left:2px; }
 .inv-table td.td-center { text-align:center; }
 .inv-table td.td-right { text-align:right; }
@@ -2043,33 +2047,33 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-total-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-top:54px; padding-top:0; border-top:1px solid #9b9898; border-bottom:0; }
 .inv-total-table td { height:24px; padding:3px 8px; border:0; color:#000; }
 /* SUB TOTAL, GRAND TOTAL 라벨: Pretendard Medium */
-.inv-total-table .total-label { font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:500; color:#373130; padding-left:2px; }
+.inv-total-table .total-label { font-family:'Pretendard',sans-serif; font-size:14px; font-weight:500; color:#373130; padding-left:2px; }
 /* 일반 라벨 (Tax Vat, 단수정리): Pretendard Light */
-.inv-total-table .normal .total-label { font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:300; color:#000; }
+.inv-total-table .normal .total-label { font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; color:#000; }
 /* 출력결과값 (SUB/Tax/단수/GRAND 금액): Pretendard Light */
-.inv-total-table .amount { font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:300; text-align:right; white-space:nowrap; }
+.inv-total-table .amount { font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; text-align:right; white-space:nowrap; }
 /* GRAND TOTAL 금액값: Pretendard Medium */
 .inv-total-table .grand .amount { font-weight:500; }
 .inv-total-table .grand td { height:31px; font-weight:500; color:#373130; background:#ece5d7; }
 .inv-total-table .grand td { border-top:1px solid #e1e0e0; }
-.inv-lower { display:grid; grid-template-columns:1fr 235px; gap:34px; margin-top:64px; }
+.inv-lower { display:grid; grid-template-columns:1fr 235px; gap:34px; margin-top:auto; padding-top:64px; }
 /* REMARKS 내용: Pretendard Light */
-.inv-remarks { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.55; border:0; padding:0; margin:0; min-height:100px; }
+.inv-remarks { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.55; border:0; padding:0; margin:0; min-height:100px; }
 /* REMARKS 타이틀: Pretendard Medium */
-.inv-remarks-title { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; margin-bottom:5px; }
+.inv-remarks-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:5px; }
 #invRemarksEditor:empty:before { content: attr(data-placeholder); color:#aaa; }
 /* CONTACT 타이틀: Pretendard Medium */
-.inv-contact-title { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; margin-bottom:5px; }
+.inv-contact-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:5px; }
 /* ACCOUNT INFO 타이틀: Pretendard Medium */
-.inv-account-title { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; margin-bottom:8px; }
+.inv-account-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:8px; }
 .inv-red { color:#a72527; }
 /* CONTACT 내용: Pretendard Light */
-.inv-contact { margin-top:80px; font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.55; }
+.inv-contact { margin-top:80px; font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.55; }
 /* ACCOUNT INFO 내용: Pretendard Light */
-.inv-account-wrap { align-self:end; margin-top:140px; text-align:right; font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.6; }
+.inv-account-wrap { align-self:end; margin-top:140px; text-align:right; font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.6; }
 .inv-sign-line { width:138px; margin:43px 0 5px auto; border-top:1px solid #111; }
 /* ㈜지복득마루: Pretendard Light */
-.inv-company { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; }
+.inv-company { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; }
 .inv-hidden { display:none !important; }
 .inv-add-item { width:100%; margin:-2px 0 12px; min-height:38px; border-style:dashed; }
 
@@ -11946,7 +11950,7 @@ function renderInvoice() {
     if (remarksEditCheck && remarksEditor) {
         // 에디터의 HTML(색상 span 포함)을 그대로 반영
         const customHtml = remarksEditor.innerHTML || '';
-        if (remarksDiv) remarksDiv.innerHTML = '<div class="inv-remarks-title">REMARKS</div><span style="font-family:\'Pretendard\',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.55;">' + customHtml + '</span>';
+        if (remarksDiv) remarksDiv.innerHTML = '<div class="inv-remarks-title">REMARKS</div><span style="font-family:\'Pretendard\',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.55;">' + customHtml + '</span>';
         return;
     }
 
