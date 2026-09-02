@@ -12550,35 +12550,26 @@ ${exclude}: 약 OOm²
     });
 })();
 
-// ==================== 명함스캐닝 기능 ====================
+// ==================== 유령 서비스워커 정리 ====================
+// service-worker.js 파일 자체가 존재하지 않아(항상 404) 이 경로로 정상 등록된 적은 없지만,
+// 과거 다른 호스팅 시절에 등록된 서비스워커가 일부 PC에 여전히 남아있으면
+// 저장/새로고침이 유령 캐시에 가로막혀 반영이 안 되는 문제가 생길 수 있다.
+// 그런 잔여 워커가 있으면 지우고 캐시도 비운 뒤 한 번만 새로고침해서 자가치유한다.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(reg => {
-
-        // 새 버전 감지 → 업데이트 알림
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // 업데이트 토스트 표시
-              const toast = document.createElement('div');
-              toast.style.cssText = [
-                'position:fixed', 'bottom:80px', 'left:50%',
-                'transform:translateX(-50%)',
-                'background:#111', 'color:#fff',
-                'padding:12px 20px', 'border-radius:24px',
-                'font-size:13px', 'z-index:9999',
-                'display:flex', 'gap:12px', 'align-items:center',
-                'box-shadow:0 4px 20px rgba(0,0,0,0.3)'
-              ].join(';');
-              toast.innerHTML = `새 버전이 있어요! <button onclick="location.reload()" style="background:#fff;color:#111;border:none;border-radius:12px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;">새로고침</button>`;
-              document.body.appendChild(toast);
+    navigator.serviceWorker.getRegistrations()
+      .then(regs => {
+        if (!regs.length) return;
+        return Promise.all(regs.map(reg => reg.unregister()))
+          .then(() => (window.caches ? caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))) : null))
+          .then(() => {
+            if (!sessionStorage.getItem('_swCleanupReloaded')) {
+              sessionStorage.setItem('_swCleanupReloaded', '1');
+              location.reload();
             }
           });
-        });
       })
-      .catch(err => console.warn('[PWA] Service Worker 등록 실패:', err));
+      .catch(err => console.warn('[SW정리] 실패:', err));
   });
 }
 </script>
