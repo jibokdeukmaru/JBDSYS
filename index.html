@@ -2012,7 +2012,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-brand { display:block; width:200px; height:auto; margin:0 0 0 7px; }
 .inv-brand svg { display:block; width:100%; height:auto; }
 /* 상단 제목(예: "ESTIMATE  |  가견적서"): Pretendard Medium */
-.inv-title { margin:16px 0 90px 7px; font-family:'Pretendard',sans-serif; font-size:22px; font-weight:500; letter-spacing:-.2px; line-height:1; color:#373130; }
+.inv-title { margin:16px 0 90px 7px; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:600; letter-spacing:-.2px; line-height:1; color:#373130; }
 .inv-meta-grid { display:grid; grid-template-columns:1fr auto; gap:20px; align-items:end; margin-bottom:38px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
 .inv-meta-grid .right-block { align-self:end; justify-self:end; width:auto; min-width:0; }
 .inv-meta-row { display:grid; grid-template-columns:62px 1fr; min-height:22px; align-items:center; }
@@ -2025,7 +2025,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-meta-val { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.35; }
 .inv-table { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:0; color:#000; }
 /* ITEM, SIZE, UNIT, Q'TY, PRICE, TOTAL: Pretendard Medium */
-.inv-table thead th { height:38px; padding:0 8px; background:#efefef; border:0; font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:500; color:#373130; vertical-align:middle; }
+.inv-table thead th { height:38px; padding:0 8px; background:transparent; border:0; font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:500; color:#373130; vertical-align:middle; }
 /* 출력결과: Pretendard Light */
 .inv-table td { border:0; padding:8px 8px; font-family:'Pretendard',sans-serif; font-size:10.7px; font-weight:300; line-height:1.45; vertical-align:top; }
 .inv-table td.td-item { text-align:left; padding-left:2px; }
@@ -2037,11 +2037,8 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-table td:nth-child(2) { text-align:left; padding-left:8px; }
 .inv-table th:nth-child(3), .inv-table td:nth-child(3) { width:9% !important; text-align:center; }
 .inv-table th:nth-child(4), .inv-table td:nth-child(4) { width:12% !important; text-align:center; }
-.inv-table th:nth-child(5), .inv-table td:nth-child(5) { width:4% !important; }
-.inv-table th:nth-child(6), .inv-table td:nth-child(6) { width:13% !important; }
-.inv-table th:nth-child(7), .inv-table td:nth-child(7) { width:4% !important; }
-.inv-table th:nth-child(8), .inv-table td:nth-child(8) { width:11% !important; }
-.td-won { width:18px; text-align:center !important; color:#373130; }
+.inv-table th:nth-child(5), .inv-table td:nth-child(5) { width:17% !important; }
+.inv-table th:nth-child(6), .inv-table td:nth-child(6) { width:15% !important; }
 .inv-total-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-top:54px; padding-top:0; border-top:1px solid #9b9898; border-bottom:0; }
 .inv-total-table td { height:24px; padding:3px 8px; border:0; color:#000; }
 /* SUB TOTAL, GRAND TOTAL 라벨: Pretendard Medium */
@@ -2054,9 +2051,6 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-total-table .grand .amount { font-weight:500; }
 .inv-total-table .grand td { height:31px; font-weight:500; color:#373130; background:#ece5d7; }
 .inv-total-table .grand td { border-top:1px solid #e1e0e0; }
-/* 단수정리 -₩ 우측 정렬 */
-.inv-total-table .negative-won { white-space:nowrap; letter-spacing:-.5px; text-align:right !important; }
-.inv-total-table td.td-won { text-align:right !important; }
 .inv-lower { display:grid; grid-template-columns:1fr 235px; gap:34px; margin-top:64px; }
 /* REMARKS 내용: Pretendard Light */
 .inv-remarks { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.55; border:0; padding:0; margin:0; min-height:100px; }
@@ -2261,7 +2255,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
       <div style="display:flex; gap:12px;">
         <div style="flex:1;">
           <div class="inv-label" style="margin-bottom:4px; font-size:11px; color:#888;">글자 크기(px)</div>
-          <input type="number" id="invTitleFontSize" value="50" min="10" max="150" oninput="renderInvoice()" style="width:100%;">
+          <input type="number" id="invTitleFontSize" value="14" min="8" max="80" oninput="renderInvoice()" style="width:100%;">
         </div>
         <div style="flex:1;">
           <div class="inv-label" style="margin-bottom:4px; font-size:11px; color:#888;">자간(px)</div>
@@ -2330,8 +2324,8 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 
         <div class="inv-meta-grid">
           <div>
-            <div class="inv-meta-row"><div class="inv-meta-key">분&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;류</div><div class="inv-meta-val" id="pvCategory">일반</div></div>
-            <div class="inv-meta-row"><div class="inv-meta-key">업&nbsp;&nbsp;&nbsp;&nbsp;체&nbsp;&nbsp;&nbsp;&nbsp;명</div><div class="inv-meta-val" id="pvBillTo">—</div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key">분류</div><div class="inv-meta-val" id="pvCategory">일반</div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key">업체명</div><div class="inv-meta-val" id="pvBillTo">—</div></div>
             <div class="inv-meta-row"><div class="inv-meta-key">시공 예정일</div><div class="inv-meta-val" id="pvWorkDate">—</div></div>
             <div class="inv-meta-row"><div class="inv-meta-key">현장주소</div><div class="inv-meta-val" id="pvSite">—</div></div>
           </div>
@@ -2347,13 +2341,11 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
           <thead>
             <tr>
               <th style="width:28%;">ITEM</th>
-              <th style="width:20%; text-align:left; padding-left:8px;">SIZE</th>
-              <th style="width:8%;">UNIT</th>
+              <th style="width:19%; text-align:left; padding-left:8px;">SIZE</th>
+              <th style="width:9%;">UNIT</th>
               <th style="width:12%;">Q'TY</th>
-              <th style="width:4%;"></th>
-              <th style="width:12%;">PRICE</th>
-              <th style="width:4%;"></th>
-              <th style="width:12%;">TOTAL</th>
+              <th style="width:17%;">PRICE</th>
+              <th style="width:15%;">TOTAL</th>
             </tr>
           </thead>
           <tbody id="pvTableBody"></tbody>
@@ -2361,9 +2353,8 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 
         <table class="inv-total-table">
           <colgroup>
-            <col style="width:76%">
-            <col style="width:4%">
-            <col style="width:20%">
+            <col style="width:78%">
+            <col style="width:22%">
           </colgroup>
           <tbody id="pvTotalBody"></tbody>
         </table>
@@ -11811,7 +11802,7 @@ function renderInvoice() {
         if (!item) return;
         if (item.isDivider) {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td colspan="8" style="color:#ff0000;font-weight:700;text-align:left;">${item.label}</td>`;
+            tr.innerHTML = `<td colspan="6" style="color:#ff0000;font-weight:700;text-align:left;">${item.label}</td>`;
             tbody.appendChild(tr);
             return;
         }
@@ -11828,10 +11819,8 @@ function renderInvoice() {
             <td class="td-center">${item.size}</td>
             <td class="td-center">${item.unit === 'M2' ? 'm²' : item.unit}</td>
             <td class="td-center">${qtyDisplay}</td>
-            <td class="td-won">￦</td>
-            <td class="td-right">${unitPriceDisplay}</td>
-            <td class="td-won">￦</td>
-            <td class="td-right">${fmtNum(item.total)}</td>
+            <td class="td-right">${unitPriceDisplay === '' ? '' : '￦ ' + unitPriceDisplay}</td>
+            <td class="td-right">￦ ${fmtNum(item.total)}</td>
         `;
         tbody.appendChild(tr);
     }
@@ -11845,10 +11834,8 @@ function renderInvoice() {
         tr.innerHTML = `
             <td class="td-item">공과잡비</td>
             <td></td><td></td><td></td>
-            <td class="td-won">￦</td>
-            <td class="td-right">${fmtNum(miscRaw)}</td>
-            <td class="td-won">￦</td>
-            <td class="td-right">${fmtNum(miscRaw)}</td>
+            <td class="td-right">￦ ${fmtNum(miscRaw)}</td>
+            <td class="td-right">￦ ${fmtNum(miscRaw)}</td>
         `;
         tbody.appendChild(tr);
     }
@@ -11873,11 +11860,8 @@ function renderInvoice() {
     const makeTotal = (label, val, cls='normal') => {
         const tr = document.createElement('tr');
         tr.className = cls;
-        if (val < 0) {
-            tr.innerHTML = `<td class="total-label">${label}</td><td class="td-won" style="text-align:right; padding-right:2px;">-￦</td><td class="amount">${fmtNum(Math.abs(val))}</td>`;
-        } else {
-            tr.innerHTML = `<td class="total-label">${label}</td><td class="td-won" style="text-align:right; padding-right:2px;">￦</td><td class="amount">${fmtNum(val)}</td>`;
-        }
+        const sign = val < 0 ? '-' : '';
+        tr.innerHTML = `<td class="total-label">${label}</td><td class="amount">${sign}￦ ${fmtNum(Math.abs(val))}</td>`;
         totalBody?.appendChild(tr);
     };
 
@@ -11928,7 +11912,7 @@ function renderInvoice() {
     if (titleEditWrap) titleEditWrap.style.display = titleEditCheck ? 'block' : 'none';
     if (titleEditCheck && titleEl && titleEl.childNodes[0]) {
         const customTitle = (document.getElementById('invTitleEditText')?.value || '').trim();
-        const customSize = parseFloat(document.getElementById('invTitleFontSize')?.value) || 22;
+        const customSize = parseFloat(document.getElementById('invTitleFontSize')?.value) || 14;
         const customSpacing = document.getElementById('invTitleLetterSpacing')?.value;
         titleEl.childNodes[0].textContent = customTitle || 'INVOICE  |  정산서';
         titleEl.style.fontSize = customSize + 'px';
