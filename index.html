@@ -2112,22 +2112,26 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-total-table .grand .amount { font-weight:500; }
 .inv-total-table .grand td { height:31px; font-weight:500; color:#373130; background:#ece5d7; }
 .inv-total-table .grand td { border-top:1px solid #e1e0e0; }
-.inv-lower { display:grid; grid-template-columns:1fr 235px; gap:34px; margin-top:auto; padding-top:64px; }
+/* REMARKS → 구분선 → CONTACT/ACCOUNT INFO 순서로 세로로 쌓는다(시안 실측 기준) —
+   예전엔 CONTACT/ACCOUNT INFO 두 블록에 서로 다른 고정 margin-top(80px/140px)을 각각
+   줘서 REMARKS 길이에 따라 둘이 어긋나 보였다. 이제 자연스러운 흐름 + 구분선 하나로 정리. */
+.inv-lower { display:flex; flex-direction:column; margin-top:auto; padding-top:56px; }
 /* REMARKS 내용: Pretendard Light */
 .inv-remarks { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.55; border:0; padding:0; margin:0; min-height:100px; }
 /* REMARKS 타이틀: Pretendard Medium */
 .inv-remarks-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:5px; }
 #invRemarksEditor:empty:before { content: attr(data-placeholder); color:#aaa; }
+.inv-footer-rule { border-bottom:1px solid #e1e0e0; margin:22px 0 18px; }
+.inv-footer-row { display:grid; grid-template-columns:1fr 235px; gap:34px; }
 /* CONTACT 타이틀: Pretendard Medium */
 .inv-contact-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:5px; }
 /* ACCOUNT INFO 타이틀: Pretendard Medium */
 .inv-account-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:8px; }
 .inv-red { color:#a72527; }
 /* CONTACT 내용: Pretendard Light */
-.inv-contact { margin-top:80px; font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.55; }
+.inv-contact { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.55; }
 /* ACCOUNT INFO 내용: Pretendard Light */
-.inv-account-wrap { align-self:end; margin-top:140px; text-align:right; font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.6; }
-.inv-sign-line { width:138px; margin:43px 0 5px auto; border-top:1px solid #111; }
+.inv-account-wrap { text-align:right; font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; line-height:1.6; }
 /* ㈜지복득마루: Pretendard Light */
 .inv-company { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:300; color:#000; }
 .inv-hidden { display:none !important; }
@@ -2418,29 +2422,29 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
         </table>
 
         <div class="inv-lower">
-          <div>
-            <div class="inv-remarks" id="pvRemarks">
-              <div class="inv-remarks-title">REMARKS</div>
-              단위: 원/m²<br>
-              시공: 본드(친환경 황토풀) 사용 기준<br>
-              결제 조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
-              <span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
-              <span class="inv-red">*걸레받이 별도</span><br>
-              원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
-              자연 질감이 그대로 표현되므로,<br>
-              시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.
-            </div>
+          <div class="inv-remarks" id="pvRemarks">
+            <div class="inv-remarks-title">REMARKS</div>
+            단위: 원/m²<br>
+            시공: 본드(친환경 황토풀) 사용 기준<br>
+            결제 조건 : 계약금 50%, 중도금 30%(시공 일주일전) 잔금 20%(시공직후)<br>
+            <span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
+            <span class="inv-red">*걸레받이 별도</span><br>
+            원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상/나뭇결/옹이 등<br>
+            자연 질감이 그대로 표현되므로,<br>
+            시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.
+          </div>
+          <div class="inv-footer-rule"></div>
+          <div class="inv-footer-row">
             <div class="inv-contact">
               <div class="inv-contact-title">CONTACT</div>
               서울시 강남구 언주로 133길 25 지복득마루<br>
-              T&nbsp;&nbsp; 02 576 7736&nbsp;&nbsp;&nbsp;&nbsp; E&nbsp;&nbsp; jibokdeukmaru@naver.com&nbsp;&nbsp;&nbsp;&nbsp; www.jibokdeukmaru.com
+              02-576-7736&nbsp;&nbsp;&nbsp;&nbsp;jibokdeukmaru@naver.com&nbsp;&nbsp;&nbsp;&nbsp;www.jibokdeukmaru.com
             </div>
-          </div>
-          <div class="inv-account-wrap">
-            <div class="inv-account-title">ACCOUNT INFO</div>
-            신한은행&nbsp; 140-013-942370&nbsp; ㈜지복득마루
-            <div class="inv-sign-line"></div>
-            <div class="inv-company">㈜지복득마루</div>
+            <div class="inv-account-wrap">
+              <div class="inv-account-title">ACCOUNT INFO</div>
+              <div class="inv-company">㈜ 지복득마루</div>
+              신한은행&nbsp;&nbsp;140-013-942370
+            </div>
           </div>
         </div>
       </div>
