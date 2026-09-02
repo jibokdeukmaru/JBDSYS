@@ -2013,14 +2013,16 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-brand svg { display:block; width:100%; height:auto; }
 /* 상단 제목(예: "ESTIMATE  |  가견적서"): Pretendard Medium */
 .inv-title { margin:16px 0 90px 7px; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:600; letter-spacing:-.2px; line-height:1; color:#373130; }
-.inv-meta-grid { display:grid; grid-template-columns:1fr auto; gap:20px; align-items:end; margin-bottom:38px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
-.inv-meta-grid .right-block { align-self:end; justify-self:end; width:auto; min-width:0; }
-.inv-meta-row { display:grid; grid-template-columns:62px 1fr; min-height:22px; align-items:center; }
-.right-block .inv-meta-row { grid-template-columns:44px auto; gap:6px; }
-.right-block .inv-meta-val { white-space:nowrap; }
+.inv-meta-grid { display:grid; grid-template-columns:4fr 2fr; align-items:end; margin-bottom:38px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
+.inv-meta-grid .right-block { align-self:end; }
+/* 원본 시안의 6등분 그리드(레이아웃 가이드 이미지 실측) 기준 — 좌측 블록은 1열(키):3열(값),
+   우측 블록은 1열(키):1열(값)로 각각 정확히 그리드 칸에 맞춘다. */
+.inv-meta-row { display:grid; grid-template-columns:1fr 3fr; min-height:22px; align-items:center; }
+.right-block .inv-meta-row { grid-template-columns:1fr 1fr; gap:6px; }
+.right-block .inv-meta-key { text-align:right; }
+.right-block .inv-meta-val { white-space:nowrap; text-align:right; }
 /* 분류, 업체명, 시공예정일, 현장주소, 담당자, 작성일 키: Pretendard Medium */
 .inv-meta-key { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:500; color:#373130; white-space:nowrap; }
-.inv-meta-grid > div:first-child .inv-meta-key { width:62px; }
 /* 출력결과값: Pretendard Light */
 .inv-meta-val { font-family:'Pretendard',sans-serif; font-size:9.3px; font-weight:300; color:#000; line-height:1.35; }
 .inv-table { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:0; color:#000; }
@@ -2031,14 +2033,13 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 .inv-table td.td-item { text-align:left; padding-left:2px; }
 .inv-table td.td-center { text-align:center; }
 .inv-table td.td-right { text-align:right; }
-.inv-table th:nth-child(1), .inv-table td:nth-child(1) { width:28% !important; }
-.inv-table th:nth-child(2), .inv-table td:nth-child(2) { width:19% !important; }
-.inv-table th:nth-child(2) { text-align:center; padding-left:8px; }
+/* 시안 레이아웃 가이드 실측 결과 6칸 등분 그리드 — ITEM/SIZE는 칸 왼쪽 정렬,
+   UNIT/Q'TY는 칸 가운데 정렬, PRICE/TOTAL은 칸 오른쪽 정렬(빨간 중앙선·우측정렬 가이드와 일치). */
+.inv-table th:nth-child(n), .inv-table td:nth-child(n) { width:16.6667% !important; }
+.inv-table th:nth-child(2) { text-align:left; padding-left:8px; }
 .inv-table td:nth-child(2) { text-align:left; padding-left:8px; }
-.inv-table th:nth-child(3), .inv-table td:nth-child(3) { width:9% !important; text-align:center; }
-.inv-table th:nth-child(4), .inv-table td:nth-child(4) { width:12% !important; text-align:center; }
-.inv-table th:nth-child(5), .inv-table td:nth-child(5) { width:17% !important; }
-.inv-table th:nth-child(6), .inv-table td:nth-child(6) { width:15% !important; }
+.inv-table th:nth-child(3), .inv-table td:nth-child(3) { text-align:center; }
+.inv-table th:nth-child(4), .inv-table td:nth-child(4) { text-align:center; }
 .inv-total-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-top:54px; padding-top:0; border-top:1px solid #9b9898; border-bottom:0; }
 .inv-total-table td { height:24px; padding:3px 8px; border:0; color:#000; }
 /* SUB TOTAL, GRAND TOTAL 라벨: Pretendard Medium */
@@ -2340,12 +2341,12 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
         <table class="inv-table" id="pvTable">
           <thead>
             <tr>
-              <th style="width:28%;">ITEM</th>
-              <th style="width:19%; text-align:left; padding-left:8px;">SIZE</th>
-              <th style="width:9%;">UNIT</th>
-              <th style="width:12%;">Q'TY</th>
-              <th style="width:17%;">PRICE</th>
-              <th style="width:15%;">TOTAL</th>
+              <th style="width:16.6667%;">ITEM</th>
+              <th style="width:16.6667%; text-align:left; padding-left:8px;">SIZE</th>
+              <th style="width:16.6667%;">UNIT</th>
+              <th style="width:16.6667%;">Q'TY</th>
+              <th style="width:16.6667%; text-align:right;">PRICE</th>
+              <th style="width:16.6667%; text-align:right;">TOTAL</th>
             </tr>
           </thead>
           <tbody id="pvTableBody"></tbody>
