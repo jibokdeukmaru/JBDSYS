@@ -1826,6 +1826,7 @@ async function _stockBetaSaveProductOrder(sheetName, order){
 //   domain 필드(other/longterm)로만 구분해서 저장 — 재고현황(예약/실시간) 쪽 로직/데이터와
 //   절대 섞이지 않도록 컬렉션 자체를 따로 둔다.
 function _stockExtraDocId(domain, sheetName, code, cha){
+  const clean = s => String(s||'').replace(/[\/\r\n\t]+/g,'_').replace(/\s+/g,' ').trim().slice(0,150);
   return domain + '__' + clean(sheetName) + '__' + clean(code) + '__' + clean(cha || '-');
 }
 async function _stockExtraFetchAll(domain){
