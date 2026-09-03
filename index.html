@@ -5,6 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 
+<script>
+  // ★ window._waitForFirebase는 window.fbEnsureAuth/window.FB만 참조하고 모듈 내부
+  //   변수는 안 쓰므로, 일반(비-module) 스크립트로 여기 최상단에 둔다 — 아래 module
+  //   스크립트는 문서 파싱이 끝난 뒤에야 실행되는데, 그보다 먼저 실행되는 일반 스크립트
+  //   (슬롯관리 초기화 등)가 module 안에서만 정의된 이 헬퍼를 호출하면 "함수가 아님"
+  //   에러가 났었다. 여기서 먼저 정의해두면 그런 순서 문제 없이 항상 쓸 수 있다.
+  window._waitForFirebase = function() {
+    if (window.fbEnsureAuth && window.FB) return Promise.resolve();
+    return new Promise(resolve => {
+      const iv = setInterval(() => {
+        if (window.fbEnsureAuth && window.FB) { clearInterval(iv); resolve(); }
+      }, 30);
+    });
+  };
+</script>
 <script type="module">
   // ══════════════════════════════════════════════════════════════
   //  Firebase 초기화 (Firestore 이전 1단계: 문자템플릿·
@@ -56,18 +71,7 @@
     return _fbAuthPromise;
   };
 
-  // ★ 이 스크립트는 type="module"이라 문서 파싱이 끝난 뒤 실행된다. 아래쪽 일반 스크립트 중
-  //   페이지 로드 즉시 실행되는 것들(예: 슬롯관리의 initSlotGrid IIFE)은 그보다 먼저 실행될 수 있어서,
-  //   window.FB/window.fbEnsureAuth가 아직 없는 채로 Firestore를 읽으려다 조용히 실패할 수 있다.
-  //   그런 코드는 이 헬퍼로 모듈 스크립트 실행을 먼저 기다린다.
-  window._waitForFirebase = function() {
-    if (window.fbEnsureAuth && window.FB) return Promise.resolve();
-    return new Promise(resolve => {
-      const iv = setInterval(() => {
-        if (window.fbEnsureAuth && window.FB) { clearInterval(iv); resolve(); }
-      }, 30);
-    });
-  };
+  // window._waitForFirebase는 이제 위쪽의 일반 스크립트에서 먼저 정의해둔다(순서 문제 방지).
 
 </script>
 
