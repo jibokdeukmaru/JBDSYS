@@ -1142,8 +1142,8 @@ window.fetchEmployeesFS = async function() {
 <div id="memoCardModal" style="display:none;position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:92%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,0.18);box-sizing:border-box;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;">
-      <span id="memoCardModalTitle" style="font-size:15px;font-weight:800;color:#333;"></span>
-      <button type="button" onclick="closeMemoCardModal()" style="background:none;border:none;color:#999;font-size:22px;line-height:1;cursor:pointer;">&times;</button>
+      <input type="text" id="memoCardModalTitle" placeholder="제목" style="font-size:15px;font-weight:800;color:#333;border:none;outline:none;background:transparent;flex:1;min-width:0;padding:2px 0;">
+      <button type="button" onclick="closeMemoCardModal()" style="background:none;border:none;color:#999;font-size:22px;line-height:1;cursor:pointer;flex-shrink:0;">&times;</button>
     </div>
     <textarea id="memoCardModalText" style="flex:1;width:100%;min-height:240px;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;line-height:1.6;resize:vertical;box-sizing:border-box;"></textarea>
     <div style="display:flex;gap:8px;margin-top:12px;flex-shrink:0;">
@@ -1248,11 +1248,17 @@ window.fetchEmployeesFS = async function() {
       const note = _pcalNotes[key];
       const isToday = key === todayKey;
       const isSelected = key === _pcalSelectedDate;
+      // 오늘/이후 날짜는 내용이 많을수록(출고 건수 등) 실무에서 중요하게 보는 칸이라
+      // 3줄 제한을 풀어 전부 보이게 하고, 지난 날짜는 지금처럼 3줄로 압축해둔다.
+      const isFuture = key >= todayKey;
+      const notePreviewStyle = isFuture
+        ? 'font-size:10px;margin-top:3px;line-height:1.3;white-space:pre-line;'
+        : 'font-size:10px;margin-top:3px;line-height:1.3;white-space:pre-line;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;';
       html += '<div onclick="openPersonalCalNote(\'' + key + '\')" style="cursor:pointer;padding:6px 4px;border-radius:8px;min-height:64px;text-align:left;'
         + 'background:' + (isSelected ? 'var(--brand)' : (note ? 'var(--cream)' : 'transparent')) + ';'
         + 'border:1px solid ' + (isToday ? 'var(--brand)' : (note ? 'var(--border)' : '#f0f0f0')) + ';">'
         + '<div style="font-size:12px;font-weight:700;' + (isSelected ? 'color:#fff;' : 'color:#333;') + '">' + d + '</div>'
-        + (note ? '<div style="font-size:10px;margin-top:3px;line-height:1.3;white-space:pre-line;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;' + (isSelected ? 'color:#fff;' : 'color:#888;') + '">' + _pcalEsc(note) + '</div>' : '')
+        + (note ? '<div style="' + notePreviewStyle + (isSelected ? 'color:#fff;' : 'color:#888;') + '">' + _pcalEsc(note) + '</div>' : '')
         + '</div>';
     }
     gridEl.innerHTML = html;
@@ -1288,7 +1294,7 @@ window.fetchEmployeesFS = async function() {
     else delete _pcalNotes[_pcalSelectedDate];
     await _pcalSave();
     showToast('저장됨');
-    renderPersonalCal();
+    closePersonalCalNote();
   };
   window.deletePersonalCalNote = async function() {
     if (!_pcalSelectedDate) return;
@@ -9767,7 +9773,7 @@ function csDateInputValue(val) {
           _memoModalPageId = id;
           const titleEl = document.getElementById('memoCardModalTitle');
           const textEl = document.getElementById('memoCardModalText');
-          if (titleEl) titleEl.textContent = page.name;
+          if (titleEl) titleEl.value = page.name;
           if (textEl) textEl.value = page.content;
           const modal = document.getElementById('memoCardModal');
           if (modal) modal.style.display = 'flex';
@@ -9780,10 +9786,17 @@ function csDateInputValue(val) {
         window.saveMemoCardModal = async function() {
           const page = _memoPages.find(p => p.id === _memoModalPageId);
           if (!page) return;
+          const titleEl = document.getElementById('memoCardModalTitle');
           const textEl = document.getElementById('memoCardModalText');
+          const nextTitle = (titleEl ? titleEl.value : page.name).trim() || page.name;
           const nextContent = textEl ? textEl.value : page.content;
-          if (page.content !== nextContent) { page.content = nextContent; page.updatedAt = Date.now(); }
+          if (page.name !== nextTitle || page.content !== nextContent) {
+            page.name = nextTitle;
+            page.content = nextContent;
+            page.updatedAt = Date.now();
+          }
           if (_memoActiveId === page.id && memoArea) memoArea.value = nextContent; // 지금 열려있는 탭이면 그것도 같이 갱신
+          renderMemoTabs();
           await saveMemo();
           showToast('저장됨');
           window.closeMemoCardModal();
