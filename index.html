@@ -1174,20 +1174,23 @@ window.fetchEmployeesFS = async function() {
     </div>
     <div style="font-size:11px;color:#999;margin-bottom:12px;">이 달력은 본인만 볼 수 있으며 다른 직원에게 공유되지 않습니다.</div>
     <div id="personalCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
-
-    <div id="personalCalNoteBox" style="display:none;margin-top:18px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--cream-2);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <span id="personalCalNoteDate" style="font-size:13px;font-weight:800;color:var(--brand);"></span>
-        <button type="button" onclick="closePersonalCalNote()" style="background:none;border:none;color:#999;font-size:16px;cursor:pointer;">&times;</button>
-      </div>
-      <textarea id="personalCalNoteText" rows="4" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;line-height:1.6;resize:vertical;box-sizing:border-box;" placeholder="이 날짜에 대한 메모를 입력하세요..." onkeydown="onPersonalCalNoteKeydown(event)"></textarea>
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button type="button" onclick="savePersonalCalNote()" style="background:var(--brand);color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
-        <button type="button" onclick="deletePersonalCalNote()" style="background:#fff;color:#c0392b;border:1px solid #e74c3c;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:700;">삭제</button>
-      </div>
-    </div>
   </div>
 </section>
+
+<div id="personalCalNoteModal" style="display:none;position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,0.18);box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;">
+      <span id="personalCalNoteDate" style="font-size:15px;font-weight:800;color:var(--brand);"></span>
+      <button type="button" onclick="closePersonalCalNote()" style="background:none;border:none;color:#999;font-size:22px;line-height:1;cursor:pointer;">&times;</button>
+    </div>
+    <textarea id="personalCalNoteText" style="flex:1;width:100%;min-height:240px;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;line-height:1.6;resize:vertical;box-sizing:border-box;" placeholder="이 날짜에 대한 메모를 입력하세요..."></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-shrink:0;">
+      <button type="button" onclick="savePersonalCalNote()" style="flex:1;background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 0;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
+      <button type="button" onclick="deletePersonalCalNote()" style="flex:1;background:#fff;color:#c0392b;border:1px solid #e74c3c;border-radius:8px;padding:10px 0;cursor:pointer;font-size:13px;font-weight:700;">삭제</button>
+      <button type="button" onclick="closePersonalCalNote()" style="flex:1;background:#fff;color:#666;border:1px solid #ddd;border-radius:8px;padding:10px 0;cursor:pointer;font-size:13px;">닫기</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function() {
@@ -1263,36 +1266,19 @@ window.fetchEmployeesFS = async function() {
   };
   window.openPersonalCalNote = function(dateKey) {
     _pcalSelectedDate = dateKey;
-    const box = document.getElementById('personalCalNoteBox');
+    const modal = document.getElementById('personalCalNoteModal');
     const dateEl = document.getElementById('personalCalNoteDate');
     const textEl = document.getElementById('personalCalNoteText');
     if (dateEl) dateEl.textContent = dateKey;
     if (textEl) textEl.value = _pcalNotes[dateKey] || '';
-    if (box) box.style.display = 'block';
+    if (modal) modal.style.display = 'flex';
     renderPersonalCal();
   };
   window.closePersonalCalNote = function() {
     _pcalSelectedDate = null;
-    const box = document.getElementById('personalCalNoteBox');
-    if (box) box.style.display = 'none';
+    const modal = document.getElementById('personalCalNoteModal');
+    if (modal) modal.style.display = 'none';
     renderPersonalCal();
-  };
-  // 이 앱 다른 곳(차수명 변경 등)과 똑같은 규칙: 그냥 Enter는 저장, Alt+Enter가 줄바꿈.
-  // ★ 모바일은 소프트키보드에 Alt키가 사실상 없어서 저 규칙대로 두면 줄바꿈을 아예 못 넣는다 —
-  //   모바일에서는 그냥 Enter를 줄바꿈으로 되돌리고(저장은 버튼으로만), 데스크톱만 기존 규칙 유지.
-  const _pcalIsMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  window.onPersonalCalNoteKeydown = function(e) {
-    if (_pcalIsMobile) return; // 기본 동작(줄바꿈) 그대로 둠
-    if (e.key === 'Enter' && e.altKey) {
-      e.preventDefault();
-      const el = e.target;
-      const start = el.selectionStart, end = el.selectionEnd;
-      el.value = el.value.slice(0, start) + '\n' + el.value.slice(end);
-      el.selectionStart = el.selectionEnd = start + 1;
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      savePersonalCalNote();
-    }
   };
   window.savePersonalCalNote = async function() {
     if (!_pcalSelectedDate) return;
