@@ -1384,9 +1384,13 @@ window.fetchEmployeesFS = async function() {
 // 상태색(성공/위험/경고)은 이 목록에 없어서 그대로 고정 유지된다.
 window._stockBetaThemeVars = function(){
   const cs = getComputedStyle(document.body);
+  const g = (k) => cs.getPropertyValue(k).trim();
   const keys = ['--brand', '--brand-dark', '--cream', '--cream-2', '--border', '--border-2', '--surface-tint'];
   const out = {};
-  keys.forEach(k => { out[k] = cs.getPropertyValue(k).trim(); });
+  keys.forEach(k => { out[k] = g(k); });
+  // iframe 쪽 변수명이 부모와 달라서 이름을 맞춰 매핑해줘야 하는 것들
+  // (--page-bg: 전체 배경 — 빠뜨렸다가 "브라운이 그대로 남아있다"는 피드백으로 발견됨)
+  out['--page-bg'] = g('--app-bg');
   return out;
 };
 window._loadStockBetaFrame = function(){
