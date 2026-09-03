@@ -2205,7 +2205,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
     border: 0 !important;
     box-shadow: none !important;
     margin: 0 !important;
-    padding: 84px 72px 106px 72px !important;
+    padding: 104px 72px 106px 72px !important;
     /* 930px를 210mm(≈793px @96dpi)에 맞게 축소하는 배율. 항목이 많아 세로로 길어지면
        printInvoice()가 --inv-print-scale을 그보다 더 작게 재계산해서 A4 한 장에 맞춘다
        (고정값 0.853만 쓰면 기본 분량 기준으로 튜닝된 값이라 항목이 늘면 하단이 잘렸다). */
@@ -11913,8 +11913,8 @@ function fmtNum(n) {
 // 기호 위치가 행마다 흔들리지 않도록 flex로 양끝 정렬한다.
 function wonHtml(numStr, negative) {
     return '<span class="inv-won-wrap">'
-        + '<span class="inv-won-sym">' + (negative ? '-' : '') + '￦</span>'
-        + '<span class="inv-won-num">' + numStr + '</span>'
+        + '<span class="inv-won-sym">￦</span>'
+        + '<span class="inv-won-num">' + (negative ? '-' : '') + numStr + '</span>'
         + '</span>';
 }
 
@@ -12272,7 +12272,7 @@ async function saveInvoiceImage() {
             'transform:none',
             'position:static',
             'margin:0',
-            'padding:84px 72px 106px 72px',
+            'padding:104px 72px 106px 72px',
             'font-family:Pretendard,Malgun Gothic,Arial,sans-serif',
             'font-size:11px',
             'color:#000',
