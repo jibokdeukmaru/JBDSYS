@@ -2043,21 +2043,21 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
    min-height를 넘어서면 자연스럽게 그 아래로 이어진다(시안의 "하단 정보 고정위치" 요구사항). */
 #invoiceDoc {
   width:930px; min-height:1312px; margin:0 auto; background:#fff;
-  padding:84px 72px 106px 72px; font-family:'Pretendard','Noto Sans KR','Malgun Gothic','Arial',sans-serif;
+  padding:104px 72px 106px 72px; font-family:'Pretendard','Noto Sans KR','Malgun Gothic','Arial',sans-serif;
   font-size:11px; color:#000; border:1px solid #111; border-radius:0;
   box-shadow:0 8px 24px rgba(0,0,0,.08); position:relative;
   display:flex; flex-direction:column;
 }
 /* 좌상단 모서리 장식 띠(시안 실측: F6F3EB, 44x87px) — 페이지 테두리 바로 안쪽 코너에 깔리는
    배경 장식이라 다른 내용과 안 겹치게 로고/제목보다 z-index를 낮춰 뒤에 둔다. */
-.inv-corner-accent { position:absolute; top:0; left:0; width:44px; height:87px; background:#f6f3eb; z-index:0; }
+.inv-corner-accent { position:absolute; top:0; left:0; width:45px; height:89px; background:#f6f3eb; z-index:0; }
 .inv-brand { display:block; width:191px; height:auto; position:relative; z-index:1; }
 .inv-brand svg { display:block; width:100%; height:auto; }
 /* 로고와 제목 사이 가로선(시안 실측: E1E0E0, 콘텐츠 폭 전체) */
-.inv-header-rule { border-bottom:1px solid #e1e0e0; margin:11px 0; }
+.inv-header-rule { border-bottom:1px solid #e1e0e0; margin:9px 0; }
 /* 상단 제목(예: "ESTIMATE  |  가견적서"): Pretendard Medium */
-.inv-title { margin:11px 0 90px 0; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:600; letter-spacing:-.2px; line-height:1; color:#373130; }
-.inv-meta-grid { display:grid; grid-template-columns:4fr 2fr; align-items:end; margin-bottom:165px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
+.inv-title { margin:0 0 85px 0; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:600; letter-spacing:-.2px; line-height:1; color:#373130; }
+.inv-meta-grid { display:grid; grid-template-columns:4fr 2fr; align-items:end; margin-bottom:131px; padding-bottom:5px; border-bottom:1px solid #e1e0e0; }
 .inv-meta-grid .right-block { align-self:end; }
 /* 원본 시안의 6등분 그리드(레이아웃 가이드 이미지 실측) 기준 — 좌측 블록은 1열(키):3열(값),
    우측 블록은 1열(키):1열(값)로 각각 정확히 그리드 칸에 맞춘다. */
@@ -2105,7 +2105,7 @@ window._STOCK_BETA_HTML_B64 = "PHRpdGxlPuyerOqzoOq0gOumrCDsi5zslYg8L3RpdGxlPgo8b
 /* REMARKS 타이틀: Pretendard Medium */
 .inv-remarks-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:5px; }
 #invRemarksEditor:empty:before { content: attr(data-placeholder); color:#aaa; }
-.inv-footer-rule { border-bottom:1px solid #e1e0e0; margin:22px 0 18px; }
+.inv-footer-rule { border-bottom:1px solid #e1e0e0; margin:58px 0 47px; }
 .inv-footer-row { display:grid; grid-template-columns:1fr 235px; gap:34px; }
 /* CONTACT 타이틀: Pretendard Medium */
 .inv-contact-title { font-family:'Pretendard',sans-serif; font-size:12px; font-weight:500; color:#373130; margin-bottom:5px; }
