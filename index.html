@@ -1755,47 +1755,6 @@ async function _stockBetaCascadeHeibei(sheetName, code, cha, fromMonth, newHeibe
 }
 
 // ── BETA(iframe) ↔ 부모 postMessage 라우팅 ──
-// ★ 매달 자동 롤오버는 원래 서버(Cloud Scheduler + stock-beta-rollover 함수)가 하는 게
-//   맞지만, 그 배포가 아직 안 됐거나 하루 어쩌다 실패해도 기능이 끊기지 않도록 — 누군가
-//   재고현황(예약/실시간)를 열 때(getSnapshot) "이번달의 다음달"이 없으면 여기서도 만들어준다.
-//   서버 쪽과 로직이 겹쳐도 완전이관 여부/월 목록 기준으로 항상 같은 결과가 나오게
-//   만들어서(멱등) 두 경로가 동시에 실행돼도 문제없다.
-async function _stockBetaEnsureNextMonth(){
-  try {
-    const migrated = await _stockBetaIsMigrated();
-    if (!migrated) return;
-    const months = await _stockBetaGetMonthsList();
-    if (!months.length) return;
-    const target = _stockBetaNextMonth(_stockBetaCurrentRealMonth());
-    if (months.includes(target)) return;
-    const sourceMonth = months.slice().sort().pop();
-    const sourceLots = await _stockBetaFetchAllLots(sourceMonth);
-    if (!sourceLots.length) return;
-    await window.fbEnsureAuth();
-    // 품번이 수백 개면 한 건씩 순서대로 읽고 쓸 때 이 상황을 처음 맞닥뜨린 사람 화면이
-    // 수십 초씩 멈출 수 있다 — 서버 쪽 stock-beta-rollover 함수와 똑같이 writeBatch로 묶어서 처리.
-    for (let i = 0; i < sourceLots.length; i += 400) {
-      const batch = window.FB.writeBatch(window.FB.db);
-      sourceLots.slice(i, i + 400).forEach(lot => {
-        const shipSum = (lot.ship || []).reduce((s, x) => s + (typeof x.box === 'number' ? x.box : 0), 0);
-        const finalBox = Math.round((Number(lot.box || 0) - shipSum) * 10) / 10;
-        const ratio = (parseFloat(lot.heibei) || 0) / 3.24;
-        const finalPy = Math.round(finalBox * ratio * 100) / 100;
-        const id = _stockBetaDocId(lot.sheetName, lot.code, lot.cha, target);
-        const ref = window.FB.doc(window.FB.db, 'stockBetaLots', id);
-        batch.set(ref, {
-          sheetName: lot.sheetName, code: lot.code, cha: lot.cha, month: target,
-          inDate: lot.inDate || '', spec: lot.spec || '', heibei: lot.heibei || '',
-          box: finalBox, py: finalPy, ship: [], resv: lot.resv || [], _merged: !!lot._merged,
-          updatedAtMs: Date.now(),
-        });
-      });
-      await batch.commit();
-    }
-    await _stockBetaAddMonthToList(target);
-    _stockBetaBumpLastUpdated();
-  } catch(e) { /* 실패해도 서버 쪽(예약된 함수)이 처리할 수 있으니 조용히 무시 */ }
-}
 // 재고현황(예약/실시간) 수정기록 — 누가(로그인한 실제 이름+직급) 언제 뭘 고쳤는지 영구 저장.
 // editorName/editorTitle은 클라이언트가 보낸 값을 안 믿고, 부모(ERP)가 이미 알고 있는
 // 로그인 사용자 정보를 그대로 찍는다(더 신뢰할 수 있음).
@@ -1975,10 +1934,6 @@ window.addEventListener('message', async (e) => {
   };
   try {
     if (action === 'getSnapshot') {
-      // ★ _stockBetaEnsureNextMonth() 자동 이월 호출 제거함 — 재고현황을 열 때마다 조용히
-      //   다음달 데이터를 만들어버려서, 관리자가 지운 달이 누가 화면만 열어도 계속
-      //   되살아나는 문제가 있었다. 지금은 "마감/이월" 버튼(manualStockRollover, 편집권한자
-      //   전용)을 명시적으로 눌러야만 이월되도록 완전히 수동으로 바꿨다.
       const db = await _buildStockBetaSnapshot(payload && payload.month);
       const months = await _stockBetaGetMonthsList();
       const currentRealMonth = _stockBetaCurrentRealMonth();
@@ -8651,6 +8606,19 @@ function csDateInputValue(val) {
       openEmpModal('edit');
     };
 
+    // 모달 열기/닫기 공용 헬퍼 — getElementById가 null이어도 안전(원래 각 함수의 가드와 동일하게
+    // display만 건너뛰고 body 스크롤 잠금/해제는 항상 수행).
+    function openModalById(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+    function closeModalById(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.style.display = 'none';
+      document.body.style.removeProperty('overflow');
+    }
+
     // ── 직원 추가/수정 모달 ──
     let _empModalMode = 'add';
 
@@ -8723,13 +8691,11 @@ function csDateInputValue(val) {
         document.getElementById('empModalStockBetaEditor').checked = false;
         document.getElementById('empModalTeam').value = '';
       }
-      modal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
+      openModalById('empModal');
     };
 
     window.closeEmpModal = function() {
-      document.getElementById('empModal').style.display = 'none';
-      document.body.style.removeProperty('overflow');
+      closeModalById('empModal');
     };
 
     window.submitEmpModal = async function() {
@@ -8852,8 +8818,7 @@ function csDateInputValue(val) {
           </div>
         `;
       }).join('');
-      document.getElementById('tabPermModal').style.display = 'flex';
-      document.body.style.overflow = 'hidden';
+      openModalById('tabPermModal');
     };
 
     window.setTabPerm = function(tabId, isOn) {
@@ -8866,8 +8831,7 @@ function csDateInputValue(val) {
     };
 
     window.closeTabPermModal = function() {
-      document.getElementById('tabPermModal').style.display = 'none';
-      document.body.style.removeProperty('overflow');
+      closeModalById('tabPermModal');
     };
 
     window.saveTabPermFromModal = async function() {
@@ -8951,8 +8915,7 @@ function csDateInputValue(val) {
             </div>
           </div>`;
       }).join('');
-      document.getElementById('guestTabModal').style.display = 'flex';
-      document.body.style.overflow = 'hidden';
+      openModalById('guestTabModal');
     };
 
     window.setGuestTabPerm = function(tabId, isOn) {
@@ -8965,8 +8928,7 @@ function csDateInputValue(val) {
     };
 
     window.closeGuestTabModal = function() {
-      document.getElementById('guestTabModal').style.display = 'none';
-      document.body.style.removeProperty('overflow');
+      closeModalById('guestTabModal');
     };
 
     window.saveGuestTabsFromModal = async function() {
@@ -8992,17 +8954,14 @@ function csDateInputValue(val) {
     window.openInfoRequestModal = function() {
       const modal = document.getElementById('infoRequestModal');
       if (modal) {
-        modal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
+        openModalById('infoRequestModal');
         document.getElementById('infoRequestText').value = '';
         document.getElementById('infoRequestMsg').textContent = '';
       }
     };
 
     window.closeInfoRequestModal = function() {
-      const modal = document.getElementById('infoRequestModal');
-      if (modal) modal.style.display = 'none';
-      document.body.style.removeProperty('overflow');
+      closeModalById('infoRequestModal');
     };
 
     let _infoReqBusy = false;
@@ -9143,13 +9102,10 @@ function csDateInputValue(val) {
           resolveBtn.textContent = '완료 처리';
         }
       }
-      const modal = document.getElementById('adminInfoReqModal');
-      if (modal) { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+      openModalById('adminInfoReqModal');
     };
     window.closeAdminInfoReqModal = function() {
-      const modal = document.getElementById('adminInfoReqModal');
-      if (modal) modal.style.display = 'none';
-      document.body.style.removeProperty('overflow');
+      closeModalById('adminInfoReqModal');
       _adminInfoReqCurrentRowIdx = null;
     };
     window.resolveAdminInfoReqFromModal = async function() {
@@ -11094,6 +11050,33 @@ function sheetSpreadsheetId(sheetName) {
 const _sheetJsonCache = {};
 const _SHEET_JSON_CACHE_MS = 90 * 1000;
 
+// fetchSheetJson/fetchSheetJsonBatch 공용 재시도 헬퍼 — 타임아웃/1회 자동 재시도 로직만
+// 공유하고, 에러 문구/추출할 필드는 호출부에서 그대로 넘겨 기존 문구를 한 글자도 안 바꾼다.
+async function fetchErpJsonWithRetry(url, timeoutMs, { resultKey, defaultValue, netErrMsg, dataErrDefaultMsg, timeoutMsg, retryWarnMsg }) {
+    async function attemptOnce() {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(`${netErrMsg}: ${res.status}`);
+            const data = await res.json();
+            if (data.status === 'error') throw new Error(data.message || dataErrDefaultMsg);
+            return data[resultKey] || defaultValue;
+        } catch (err) {
+            clearTimeout(timeoutId);
+            if (err.name === 'AbortError') throw new Error(timeoutMsg);
+            throw err;
+        }
+    }
+    try {
+        return await attemptOnce();
+    } catch (err) {
+        console.warn(retryWarnMsg, err.message);
+        return await attemptOnce();
+    }
+}
+
 async function fetchSheetJson(sheetName, timeoutMs = 20000, forceRefresh = false) {
     const ssId = sheetSpreadsheetId(sheetName);
     const cacheKey = ssId + '|' + sheetName;
@@ -11103,31 +11086,15 @@ async function fetchSheetJson(sheetName, timeoutMs = 20000, forceRefresh = false
     }
     const url = `${ERP_URL}?action=getSheetData&spreadsheetId=${encodeURIComponent(ssId)}&sheetName=${encodeURIComponent(sheetName)}`;
 
-    async function attemptOnce() {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const res = await fetch(url, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!res.ok) throw new Error(`네트워크 오류 (${sheetName}): ${res.status}`);
-            const data = await res.json();
-            if (data.status === 'error') throw new Error(data.message || `시트 접근 오류 (${sheetName})`);
-            return data.rows || [];
-        } catch (err) {
-            clearTimeout(timeoutId);
-            if (err.name === 'AbortError') throw new Error(`요청 시간 초과 (${timeoutMs/1000}초) - 시트: ${sheetName}`);
-            throw err;
-        }
-    }
-
-    let rows;
-    try {
-        rows = await attemptOnce();
-    } catch (err) {
-        // 모바일 네트워크 일시 오류 대비 1회 자동 재시도
-        console.warn(`시트 로드 1차 실패(${sheetName}), 재시도:`, err.message);
-        rows = await attemptOnce();
-    }
+    // 모바일 네트워크 일시 오류 대비 1회 자동 재시도
+    const rows = await fetchErpJsonWithRetry(url, timeoutMs, {
+        resultKey: 'rows',
+        defaultValue: [],
+        netErrMsg: `네트워크 오류 (${sheetName})`,
+        dataErrDefaultMsg: `시트 접근 오류 (${sheetName})`,
+        timeoutMsg: `요청 시간 초과 (${timeoutMs/1000}초) - 시트: ${sheetName}`,
+        retryWarnMsg: `시트 로드 1차 실패(${sheetName}), 재시도:`,
+    });
     _sheetJsonCache[cacheKey] = { rows, at: Date.now() };
     return rows;
 }
@@ -11151,30 +11118,14 @@ async function fetchSheetJsonBatch(sheetNames, ssId, timeoutMs = 20000, forceRef
 
     const url = `${ERP_URL}?action=getSheetDataBatch&spreadsheetId=${encodeURIComponent(ssId)}&sheetNames=${encodeURIComponent(uncached.join(','))}`;
 
-    async function attemptOnce() {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const res = await fetch(url, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!res.ok) throw new Error(`네트워크 오류 (배치): ${res.status}`);
-            const data = await res.json();
-            if (data.status === 'error') throw new Error(data.message || '시트 배치 조회 오류');
-            return data.sheets || {};
-        } catch (err) {
-            clearTimeout(timeoutId);
-            if (err.name === 'AbortError') throw new Error(`요청 시간 초과 (${timeoutMs/1000}초) - 배치: ${uncached.join(',')}`);
-            throw err;
-        }
-    }
-
-    let sheets;
-    try {
-        sheets = await attemptOnce();
-    } catch (err) {
-        console.warn(`시트 배치 로드 1차 실패, 재시도:`, err.message);
-        sheets = await attemptOnce();
-    }
+    const sheets = await fetchErpJsonWithRetry(url, timeoutMs, {
+        resultKey: 'sheets',
+        defaultValue: {},
+        netErrMsg: `네트워크 오류 (배치)`,
+        dataErrDefaultMsg: `시트 배치 조회 오류`,
+        timeoutMsg: `요청 시간 초과 (${timeoutMs/1000}초) - 배치: ${uncached.join(',')}`,
+        retryWarnMsg: `시트 배치 로드 1차 실패, 재시도:`,
+    });
     const now = Date.now();
     uncached.forEach(name => {
         const rows = sheets[name] || [];
