@@ -2567,10 +2567,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         제목 직접입력
       </label>
       <label class="check-chip">
-        <input type="checkbox" id="invSplitCostCheck" />
-        재료비/노무비 분리
-      </label>
-      <label class="check-chip">
         <input type="checkbox" id="invMergeLaborCheck" onchange="renderInvoice()" />
         노무비합산표시
       </label>
@@ -11644,6 +11640,10 @@ function createInvoiceItem(index) {
               <input type="number" id="invLoss${index}" class="inv-loss-input" step="0.1" min="0" placeholder="0">
             </div>
           </div>
+          <label class="check-chip" style="margin-top:2px;">
+            <input type="checkbox" id="invSplitCost${index}" class="inv-split-cost-toggle" onchange="renderInvoice()">
+            재료비/노무비 분리
+          </label>
         </div>
 
         <!-- ── 직접입력 모드 (체크 시 표시) ── -->
@@ -12053,7 +12053,7 @@ function formatInvSize(spec='') {
         .trim();
 }
 
-function getInvItemFromBox(box, splitCosts=false) {
+function getInvItemFromBox(box) {
 
     // ── 구분선 항목 (제품 목록 사이 빨간 강조 문구, 가격 계산 없음) ──
     if (box.dataset.invDivider === '1') {
@@ -12157,6 +12157,7 @@ function getInvItemFromBox(box, splitCosts=false) {
         }
     }
 
+    const splitCosts = !!box.querySelector('.inv-split-cost-toggle')?.checked;
     if (splitCosts && unit !== 'BOX') {
         const discount = getBoxDiscount(p.code);
         if (discount !== null) {
@@ -12216,11 +12217,10 @@ function renderInvoice() {
     document.getElementById('pvManager').textContent  = document.getElementById('invManager')?.value  || '';
     document.getElementById('pvDate').textContent     = document.getElementById('invDate')?.value     || '';
 
-    const splitCosts = !!document.getElementById('invSplitCostCheck')?.checked;
-    const mergeLaborCosts = splitCosts && !!document.getElementById('invMergeLaborCheck')?.checked;
+    const mergeLaborCosts = !!document.getElementById('invMergeLaborCheck')?.checked;
     let invoiceItems = [...document.querySelectorAll('[data-inv-item], [data-inv-divider]')]
         .flatMap(box => {
-            const item = getInvItemFromBox(box, splitCosts);
+            const item = getInvItemFromBox(box);
             return Array.isArray(item) ? item : [item];
         })
         .filter(Boolean);
