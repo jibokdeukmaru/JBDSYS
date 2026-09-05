@@ -10376,9 +10376,14 @@ function ceilTo(value, base) { return Math.ceil(value / base) * base; }
 function formatQuoteDate(dateObj = new Date()) { const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2,'0'); const d = String(dateObj.getDate()).padStart(2,'0'); return `견적일 : ${y}-${m}-${d}`; }
 function updateQuoteDate(dateObj = new Date()) { const el = $('quoteDate'); if(el) el.textContent = formatQuoteDate(dateObj); }
 function getBoxDiscount(code) {
-  // # 없는 품번은 null 반환 (기존값 그대로)
-  if (!code || !code.includes('#')) return null;
-  const after = code.split('#').pop();
+  // 품번 끝의 숫자 그룹에서 분류 기준 앞 두 자리를 읽는다.
+  // ★ 예전엔 '#' 뒤 숫자만 읽었지만(A#1801 → 18), 신규 품번은 #을 안 붙이는 쪽으로
+  //   바뀌었다(A1801 → 여전히 18) — #이 있든 없든 마지막 숫자 그룹만 보면 되므로
+  //   split('#') 대신 정규식으로 숫자 그룹을 직접 뽑는다.
+  if (!code) return null;
+  const digitGroups = code.match(/\d+/g);
+  if (!digitGroups || !digitGroups.length) return null;
+  const after = digitGroups[digitGroups.length - 1];
   // 앞 두 자리만 읽음 (예: '1801' → '18', '1501' → '15')
   const num = parseInt(after.slice(0, 2), 10);
   if (!Number.isFinite(num)) return null;
