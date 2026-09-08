@@ -12616,6 +12616,31 @@ window.addEventListener('afterprint', () => {
     document.body.classList.remove('print-invoice');
 });
 
+// 견적서/가견적서/정산서 저장 파일명 통일 규칙: yymmdd_문서종류(업체명_담당자)
+function buildInvoiceFileName() {
+    const rawDate = (document.getElementById('invDate')?.value || '').trim();
+    const digits  = rawDate.replace(/\D/g, '');
+    let dateStr;
+    if (digits.length >= 8) dateStr = digits.slice(digits.length - 6);
+    else if (digits.length === 6) dateStr = digits;
+    else {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        dateStr = `${String(now.getFullYear()).slice(2)}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    }
+
+    const sanitize = s => (s || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const company = sanitize(document.getElementById('invBillTo')?.value);
+    const manager = sanitize(document.getElementById('invManager')?.value);
+
+    const isDraft = !!document.getElementById('invDraftCheck')?.checked;
+    const isFinal = !!document.getElementById('invFinalCheck')?.checked;
+    const docLabel = isFinal ? '정산서' : (isDraft ? '가견적서' : '견적서');
+
+    const who = [company, manager].filter(Boolean).join('_');
+    return who ? `${dateStr}_${docLabel}(${who})` : `${dateStr}_${docLabel}`;
+}
+
 async function saveInvoiceImage() {
     renderInvoice();
     const el = document.getElementById('invoiceDoc');
@@ -12675,15 +12700,7 @@ async function saveInvoiceImage() {
         document.body.removeChild(container);
 
         // 6. 파일명
-        const rawDate    = (document.getElementById('invDate')?.value || '').trim();
-        const dateStr    = rawDate.replace(/^20(\d\d)/, '$1');
-        const billTo     = (document.getElementById('invBillTo')?.value || '').trim();
-        const safeBillTo = billTo.replace(/[\\:*?"<>|]/g, '').trim();
-        const isDraft    = document.getElementById('invDraftCheck')?.checked;
-        const prefix     = isDraft ? '가' : '';
-        const fileName   = safeBillTo
-            ? `${prefix}견적서(${dateStr})_${safeBillTo}.jpg`
-            : `${prefix}견적서(${dateStr}).jpg`;
+        const fileName = buildInvoiceFileName() + '.jpg';
 
         // 7. 저장 — JPG blob
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
@@ -12759,12 +12776,7 @@ async function saveInvoicePdf() {
         const pdf = new jsPDF({ orientation: pdfH > pdfW ? 'portrait' : 'landscape', unit: 'pt', format: [pdfW, pdfH] });
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
 
-        const billTo   = document.getElementById('invBillTo')?.value.trim() || '';
-        const safeName = billTo.replace(/[\\/:*?"<>|]/g, '_');
-        const dateStr  = new Date().toISOString().slice(0,10);
-        const isDraft  = document.getElementById('invDraftCheck')?.checked;
-        const prefix   = isDraft ? '가' : '';
-        const fileName = safeName ? `${prefix}견적서(${dateStr})_${safeName}.pdf` : `${prefix}견적서(${dateStr}).pdf`;
+        const fileName = buildInvoiceFileName() + '.pdf';
 
         const pdfBlob = pdf.output('blob');
         if (!isMobile && window.showSaveFilePicker) {
