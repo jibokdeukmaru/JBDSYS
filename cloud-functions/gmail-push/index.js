@@ -10,6 +10,14 @@ const SA_EMAIL = process.env.GMAIL_SA_EMAIL;
 const SA_KEY = (process.env.GMAIL_SA_KEY || '').replace(/\\n/g, '\n');
 const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
 
+// 한 사람이 sales/rnd 같은 그룹 여러 개에 동시에 속해 있으면, 메일 1통이 그룹 확장으로
+// 그 사람의 같은 받은편지함에 서로 다른 메시지ID를 가진 메일 2통으로 이중 배달되는 경우가
+// 있다(예: admin이 sales+rnd 그룹 모두 멤버). 이땐 메시지ID가 실제로 다르므로 아래
+// email+msgId 기반 dedup을 통과해버려 알림이 2개 뜬다 — 알림 문서 자체는 두 통 다 남기되
+// (메일함 히스토리 상 실제로 2통 온 게 맞으므로), 짧은 시간 안에 같은 수신자에게 같은 제목의
+// 알림이 이미 있으면 푸시(진동/알림음)만 한 번으로 억제한다.
+const DUPLICATE_PUSH_WINDOW_MS = 2 * 60 * 1000;
+
 function gmailClientFor(email) {
   const jwt = new google.auth.JWT({
     email: SA_EMAIL,
@@ -77,17 +85,35 @@ exports.gmailPushHandler = async (message) => {
           }
           const headers = {};
           (msg.data.payload.headers || []).forEach((hd) => { headers[hd.name] = hd.value; });
+          const subject = headers.Subject || '(제목없음)';
+
+          // 같은 수신자 + 같은 제목으로 최근에 만들어진 알림이 있으면(그룹 이중배달 등으로
+          // 인한 유사중복) 이번 알림은 문서만 만들고 푸시는 생략한다. toEmail/body 둘 다
+          // 등호(==) 비교라 Firestore 복합 인덱스 없이도 쿼리 가능.
+          let suppressPush = false;
+          try {
+            const recentSnap = await firestore.collection('notifications')
+              .where('toEmail', '==', email)
+              .where('body', '==', subject)
+              .limit(5)
+              .get();
+            const cutoff = Date.now() - DUPLICATE_PUSH_WINDOW_MS;
+            suppressPush = recentSnap.docs.some((d) => (d.data().createdAtMs || 0) > cutoff);
+          } catch (e) {
+            console.error(`중복 체크 실패(${email}, ${msgId}):`, e.message);
+          }
+
           try {
             await ref.create({
               toEmail: email,
               type: 'mail',
               title: '새 메일 도착',
-              body: headers.Subject || '(제목없음)',
+              body: subject,
               relatedId: msgId,
               createdAtMs: Date.now(),
               read: false,
               sent: false,
-              pushSent: false,
+              pushSent: suppressPush,
             });
             notifyCount++;
           } catch (e) {
