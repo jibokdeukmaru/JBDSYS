@@ -4528,6 +4528,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     window._allConsultsGlobal = null;
   };
   const _invalidateConsultsCache = window._invalidateConsultsCache;
+  // setDateFilter/setVisitFilter는 다른 <script> 블록(스코프)에 있어 _consultsFilterDirty를
+  // 직접 못 건드리므로, invalidateConsultsCache와 같은 방식으로 window에 세터를 노출해둔다.
+  window._markConsultsFilterDirty = function() { _consultsFilterDirty = true; };
   // 상담 날짜(YYYY-MM-DD)+시간(HH:mm) → 정렬용 밀리초. 파싱 실패 시 0 반환(호출부에서 보정)
   // ★ window에 노출 — 이 함수를 쓰는 다른 <script> 블록(마이그레이션·CSV등록·다우변환)은
   //   서로 다른 스코프라 지역 함수로 두면 "is not defined" 에러가 나기 때문.
@@ -4542,6 +4545,10 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   let _consultsCache = null;      // 최근 100건 캐시 (getConsults)
   let _consultsFullCache = null;  // 전체 데이터 캐시 (getConsultsFull) — 검색/재방문 시에만 확보
   let _consultsFullLoading = false; // 전체조회 요청 중복 방지 가드 (돋보기 연타/Enter 연타 대비)
+  // 필터/검색을 "방금" 조작했다는 신호 — true면 전체캐시가 있어도 무시하고 Firestore에서 새로
+  // 읽어온다. 다른 사람이 그 사이 등록/수정한 건이 계속 안 보이던 문제(캐시가 세션 내내 고정)를
+  // "필터를 실제로 만질 때만" 최신화하는 걸로 해결 — 안 쓰는 동안엔 읽기가 발생하지 않는다.
+  let _consultsFilterDirty = false;
   let _consultsMode = 'recent';   // 현재 allConsults가 담고 있는 데이터 종류: 'recent'(100건) | 'full'(전체)
   let _revisitMatches = []; // 재방문 검색 결과 임시 저장 (더블클릭 적용 시 참조)
   window._revisitMatchesGlobal = _revisitMatches;
@@ -4798,6 +4805,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   // 검색은 renderConsultList 내부의 _searchConsultsAll(이름/업체명/현장주소/연락처 포함검색)이 처리하므로
   // 여기서는 검색 중 로딩 표시와 페이지 초기화만 담당한다.
   window.searchConsultAndRefresh = async function() {
+    _consultsFilterDirty = true;
     const q = (document.getElementById('csSearch').value || '').trim();
     if (q) {
       const bodyEl = document.getElementById('csTableBody');
@@ -4913,12 +4921,13 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   //   최초 1회만 Firestore 전체 조회 후 _consultsFullCache 에 캐시. 이후엔 캐시 재사용.
   //   (검색은 부분일치가 필요하므로, 하루 몇 번뿐인 검색 시에만 전체를 1회 읽어 클라이언트 필터링)
   async function ensureFullConsults() {
-    if (_consultsFullCache) return _consultsFullCache;
+    if (_consultsFullCache && !_consultsFilterDirty) return _consultsFullCache;
     if (_consultsFullLoading) {
       while (_consultsFullLoading) { await new Promise(r => setTimeout(r, 120)); }
       return _consultsFullCache || [];
     }
     _consultsFullLoading = true;
+    _consultsFilterDirty = false;
     try {
       await window.fbEnsureAuth();
       const q = window.FB.query(
@@ -4945,6 +4954,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   window.toggleMyConsults = function() {
     const myName = (window._currentUser && window._currentUser.name || '').trim();
     if (!myName) { alert('게스트 계정은 이용할 수 없는 기능입니다.'); return; }
+    _consultsFilterDirty = true;
     _myConsultsOnly = !_myConsultsOnly;
     const btn = document.getElementById('myConsultsBtn');
     if (btn) {
@@ -4976,6 +4986,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   };
 
   window.resetAllFilters = function() {
+    _consultsFilterDirty = true;
     // 상태 필터 초기화
     csCurrentFilter = '전체';
     document.querySelectorAll('.dw-chip[data-filter]').forEach(c => c.classList.toggle('on', c.dataset.filter === '전체'));
@@ -5008,6 +5019,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   }
 
   window.clearStatusFilter = function() {
+    _consultsFilterDirty = true;
     csCurrentFilter = '전체';
     document.querySelectorAll('.dw-chip[data-filter]').forEach(c => c.classList.toggle('on', c.dataset.filter === '전체'));
     currentPage = 1;
@@ -5016,6 +5028,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   };
 
   window.clearDateFilter = function() {
+    _consultsFilterDirty = true;
     csDateFilter = null;
     document.querySelectorAll('.dw-chip[data-date-filter]').forEach(c => c.classList.remove('on'));
     currentPage = 1;
@@ -5024,6 +5037,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   };
 
   window.clearVisitFilter = function() {
+    _consultsFilterDirty = true;
     csVisitFilter = '전체';
     document.querySelectorAll('.dw-chip[data-visit-filter]').forEach(c => c.classList.toggle('on', c.dataset.visitFilter === '전체'));
     currentPage = 1;
@@ -5048,6 +5062,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   };
 
   window.setCsFilter = function(el) {
+    _consultsFilterDirty = true;
     document.querySelectorAll('.dw-chip[data-filter]').forEach(c => c.classList.remove('on'));
     el.classList.add('on');
     csCurrentFilter = el.dataset.filter;
@@ -10997,6 +11012,7 @@ window.openApprovalPanel = function() {
 // ── 날짜 필터 ──
 let csDateFilter = null;
 window.setDateFilter = function(el) {
+  if (typeof window._markConsultsFilterDirty === 'function') window._markConsultsFilterDirty();
   const prev = document.querySelector('.dw-chip[data-date-filter].on');
   if (prev) prev.classList.remove('on');
   if (prev === el) { csDateFilter = null; }
@@ -11009,6 +11025,7 @@ window.setDateFilter = function(el) {
 // ── 방문구분 필터(신규/재방문) ──
 let csVisitFilter = '전체';
 window.setVisitFilter = function(el) {
+  if (typeof window._markConsultsFilterDirty === 'function') window._markConsultsFilterDirty();
   document.querySelectorAll('.dw-chip[data-visit-filter]').forEach(c => c.classList.remove('on'));
   el.classList.add('on');
   csVisitFilter = el.dataset.visitFilter;
