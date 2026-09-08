@@ -10525,6 +10525,9 @@ function setTab(tabId, fromPopstate) {
     }
   }
   if (tabId === 'consultTab' && typeof loadConsults === 'function') {
+    // 필터가 걸린 채로 탭을 나갔다 들어와도(다른 사람이 그 사이 등록한 건을 보도록) 전체캐시를
+    // 다시 읽게 신호를 켠다 — 안 걸려있으면 어차피 최근100 캐시 경로라 이 신호는 무시된다.
+    if (typeof window._markConsultsFilterDirty === 'function') window._markConsultsFilterDirty();
     // 쇼룸상담 목록 + 직원맵 병렬 로드
     Promise.all([
       loadConsults(),
