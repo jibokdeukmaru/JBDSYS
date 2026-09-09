@@ -5367,6 +5367,16 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     document.getElementById('cfStatus').value = '예약';
     document.getElementById('cfVisitStatus').value = '신규';
     document.getElementById('cfAuthor').textContent = '자동입력';
+    // 신규 등록 시 일정 기본값 = 오늘 날짜/현재 시각.
+    //   (빈 칸 상태로 두면 네이티브 달력(cfDatePicker)에서 '오늘' 셀이 첫 클릭에
+    //    반응하지 않는 문제가 있어, 아예 오늘 날짜로 미리 채워두면 그 클릭 자체가 필요 없어짐)
+    const _now = new Date();
+    const _pad = n => String(n).padStart(2, '0');
+    const _todayStr = `${_now.getFullYear()}-${_pad(_now.getMonth()+1)}-${_pad(_now.getDate())}`;
+    document.getElementById('cfDate').value = _todayStr;
+    const _cfDatePicker = document.getElementById('cfDatePicker');
+    if (_cfDatePicker) _cfDatePicker.value = _todayStr;
+    document.getElementById('cfTime').value = `${_pad(_now.getHours())}:${_pad(_now.getMinutes())}`;
     document.getElementById('csFormOverlay').classList.add('open');
     document.body.classList.add('overlay-open');
     // 모달 열림을 히스토리에 기록 — 안드로이드 뒤로가기가 앱 종료 대신 모달만 닫게 함
