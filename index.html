@@ -12406,7 +12406,7 @@ function renderInvoice() {
 
     const grandAfterDeduct = grandRaw - depositAmt - interimAmt;
     const useAdjust = document.getElementById('invAdjustCheck')?.checked !== false;
-    const adjustUnit = document.getElementById('invAdjustUnit10000')?.checked ? 10000 : 1000;
+    const adjustUnit = document.getElementById('invAdjustUnit10000')?.checked ? 100000 : 10000;
     const grand = useAdjust ? Math.floor(grandAfterDeduct / adjustUnit) * adjustUnit : grandAfterDeduct;
     const adjust = grand - grandAfterDeduct;
 
