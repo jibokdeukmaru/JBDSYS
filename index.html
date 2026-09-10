@@ -11773,11 +11773,12 @@ function createInvoiceItem(index) {
     // 단가 콤마 포맷
     const priceInput = wrap.querySelector('.inv-manual-price');
     priceInput.addEventListener('input', function() {
+        const isNeg = this.value.trim().startsWith('-');
         const raw = this.value.replace(/[^0-9]/g, '');
-        if (!raw) { this.value = ''; return; }
+        if (!raw) { this.value = isNeg ? '-' : ''; return; }
         const pos = this.selectionStart;
         const prevLen = this.value.length;
-        this.value = parseInt(raw, 10).toLocaleString('ko-KR');
+        this.value = (isNeg ? '-' : '') + parseInt(raw, 10).toLocaleString('ko-KR');
         const diff = this.value.length - prevLen;
         try { this.setSelectionRange(pos + diff, pos + diff); } catch(e) {}
         renderInvoice();
@@ -12206,7 +12207,10 @@ function getInvItemFromBox(box) {
         const qtyRaw    = (wrap.querySelector('.inv-manual-qty')?.value || '').replace(/[^0-9.]/g, '');
         const hasQty    = qtyRaw !== '';
         const qty       = hasQty ? (parseFloat(qtyRaw) || 1) : '';
-        const unitPrice = parseInt((wrap.querySelector('.inv-manual-price')?.value || '').replace(/[^0-9]/g, ''), 10) || 0;
+        const priceStr  = wrap.querySelector('.inv-manual-price')?.value || '';
+        const priceNeg  = priceStr.trim().startsWith('-');
+        const priceDigits = priceStr.replace(/[^0-9]/g, '');
+        const unitPrice = priceDigits ? (parseInt(priceDigits, 10) * (priceNeg ? -1 : 1)) : 0;
         if (!name && !unitPrice) return null;
         return {
             name,
