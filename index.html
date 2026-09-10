@@ -3432,6 +3432,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         for (const rsv of targets) {
           try {
             await _applyReservationStatus(rsv, '예약');
+            rsv.status = '예약';
             successCount++;
             if (typeof sendSMS === 'function' && rsv.phone) {
               const dateFormatted = (typeof csDateDisplay === 'function') ? csDateDisplay(rsv.date||'') : (rsv.date||'');
