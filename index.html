@@ -4304,7 +4304,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           <div style="position:relative;display:inline-block;">
             <input type="text" id="cfTime" placeholder="09:00" maxlength="5"
               style="width:80px;height:38px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:13px;text-align:center;cursor:pointer;"
-              onfocus="showTimeDropdown()" oninput="showTimeDropdown()" autocomplete="off">
+              onfocus="showTimeDropdown(true)" oninput="showTimeDropdown()" autocomplete="off">
             <div id="cfTimeDropdown" style="display:none;position:absolute;top:42px;left:0;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:1000;max-height:200px;overflow-y:auto;min-width:90px;">
             </div>
           </div>
@@ -4761,12 +4761,12 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   }
   SLOTS.push('17:30');
 
-  window.showTimeDropdown = function() {
+  window.showTimeDropdown = function(showAll) {
     const input = document.getElementById('cfTime');
     const dd = document.getElementById('cfTimeDropdown');
     if (!dd) return;
     const val = (input.value || '').trim();
-    const filtered = val ? SLOTS.filter(s => s.startsWith(val)) : SLOTS;
+    const filtered = (showAll || !val) ? SLOTS : SLOTS.filter(s => s.startsWith(val));
     dd.innerHTML = filtered.map(t => `
       <div onclick="selectTime('${t}')"
         style="padding:9px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid #f5f5f5;white-space:nowrap;"
