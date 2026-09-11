@@ -12720,15 +12720,33 @@ function buildInvoiceFileName() {
     }
 
     const sanitize = s => (s || '').replace(/[\\/:*?"<>|]/g, '').trim();
-    const company = sanitize(document.getElementById('invBillTo')?.value);
-    const manager = sanitize(document.getElementById('invManager')?.value);
+    // ★ 업체명 칸에 실제로는 "회사명 담당자명 직급님 전화번호"를 한 번에 몰아 적는 경우가
+    //   많아서(예: "에이라이브 전희수 실장님 010-2050-0318"), 파일명엔 전화번호를 빼고
+    //   "이름+직급"을 붙여쓰기(님 제거)로 정리한다. 담당자(invManager) 칸은 실제로는 작성한
+    //   우리 직원 본인 이름이 들어가는 용도로 쓰이고 있어 파일명에는 포함하지 않는다.
+    const company = _cleanInvoiceContactPhrase(sanitize(document.getElementById('invBillTo')?.value));
 
     const isDraft = !!document.getElementById('invDraftCheck')?.checked;
     const isFinal = !!document.getElementById('invFinalCheck')?.checked;
     const docLabel = isFinal ? '정산서' : (isDraft ? '가견적서' : '견적서');
 
-    const who = [company, manager].filter(Boolean).join('_');
-    return who ? `${dateStr}_${docLabel}(${who})` : `${dateStr}_${docLabel}`;
+    return company ? `${dateStr}_${docLabel}(${company})` : `${dateStr}_${docLabel}`;
+}
+
+const INV_JOB_TITLES = ['대표이사','부사장','전무','상무','이사','실장','부장','차장','과장','대리','주임','사원','팀장','대표','회장','사장'];
+function _cleanInvoiceContactPhrase(s) {
+    if (!s) return s;
+    // 전화번호 패턴 제거 (010-1234-5678, 02-576-7736 등)
+    s = s.replace(/\d{2,4}-\d{3,4}-\d{4}/g, '').replace(/\s+/g, ' ').trim();
+    const tokens = s.split(' ').filter(Boolean);
+    if (tokens.length < 2) return s.replace(/님$/, '');
+    const lastNoHonorific = tokens[tokens.length - 1].replace(/님$/, '');
+    if (INV_JOB_TITLES.includes(lastNoHonorific)) {
+        const name = tokens[tokens.length - 2];
+        const rest = tokens.slice(0, tokens.length - 2);
+        return [...rest, name + lastNoHonorific].join(' ');
+    }
+    return tokens.join(' ').replace(/님$/, '');
 }
 
 async function saveInvoiceImage() {
