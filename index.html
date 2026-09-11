@@ -7644,6 +7644,13 @@ function csDateInputValue(val) {
         <input id="empModalAnnualLeave" type="number" min="0" max="99"
           style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">
       </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px;">
+          조정연차 <span style="font-size:11px;color:#aaa;font-weight:500;">(공식 계산값에 가감, 보통 0)</span>
+        </label>
+        <input id="empModalLeaveAdjust" type="number" step="0.5"
+          style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">
+      </div>
       <!-- 직책 설정 -->
       <div style="display:flex;flex-wrap:wrap;gap:8px 14px;padding:10px 12px;background:var(--cream);border-radius:8px;">
         <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
@@ -8893,7 +8900,7 @@ function csDateInputValue(val) {
                     style="background:#fff;border:1px solid #eee;border-radius:12px;padding:14px 16px;margin:6px 0;cursor:pointer;transition:all .1s;">
                     <div id="emp-card-${ri}" class="emp-card"
                       data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
-                      data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}"
+                      data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
                       data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}">
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                         <div>
@@ -8926,7 +8933,7 @@ function csDateInputValue(val) {
                 const allowed = resolveAllowed(r.allowedTabs);
                 return `<tr id="emp-row-${ri}" onclick="selectEmp(${ri},\'${r.id}\')" style="cursor:pointer;"
                     data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
-                    data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}"
+                    data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
                     data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}">
                     <td><strong>${r.name||''}</strong></td>
                     <td style="color:#aaa;font-size:12px;">${r.id||''}</td>
@@ -9067,6 +9074,8 @@ function csDateInputValue(val) {
           document.getElementById('empModalCardUrl').value = src.dataset.cardurl || '';
           const usedLeave = parseFloat(src.dataset.annualleave || '0');
           document.getElementById('empModalAnnualLeave').value = usedLeave;
+          const leaveAdjust = parseFloat(src.dataset.leaveadjust || '0');
+          document.getElementById('empModalLeaveAdjust').value = leaveAdjust;
           document.getElementById('empModalIsHead').checked    = src.dataset.ishead === 'true';
           document.getElementById('empModalIsManager').checked = src.dataset.ismanager === 'true';
           document.getElementById('empModalStockBetaEditor').checked = src.dataset.stockbetaeditor === 'true';
@@ -9088,10 +9097,11 @@ function csDateInputValue(val) {
               generated = Math.min(Math.floor(diffMonths), 11);
             } else {
               const years = now.getFullYear() - join.getFullYear();
-              generated = Math.min(15 + Math.floor((years - 1) / 2), 25);
+              generated = Math.min(15 + Math.max(0, Math.floor((years - 4) / 2)), 25);
             }
-            const remaining = Math.max(generated - usedLeave, 0);
-            calcEl.textContent = `(발생 ${generated}일 / 잔여 ${remaining}일)`;
+            const total = generated + leaveAdjust;
+            const remaining = Math.max(total - usedLeave, 0);
+            calcEl.textContent = `(공식 ${generated}일 + 조정 ${leaveAdjust}일 = 부여 ${total}일 / 잔여 ${remaining}일)`;
           } else if (calcEl) { calcEl.textContent = ''; }
         }
       } else {
@@ -9099,7 +9109,7 @@ function csDateInputValue(val) {
         if (idInput) { idInput.disabled = false; idInput.style.background = ''; }
         if (pwHint) pwHint.style.display = 'block';
         if (pwReset) pwReset.style.display = 'none';
-        ['empModalId','empModalName','empModalDept','empModalTitle','empModalJoinDate','empModalEmail','empModalPhone','empModalBirthday','empModalCardUrl','empModalAnnualLeave']
+        ['empModalId','empModalName','empModalDept','empModalTitle','empModalJoinDate','empModalEmail','empModalPhone','empModalBirthday','empModalCardUrl','empModalAnnualLeave','empModalLeaveAdjust']
           .forEach(fieldId => { const el = document.getElementById(fieldId); if(el) el.value = ''; });
         document.getElementById('empModalIsHead').checked    = false;
         document.getElementById('empModalIsManager').checked = false;
@@ -9129,6 +9139,9 @@ function csDateInputValue(val) {
       //   죽은 필드)로 읽고 저장해서, 목록의 기사용연차 인라인 수정과 서로 다른 값을 가리키는
       //   불일치가 있었다 — 진짜 usedLeave 필드로 통일한다.
       const usedLeave = document.getElementById('empModalAnnualLeave').value;
+      // ★ annualLeave 필드(시트 G열)는 이제 "조정연차" 용도로 재활용한다 — calcAnnualLeave 공식
+      //   계산값에 이 값을 더한 게 최종 부여연차. 다우오피스 등 실제 값과 맞출 때 개별 조정용.
+      const leaveAdjust = document.getElementById('empModalLeaveAdjust').value;
       const isHead    = document.getElementById('empModalIsHead').checked;
       const isManager = document.getElementById('empModalIsManager').checked;
       const stockBetaEditor = document.getElementById('empModalStockBetaEditor').checked;
@@ -9142,10 +9155,10 @@ function csDateInputValue(val) {
 
       msg.style.color='#888'; msg.textContent='저장 중...';
       try {
-        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: Number(usedLeave)||0, isHead, isManager, team };
+        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: Number(usedLeave)||0, annualLeave: Number(leaveAdjust)||0, isHead, isManager, team };
 
         const action = _empModalMode === 'add' ? 'addEmployee' : 'updateEmployeeInfo';
-        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave, isHead, isManager, team });
+        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave, annualLeave: leaveAdjust, isHead, isManager, team });
         const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
         const data = await res.json();
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
@@ -9158,7 +9171,8 @@ function csDateInputValue(val) {
           await window.fbEnsureAuth();
           const fsUpdate = {
             name, dept, title, joinDate, email, phone,
-            usedLeave: Number(usedLeave) || 0, isHead, isManager, team, stockBetaEditor, compatEditor, scheduleEditor
+            usedLeave: Number(usedLeave) || 0, annualLeave: Number(leaveAdjust) || 0,
+            isHead, isManager, team, stockBetaEditor, compatEditor, scheduleEditor
           };
           if (birthday) fsUpdate.birthday = birthday;
           if (cardUrl) fsUpdate.cardUrl = cardUrl;
@@ -13547,7 +13561,7 @@ if ('serviceWorker' in navigator) {
   function updateLeaveBalance() {
     const user = window._currentUser;
     if (!user) return;
-    const total = calcAnnualLeave(user.joinDate);
+    const total = calcAnnualLeave(user.joinDate) + (Number(user.annualLeave) || 0);
     const baseUsed = parseFloat(user.usedLeave) || 0;
     const today = new Date().toISOString().slice(0,10);
     const myConfirmed = _allLeaves.filter(r => r.id === user.id && r.status === '확정' && _isDeductType(r.leaveType));
@@ -13889,7 +13903,7 @@ if ('serviceWorker' in navigator) {
     const dateListText = sorted.map(d => d.slice(5).replace('-', '/')).join(', ');
     let confirmMsg = `[휴가 신청 확인]\n\n종류: ${saveLeaveType}\n신청 날짜(총 ${sorted.length}일): ${dateListText}\n총 일수: ${days}일\n`;
     if (_isDeductType(saveLeaveType)) {
-      const total = calcAnnualLeave(user.joinDate);
+      const total = calcAnnualLeave(user.joinDate) + (Number(user.annualLeave) || 0);
       const used  = parseFloat(user.usedLeave) || 0;
       const pendingDays = _allLeaves
         .filter(r => r.id === user.id && _isDeductType(r.leaveType) && (r.status === '확정' || r.status === '대기' || r.status === '대표승인대기'))
@@ -14190,7 +14204,7 @@ if ('serviceWorker' in navigator) {
     const sorted = [...head, ...others, ...noDept];
 
     list.innerHTML = sorted.map(e => {
-      const total    = calcAnnualLeaveClient(e.joinDate);
+      const total    = calcAnnualLeaveClient(e.joinDate) + (Number(e.annualLeave) || 0);
       const baseUsed = parseFloat(e.usedLeave)||0;
       const pastUsed = _orgPastUsed(e.id);
       const used     = baseUsed + pastUsed;
@@ -14230,7 +14244,7 @@ if ('serviceWorker' in navigator) {
   function updateLeaveCard(emp) {
     const card = document.getElementById('leaveCard_' + emp.id);
     if (!card) return;
-    const total  = calcAnnualLeaveClient(emp.joinDate);
+    const total  = calcAnnualLeaveClient(emp.joinDate) + (Number(emp.annualLeave) || 0);
     const used   = (parseFloat(emp.usedLeave)||0) + _orgPastUsed(emp.id);
     const remain = total - used;
     const pct    = total > 0 ? Math.min(100, Math.round(used/total*100)) : 0;
