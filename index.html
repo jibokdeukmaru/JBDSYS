@@ -2435,7 +2435,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 /* ITEM, SIZE, UNIT, Q'TY, PRICE, TOTAL: Pretendard Medium */
 .inv-table thead th { height:38px; padding:0 8px; background:transparent; border:0; border-bottom:1px solid #e1e0e0; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:500; color:#373130; vertical-align:middle; }
 /* 출력결과: Pretendard Light */
-.inv-table td { border:0; padding:8px 8px; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; line-height:1.45; vertical-align:top; }
+.inv-table td { border:0; padding:8px 8px; font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; line-height:1.45; vertical-align:top; font-variant-numeric:tabular-nums; }
 .inv-table td.td-item { text-align:left; padding-left:2px; }
 .inv-table td.td-center { text-align:center; }
 .inv-table td.td-right { text-align:right; }
@@ -2453,7 +2453,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 /* 일반 라벨 (Tax Vat, 단수정리): Pretendard Light */
 .inv-total-table .normal .total-label { font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; color:#000; }
 /* 출력결과값 (SUB/Tax/단수/GRAND 금액): Pretendard Light */
-.inv-total-table .amount { font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; text-align:right; white-space:nowrap; }
+.inv-total-table .amount { font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 /* 원 기호는 항상 셀 왼쪽, 금액은 항상 셀 오른쪽 — 자릿수가 달라도 기호 위치가 행마다 안 흔들리게 고정 */
 .inv-won-wrap { display:flex; justify-content:space-between; width:100%; }
 .inv-won-num { margin-left:6px; }
@@ -13532,9 +13532,10 @@ if ('serviceWorker' in navigator) {
     const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
     if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
     // 1년 이상은 회계연도 기준(입사일 기념일이 아니라 "올해 연도 − 입사 연도"로 근속연수
-    // 계산) — 다우오피스 등 실제 쓰던 시스템과 같은 방식으로 통일.
+    // 계산). 가산 규칙은 다우오피스 실측값(5년차 15일/9년차 17일/10년차 18일)으로 역산해
+    // 확인한 방식 그대로 — 5년차까지는 가산 없이 15일, 6년차부터 2년마다 1일 가산.
     const years = today.getFullYear() - join.getFullYear();
-    return Math.min(15 + Math.floor((years - 1) / 2), 25);
+    return Math.min(15 + Math.max(0, Math.floor((years - 4) / 2)), 25);
   }
 
   // 잔여 연차 업데이트
@@ -14248,7 +14249,7 @@ if ('serviceWorker' in navigator) {
     if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
     // 1년 이상은 회계연도 기준(올해 연도 − 입사 연도)으로 근속연수 계산 — calcAnnualLeave와 동일 방식.
     const years = today.getFullYear() - join.getFullYear();
-    return Math.min(15 + Math.floor((years - 1) / 2), 25);
+    return Math.min(15 + Math.max(0, Math.floor((years - 4) / 2)), 25);
   }
 
   window.saveUsedLeave = async function(id) {
