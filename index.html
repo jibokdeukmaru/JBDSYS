@@ -16581,7 +16581,18 @@ document.addEventListener('DOMContentLoaded', function() {
   if (typeof flatpickr === 'undefined') return;
   if (flatpickr.l10ns && flatpickr.l10ns.ko) flatpickr.localize(flatpickr.l10ns.ko);
   const el = document.getElementById('empModalJoinDate');
-  if (el) flatpickr(el, { dateFormat: 'Y-m-d', allowInput: true });
+  if (!el) return;
+  const fp = flatpickr(el, { dateFormat: 'Y-m-d', allowInput: true });
+  // ★ "20150201"처럼 구분자 없이 숫자 8자리만 입력하면 flatpickr가 dateFormat(Y-m-d)과
+  //   안 맞다고 그냥 무시해버려서 "입력이 안 먹힌다"고 느껴졌다 — 8자리 숫자면 자동으로
+  //   yyyy-mm-dd로 바꿔서 flatpickr에 다시 반영해준다.
+  el.addEventListener('blur', function() {
+    const digits = el.value.replace(/[^0-9]/g, '');
+    if (digits.length === 8) {
+      const formatted = digits.slice(0,4) + '-' + digits.slice(4,6) + '-' + digits.slice(6,8);
+      fp.setDate(formatted, true);
+    }
+  });
 });
 </script>
 
