@@ -9543,21 +9543,17 @@ function csDateInputValue(val) {
       if (btnEl) btnEl.disabled = true;
       msgEl.style.color = '#888'; msgEl.textContent = '전송 중...';
       try {
-        const params = new URLSearchParams({
-          action: 'submitInfoRequest',
-          requester,
-          content: text
+        await window.fbEnsureAuth();
+        await window.FB.addDoc(window.FB.collection(window.FB.db, 'infoRequests'), {
+          requester, content: text,
+          submittedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          resolved: false,
+          createdAtMs: Date.now()
         });
-        const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-        const data = await res.json();
-        if (data.status === 'ok') {
-          msgEl.style.color = '#1a7a45';
-          msgEl.textContent = '신청이 완료되었습니다. 관리자가 확인 후 처리합니다.';
-          setTimeout(() => window.closeInfoRequestModal(), 2000);
-        } else {
-          msgEl.style.color = '#e74c3c';
-          msgEl.textContent = '오류: ' + (data.message || '');
-        }
+        _notifyAdminsOfInfoRequest(requester, text).catch(() => {});
+        msgEl.style.color = '#1a7a45';
+        msgEl.textContent = '신청이 완료되었습니다. 관리자가 확인 후 처리합니다.';
+        setTimeout(() => window.closeInfoRequestModal(), 2000);
       } catch(e) {
         msgEl.style.color = '#e74c3c';
         msgEl.textContent = '오류: ' + e.message;
@@ -9566,6 +9562,28 @@ function csDateInputValue(val) {
         if (btnEl) btnEl.disabled = false;
       }
     };
+
+    // 정보수정신청이 들어오면 관리자(role=admin) 전원에게 알림 생성 (reserve-script의
+    // _notifyAdminsOfInfoRequest/_createNotificationDoc과 동일 스키마 — 윈도우 앱 토스트 +
+    // 안드로이드 푸시로 전달됨). 서버(Apps Script)를 안 거치고 클라이언트에서 직접 씀.
+    async function _notifyAdminsOfInfoRequest(requester, content) {
+      const empData = await window.fetchEmployeesFS();
+      const admins = (empData.rows || []).filter(e => e.role === 'admin' && e.email);
+      const preview = content.length > 60 ? content.slice(0, 60) + '…' : content;
+      for (const a of admins) {
+        await window.FB.addDoc(window.FB.collection(window.FB.db, 'notifications'), {
+          toEmail: a.email,
+          type: 'infoRequest',
+          title: '정보 수정 신청',
+          body: `${requester}님이 정보 수정을 신청했습니다: ${preview}`,
+          relatedId: '',
+          createdAtMs: Date.now(),
+          read: false,
+          sent: false,
+          pushSent: false
+        });
+      }
+    }
 
     // ── 관리자: 정보 수정 신청 목록 조회 ──
     function escHtml(s) {
@@ -9578,31 +9596,36 @@ function csDateInputValue(val) {
       if (!tbody) return;
       tbody.innerHTML = '<tr><td colspan="5" class="admin-empty">불러오는 중...</td></tr>';
       try {
-        const res = await fetchWithRetry(`${RESERVE_URL}?action=getInfoRequests`);
-        const data = await res.json();
-        if (!data.rows || !data.rows.length) {
+        await window.fbEnsureAuth();
+        const snap = await window.FB.getDocs(window.FB.query(
+          window.FB.collection(window.FB.db, 'infoRequests'),
+          window.FB.orderBy('createdAtMs', 'desc')
+        ));
+        const rows = [];
+        snap.forEach(d => rows.push(Object.assign({ id: d.id }, d.data())));
+        if (!rows.length) {
           tbody.innerHTML = '<tr><td colspan="5" class="admin-empty">신청 내역이 없습니다.</td></tr>';
           return;
         }
         window._infoRequestDataMap = {};
-        data.rows.forEach(r => { window._infoRequestDataMap[r.rowIdx] = r; });
-        tbody.innerHTML = data.rows.map((r, i) => `
+        rows.forEach(r => { window._infoRequestDataMap[r.id] = r; });
+        tbody.innerHTML = rows.map((r, i) => `
           <tr>
-            <td>${data.rows.length - i}</td>
+            <td>${rows.length - i}</td>
             <td><strong>${escHtml(r.requester)}</strong></td>
             <td>${escHtml((r.submittedAt||'').split(' ')[0])}</td>
             <td>
-              <button type="button" class="info-req-status-btn" data-rowidx="${r.rowIdx}"
+              <button type="button" class="info-req-status-btn" data-rowidx="${r.id}"
                 style="padding:3px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;
-                background:${r.resolved==='Y'?'#d1f0e0':'#fff3cd'};
-                color:${r.resolved==='Y'?'#1a7a45':'#856404'};
-                border:1px solid ${r.resolved==='Y'?'#28a745':'#ffc107'};">
-                ${r.resolved==='Y'?'처리완료':'대기중'}
+                background:${r.resolved?'#d1f0e0':'#fff3cd'};
+                color:${r.resolved?'#1a7a45':'#856404'};
+                border:1px solid ${r.resolved?'#28a745':'#ffc107'};">
+                ${r.resolved?'처리완료':'대기중'}
               </button>
             </td>
             <td>
-              ${r.resolved==='Y'
-                ? `<button type="button" class="info-req-delete-btn" data-rowidx="${r.rowIdx}" title="삭제"
+              ${r.resolved
+                ? `<button type="button" class="info-req-delete-btn" data-rowidx="${r.id}" title="삭제"
                     style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:#fff;color:#e74c3c;border:1px solid #e74c3c;">삭제</button>`
                 : `<span style="font-size:11px;color:#ccc;">-</span>`}
             </td>
@@ -9621,40 +9644,39 @@ function csDateInputValue(val) {
         const delBtn = e.target.closest('.info-req-delete-btn');
         if (delBtn) {
           e.stopPropagation();
-          deleteInfoRequest(parseInt(delBtn.dataset.rowidx, 10));
+          deleteInfoRequest(delBtn.dataset.rowidx);
           return;
         }
         const statusBtn = e.target.closest('.info-req-status-btn');
         if (statusBtn) {
-          openAdminInfoReqModal(parseInt(statusBtn.dataset.rowidx, 10));
+          openAdminInfoReqModal(statusBtn.dataset.rowidx);
         }
       });
     })();
 
     // 정보수정신청 삭제 (처리완료 건만)
-    window.deleteInfoRequest = async function(rowIdx) {
+    window.deleteInfoRequest = async function(id) {
       if (!confirm('이 신청 내역을 삭제하시겠습니까?')) return;
       try {
-        const res = await fetchWithRetry(`${RESERVE_URL}?action=deleteInfoRequest&rowIdx=${rowIdx}`);
-        const data = await res.json();
-        if (data.status !== 'ok') { alert(data.message || '삭제 실패'); return; }
+        await window.fbEnsureAuth();
+        await window.FB.deleteDoc(window.FB.doc(window.FB.db, 'infoRequests', id));
         loadInfoRequests();
       } catch(e) { alert('오류: ' + e.message); }
     };
 
     // ── 관리자: 정보 수정 신청 상세보기/처리 모달 ──
     let _adminInfoReqCurrentRowIdx = null;
-    window.openAdminInfoReqModal = function(rowIdx) {
-      const r = window._infoRequestDataMap[rowIdx];
+    window.openAdminInfoReqModal = function(id) {
+      const r = window._infoRequestDataMap[id];
       if (!r) return;
-      _adminInfoReqCurrentRowIdx = rowIdx;
+      _adminInfoReqCurrentRowIdx = id;
       const meta = document.getElementById('adminInfoReqMeta');
       const content = document.getElementById('adminInfoReqContent');
       const resolveBtn = document.getElementById('adminInfoReqResolveBtn');
       if (meta) meta.textContent = `${r.requester || ''} · ${(r.submittedAt||'').split(' ')[0]}`;
       if (content) content.textContent = r.content || '(내용 없음)';
       if (resolveBtn) {
-        if (r.resolved === 'Y') {
+        if (r.resolved) {
           resolveBtn.style.display = 'none';
         } else {
           resolveBtn.style.display = '';
@@ -9673,15 +9695,10 @@ function csDateInputValue(val) {
       const resolveBtn = document.getElementById('adminInfoReqResolveBtn');
       if (resolveBtn) { resolveBtn.disabled = true; resolveBtn.textContent = '처리 중...'; }
       try {
-        const res = await fetchWithRetry(`${RESERVE_URL}?action=resolveInfoRequest&rowIdx=${_adminInfoReqCurrentRowIdx}`);
-        const data = await res.json();
-        if (data.status === 'ok') {
-          closeAdminInfoReqModal();
-          loadInfoRequests();
-        } else {
-          alert('오류: ' + (data.message || ''));
-          if (resolveBtn) { resolveBtn.disabled = false; resolveBtn.textContent = '완료 처리'; }
-        }
+        await window.fbEnsureAuth();
+        await window.FB.updateDoc(window.FB.doc(window.FB.db, 'infoRequests', _adminInfoReqCurrentRowIdx), { resolved: true });
+        closeAdminInfoReqModal();
+        loadInfoRequests();
       } catch(e) {
         alert('오류: ' + e.message);
         if (resolveBtn) { resolveBtn.disabled = false; resolveBtn.textContent = '완료 처리'; }

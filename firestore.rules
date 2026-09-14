@@ -1,0 +1,114 @@
+// ============================================================
+// 지복득ERP(jibokdeukmaru-erp-504904) Firestore 보안규칙
+// ============================================================
+// ★ 이 파일은 저장소에 "추적용"으로만 보관된다 — 실제 적용은 Firebase 콘솔의
+//   Firestore Database → 규칙(Rules) 탭에 이 내용을 그대로 붙여넣고 "게시(Publish)"해야
+//   반영된다(이 환경엔 firebase CLI/배포 권한이 없어 자동 배포 불가 — cloud-functions와
+//   동일한 수동 배포 워크플로우).
+//
+// ── 배경 (2026-09-10) ──
+// 예전 규칙은 `allow read, write: if true;` 로 완전히 열려있었다. 게다가 Firebase 인증이
+// 전부 signInAnonymously(익명)였던 탓에, "로그인 여부"를 규칙에서 구분할 방법 자체가 없었다.
+// 이제 로그인 성공 시 실제 사번(employees 문서 ID)과 연결된 Firebase 커스텀 토큰을 발급받으므로
+// (cloud-functions/auth-api 참고), 커스텀 토큰으로 로그인한 세션(=진짜 직원)과 익명 세션
+// (=게스트/공개예약페이지)을 구분해서 규칙을 걸 수 있다.
+//
+// ── 알려진 한계 (후속조치 필요, 아래 reservations 참고) ──
+// 공개 예약페이지(jbdreserve-repo)가 접수번호 생성을 위해 "오늘 접수건수"를 세는 쿼리를
+// 브라우저에서 직접 날리고 있어, reservations 컬렉션의 읽기(list)까지 완전히 막으면 예약
+// 접수 자체가 깨진다 — 이번 조치에서는 읽기는 "인증된 요청(익명 포함)"까지 허용하고, 쓰기 중
+// 수정/삭제만 직원 전용으로 좁혔다. 접수번호 생성 로직을 Cloud Function이나 별도 카운터
+// 문서로 옮기면 읽기도 완전히 잠글 수 있다 — 별도 작업으로 남겨둔다.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 커스텀 토큰(auth-api가 발급)으로 로그인한 세션 = 진짜 사번이 확인된 직원.
+    // 익명 로그인(signInAnonymously) = 게스트 또는 공개 예약페이지 방문자.
+    function isEmployee() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider == 'custom';
+    }
+    function isAdmin() {
+      return isEmployee() && request.auth.token.role == 'admin';
+    }
+
+    // ── 직원 정보 (비밀번호 해시는 애초에 이 컬렉션에 동기화하지 않음 — reserve-script 참고) ──
+    match /employees/{id} {
+      allow read: if isEmployee();
+      allow write: if isAdmin();
+    }
+
+    // ── 개인 전용 데이터 (본인 사번 문서만 접근 가능) ──
+    match /personalMemos/{uid} {
+      allow read, write: if (isEmployee() && request.auth.uid == uid) || (uid == 'guest' && request.auth != null);
+    }
+    match /personalCalendar/{uid} {
+      allow read, write: if isEmployee() && request.auth.uid == uid;
+    }
+    match /userPrefs/{uid} {
+      allow read, write: if isEmployee() && request.auth.uid == uid;
+    }
+    match /mailContacts/{uid} {
+      allow read, write: if isEmployee() && request.auth.uid == uid;
+    }
+    match /pushTokens/{email} {
+      allow read, write: if isEmployee() && request.auth.token.email == email;
+    }
+
+    // ── 회사 설정 (공휴일/월별휴무안내/게스트탭 등) — 공개예약페이지·게스트도 읽어야 함 ──
+    match /settings/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ── 예약/상담 (고객 개인정보 포함) ──
+    match /slots/{date} {
+      allow read: if request.auth != null;   // 공개예약페이지 + 직원
+      allow write: if isEmployee();          // 슬롯 마감/초기화는 직원만
+    }
+    match /reservations/{id} {
+      // 공개예약페이지가 접수번호 생성을 위해 오늘자 접수건수를 직접 쿼리한다 — 위 "알려진
+      // 한계" 참고. create/read는 익명(공개페이지) 포함 허용, 수정/삭제는 직원만.
+      allow create, read: if request.auth != null;
+      allow update, delete: if isEmployee();
+    }
+    match /consults/{id} {
+      allow read, write: if isEmployee();
+    }
+    match /consultsTrash/{id} {
+      allow read, write: if isEmployee();
+    }
+
+    // ── 시공일정/재고현황(베타) — 직원 전용 ──
+    match /constructionSchedule/{id} { allow read, write: if isEmployee(); }
+    match /constructionForecast/{id} { allow read, write: if isEmployee(); }
+    match /scheduleDayNotes/{id}     { allow read, write: if isEmployee(); }
+    match /scheduleEditHistory/{id}  { allow read, write: if isEmployee(); }
+    match /stockBetaMeta/{id}        { allow read, write: if isEmployee(); }
+    match /stockBetaLots/{id}        { allow read, write: if isEmployee(); }
+    match /stockBetaHistory/{id}     { allow read, write: if isEmployee(); }
+    match /stockExtraLots/{id}       { allow read, write: if isEmployee(); }
+
+    // ── 사내게시판/위키/알림/문자로그 — 직원 전용 ──
+    match /notices/{id}        { allow read, write: if isEmployee(); }
+    match /noticeReplies/{id}  { allow read, write: if isEmployee(); }
+    match /notifications/{id}  { allow read, write: if isEmployee(); }
+    match /smsLog/{id}         { allow read, write: if isEmployee(); }
+    match /wiki/{id}           { allow read, write: if isEmployee(); }
+    match /wikiHistory/{id}    { allow read, write: if isEmployee(); }
+
+    // ── 정보수정신청 — 아무 직원이나 신청/조회 가능, 처리(완료)/삭제는 관리자만 ──
+    match /infoRequests/{id} {
+      allow read, create: if isEmployee();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── 그 외 전부 명시적으로 나열되지 않은 컬렉션은 기본 차단 ──
+    //   (열어두는 실수보다, 놓친 게 있으면 그 기능이 "권한 오류"로 눈에 띄게 막히는 편이
+    //   훨씬 안전하다 — 배포 후 전체 탭을 한 번씩 눌러보며 이런 오류가 없는지 확인할 것)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
