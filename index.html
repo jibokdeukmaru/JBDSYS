@@ -9461,7 +9461,11 @@ function csDateInputValue(val) {
         const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
         const data = await res.json();
         if (data.status === 'ok') {
-          showAdminToast('탭 권한 저장됨');
+          if (data.firestoreSynced === false) {
+            showAdminToast('저장은 됐지만 화면 동기화 실패 — 새로고침 후 다시 확인해주세요', true);
+          } else {
+            showAdminToast('탭 권한 저장됨');
+          }
         } else {
           showAdminToast('저장 실패: ' + (data.message||''), true);
           alert('탭 권한 저장 실패: ' + (data.message||'서버 오류'));
