@@ -3140,15 +3140,19 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   // ★ 이메일 탭 전체(목록/본문/읽음처리/첨부/발송)도 Cloud Function으로 이전 (2026-08-14).
   var GMAIL_CF_URL = 'https://asia-northeast3-jibokdeukmaru-erp-504904.cloudfunctions.net/gmailApi';
   window.GMAIL_CF_URL = GMAIL_CF_URL;
-  // ★ 로그인 보안 강화(2026-09-10): 비밀번호 검증은 여전히 RESERVE스크립트(loginUser)가
-  //   서버에서 하지만, 그 결과로 실제 사번과 연결된 Firebase 커스텀 토큰을 발급해주는
-  //   Cloud Function을 새로 둔다 — cloud-functions/auth-api 배포 후 아래 URL을 실제
-  //   배포 URL로 교체할 것. AUTH_API_KEY는 그 함수의 INTERNAL_API_KEY 환경변수와 반드시
-  //   동일해야 한다(신규 발급값이라 코드에 있어도 무관 — 어차피 남용 방지용일 뿐, 진짜
-  //   보안은 서버의 비밀번호 검증과 커스텀 토큰이 담당).
+  // ★ 로그인(2026-09-14 개정): 비밀번호 검증은 이제 구글시트를 아예 안 보고, 이 Cloud
+  //   Function이 Admin SDK로 Firestore(authSecrets/employees)를 직접 읽어 처리한다.
+  //   성공하면 실제 사번과 연결된 Firebase 커스텀 토큰도 같이 발급해준다.
   var AUTH_API_URL = 'https://auth-api-697700684649.asia-northeast3.run.app';
   var AUTH_API_KEY = 'e9b39d31baee7ea30db0542c4f081a390e8443aa1338a03d';
   window.AUTH_API_URL = AUTH_API_URL;
+  // ★ 휴가신청(2026-09-14): 부서장→대표 결재 상태머신을 구글시트 대신 Firestore(leaves
+  //   컬렉션)로 처리 — 결재권한/단계 검증이 필요해서 클라이언트가 Firestore를 직접 쓰지
+  //   않고 이 Cloud Function(Admin SDK)을 거친다. cloud-functions/leave-api 배포 후
+  //   아래 URL을 실제 배포 URL로 반드시 교체할 것(아직 미배포 상태의 플레이스홀더).
+  var LEAVE_API_URL = 'https://leave-api-REPLACE-ME.a.run.app';
+  var LEAVE_API_KEY = 'a4d437e711e9c5de11b23bd1316e17fe6ab691e309edc86f';
+  window.LEAVE_API_URL = LEAVE_API_URL;
   // ★ 코드에 저장된 최신 기본값을 별도로 보존 (하위호환용 참조)
   window._DEFAULT_RESERVE_URL = RESERVE_URL;
   window._DEFAULT_ERP_URL = ERP_URL;
@@ -8577,8 +8581,7 @@ function csDateInputValue(val) {
     async function checkLeavePending(userData) {
       try {
         let rows = [];
-        const res = await fetchWithRetry(`${RESERVE_URL}?action=getLeaves&id=${userData.id}&role=${userData.role||'staff'}`);
-        const data = await res.json();
+        const data = await window._leaveApiCall('getLeaves', { id: userData.id, role: userData.role || 'staff' });
         if (data.status === 'ok') rows = data.rows || [];
         const ev = new CustomEvent('leaveDataRefresh', { detail: rows });
         document.dispatchEvent(ev);
@@ -8785,8 +8788,7 @@ function csDateInputValue(val) {
         //   "예정"으로 반영한다 (휴가신청 탭의 updateLeaveBalance()와 동일한 방식).
         (async () => {
           try {
-            const res = await fetchWithRetry(`${RESERVE_URL}?action=getLeaves&id=${encodeURIComponent(u.id)}&role=${encodeURIComponent(u.role||'staff')}&nocache=${Date.now()}`, undefined, 0, 20000);
-            const data = await res.json();
+            const data = await window._leaveApiCall('getLeaves', { id: u.id, role: u.role || 'staff' });
             if (data.status === 'ok') {
               const todayStr = new Date().toISOString().slice(0,10);
               const isDeduct = t => { const s = String(t||''); return s.indexOf('건강검진') === -1 && s.indexOf('출산') === -1; };
@@ -8873,11 +8875,12 @@ function csDateInputValue(val) {
         btn.textContent = '로그인'; btn.disabled = false;
     };
 
-    // ★ 로그인 보안 강화(2026-09-10): 예전엔 여기서 Firestore employees 문서를 직접 읽어
+    // ★ 로그인 보안(2026-09-14 개정): 예전엔 여기서 Firestore employees 문서를 직접 읽어
     //   브라우저 안에서 비밀번호 해시를 비교했다 — Firestore 규칙이 열려있으면 로그인 화면을
     //   거치지 않고도 전 직원 비밀번호 해시를 그대로 내려받을 수 있는 심각한 문제였다.
-    //   이제는 비밀번호를 Cloud Function(auth-api)에 전달해 서버(RESERVE스크립트 loginUser)가
-    //   검증하게 하고, 성공하면 실제 사번과 연결된 Firebase 커스텀 토큰을 함께 받아온다.
+    //   이제는 비밀번호를 Cloud Function(auth-api)에 전달해 서버(Admin SDK로 authSecrets
+    //   컬렉션 직접 대조)가 검증하고, 성공하면 실제 사번과 연결된 Firebase 커스텀 토큰을
+    //   함께 받아온다. 구글시트는 이 경로에서 전혀 조회되지 않는다.
     async function _loginViaAuthApi(id, pw) {
         const res = await fetchWithRetry(`${AUTH_API_URL}?action=login`, {
             method: 'POST',
@@ -8886,6 +8889,18 @@ function csDateInputValue(val) {
         });
         return await res.json();
     }
+
+    // ★ 휴가신청(2026-09-14): 부서장→대표 결재 검증이 필요한 쓰기는 전부 이 Cloud
+    //   Function(leave-api, Admin SDK)을 거친다 — firestore.rules도 leaves 컬렉션의
+    //   클라이언트 write를 막아뒀다(읽기만 허용).
+    window._leaveApiCall = async function(action, params) {
+        const res = await fetchWithRetry(`${LEAVE_API_URL}?action=${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ _appKey: LEAVE_API_KEY }, params || {}))
+        });
+        return await res.json();
+    };
 
     // 로그아웃
     window.logoutUser = async function() {
@@ -13656,8 +13671,7 @@ if ('serviceWorker' in navigator) {
       return;
     }
     try {
-      const res = await fetchWithRetry(`${RESERVE_URL}?action=getLeavesPublic`);
-      const data = await res.json();
+      const data = await window._leaveApiCall('getLeavesPublic', {});
       if (data.status === 'ok') {
         _publicLeaves = data.rows || [];
         _publicLeavesAt = Date.now();
@@ -14081,8 +14095,7 @@ if ('serviceWorker' in navigator) {
 
     msg.textContent = '신청 중...';
     try {
-      const params = new URLSearchParams({
-        action: 'applyLeave',
+      const data = await window._leaveApiCall('applyLeave', {
         id: user.id, name: user.name, dept: user.dept || '',
         startDate: sorted[0], endDate: sorted[sorted.length-1],
         days, leaveType: saveLeaveType, reason,
@@ -14091,9 +14104,6 @@ if ('serviceWorker' in navigator) {
         isManager: user.isManager ? 'true' : 'false',
         selectedDates: JSON.stringify(sorted)
       });
-
-      const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-      const data = await res.json();
       if (data.status === 'ok') {
         msg.textContent = '신청 완료!';
         _selectedDates = [];
@@ -14137,15 +14147,12 @@ if ('serviceWorker' in navigator) {
     const msg = document.getElementById('leaveApplyMsg');
     msg.textContent = '변경 신청 중...';
     try {
-      const params = new URLSearchParams({
-        action: 'requestChangeLeave',
+      const data = await window._leaveApiCall('requestChangeLeave', {
         rowIdx: _leaveChangeRowIdx, id: user.id,
         startDate: sorted[0], endDate: sorted[sorted.length-1],
         days, leaveType: _leaveSaveType(), reason,
         selectedDates: JSON.stringify(sorted)
       });
-      const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-      const data = await res.json();
       if (data.status === 'ok') {
         msg.textContent = '';
         document.getElementById('leaveReason').value = '';
@@ -14167,9 +14174,7 @@ if ('serviceWorker' in navigator) {
       : '휴가 신청을 취소하시겠습니까?')) return;
     try {
       const action = needsReapproval ? 'requestCancelLeave' : 'cancelLeave';
-      const params = new URLSearchParams({ action, rowIdx: docId, id: user.id });
-      const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-      const data = await res.json();
+      const data = await window._leaveApiCall(action, { rowIdx: docId, id: user.id });
       if (data.status !== 'ok') { alert('취소 실패: ' + (data.message||'')); return; }
       loadLeaveData();
       switchLeaveTab('history');
@@ -14216,11 +14221,10 @@ if ('serviceWorker' in navigator) {
     const user = window._currentUser;
     if (!user) return;
     try {
-      const [, res] = await Promise.all([
+      const [, data] = await Promise.all([
         _refreshMyLeaveInfo(),
-        fetchWithRetry(`${RESERVE_URL}?action=getLeaves&id=${user.id}&role=${user.role||'staff'}`)
+        window._leaveApiCall('getLeaves', { id: user.id, role: user.role || 'staff' })
       ]);
-      const data = await res.json();
       if (data.status === 'ok') _allLeaves = data.rows || [];
       updateLeaveBalance();
       renderLeavePending();
@@ -14247,8 +14251,8 @@ if ('serviceWorker' in navigator) {
         <div style="font-size:12px;color:#777;">${r.startDate} ~ ${r.endDate}</div>
         ${r.reason ? `<div style="font-size:11px;color:#aaa;margin-top:4px;">${r.reason}</div>` : ''}
         ${canManage ? `<div style="display:flex;gap:8px;margin-top:8px;">
-          <button onclick="startChangeLeaveReq(${r.rowIdx})" style="flex:1;padding:7px 0;background:#fff;border:1px solid #ccc;border-radius:6px;color:#555;font-size:12px;font-weight:700;cursor:pointer;">변경</button>
-          <button onclick="cancelLeaveReq(${r.rowIdx})" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e74c3c;border-radius:6px;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;">취소</button>
+          <button onclick="startChangeLeaveReq('${r.rowIdx}')" style="flex:1;padding:7px 0;background:#fff;border:1px solid #ccc;border-radius:6px;color:#555;font-size:12px;font-weight:700;cursor:pointer;">변경</button>
+          <button onclick="cancelLeaveReq('${r.rowIdx}')" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e74c3c;border-radius:6px;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;">취소</button>
         </div>` : ''}
       </div>`;
     }).join('');
@@ -14279,8 +14283,8 @@ if ('serviceWorker' in navigator) {
         <div style="font-size:12px;color:#777;margin-bottom:8px;">${r.startDate} ~ ${r.endDate}</div>
         ${canApprove ? `
         <div style="display:flex;gap:6px;">
-          <button onclick="leaveApprove(${r.rowIdx},'approve','${approverRole}')" style="flex:1;padding:7px 0;background:#1a7a45;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">승인</button>
-          <button onclick="leaveApprove(${r.rowIdx},'reject','${approverRole}')" style="flex:1;padding:7px 0;background:#c0392b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">반려</button>
+          <button onclick="leaveApprove('${r.rowIdx}','approve','${approverRole}')" style="flex:1;padding:7px 0;background:#1a7a45;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">승인</button>
+          <button onclick="leaveApprove('${r.rowIdx}','reject','${approverRole}')" style="flex:1;padding:7px 0;background:#c0392b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">반려</button>
         </div>` : `<div style="font-size:11px;color:#aaa;">${r.status}</div>`}
       </div>`;
     }).join('');
@@ -14290,9 +14294,7 @@ if ('serviceWorker' in navigator) {
   window.leaveApprove = async function(docId, action, approverRole) {
     const user = window._currentUser;
     try {
-      const params = new URLSearchParams({ action:'approveLeave', rowIdx: docId, approveAction: action, approverRole, approverId: user.id });
-      const res  = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-      const data = await res.json();
+      const data = await window._leaveApiCall('approveLeave', { rowIdx: docId, approveAction: action, approverRole, approverId: user.id });
       if (data.status !== 'ok') { alert('처리 실패: ' + (data.message||'')); return; }
       loadLeaveData();
     } catch(e) { alert('오류: ' + e.message); }
@@ -14332,8 +14334,7 @@ if ('serviceWorker' in navigator) {
   let _orgLeavesLoadPromise = null;
   window._ensureOrgLeavesLoaded = function() {
     if (_orgLeaves.length || _orgLeavesLoadPromise) return _orgLeavesLoadPromise || Promise.resolve();
-    _orgLeavesLoadPromise = fetchWithRetry(`${RESERVE_URL}?action=getLeaves&role=admin`)
-      .then(r => r.json())
+    _orgLeavesLoadPromise = window._leaveApiCall('getLeaves', { role: 'admin' })
       .then(ld => { if (ld.status === 'ok') _orgLeaves = ld.rows || []; })
       .catch(() => { _orgLeaves = []; });
     return _orgLeavesLoadPromise;
@@ -14346,8 +14347,7 @@ if ('serviceWorker' in navigator) {
       const emps = data.rows || [];
       _orgEmps = emps;
       try {
-        const lr = await fetchWithRetry(`${RESERVE_URL}?action=getLeaves&role=admin`);
-        const ld = await lr.json();
+        const ld = await window._leaveApiCall('getLeaves', { role: 'admin' });
         if (ld.status === 'ok') _orgLeaves = ld.rows || [];
       } catch(e) { _orgLeaves = []; }
       renderOrgLeaveTable(emps);
@@ -14486,8 +14486,7 @@ if ('serviceWorker' in navigator) {
     listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">불러오는 중...</div>';
     try {
       let allRows = [];
-      const res = await fetchWithRetry(RESERVE_URL + '?action=getLeaves&id=' + encodeURIComponent(user.id) + '&role=' + encodeURIComponent(user.role||'staff'));
-      const data = await res.json();
+      const data = await window._leaveApiCall('getLeaves', { id: user.id, role: user.role || 'staff' });
       if (data.status !== 'ok') {
         listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">불러오기 실패: ' + (data.message||'') + '</div>';
         return;
@@ -14609,9 +14608,7 @@ if ('serviceWorker' in navigator) {
     siblingBtns.forEach(b => { b.disabled = true; });
     if (btnEl) btnEl.textContent = '처리 중...';
     try {
-      const params = new URLSearchParams({ action:'approveLeave', rowIdx: docId, approveAction: action, approverRole, approverId: user.id });
-      const res = await fetchWithRetry(RESERVE_URL + '?' + params.toString());
-      const data = await res.json();
+      const data = await window._leaveApiCall('approveLeave', { rowIdx: docId, approveAction: action, approverRole, approverId: user.id });
       if (data.status !== 'ok') {
         alert('처리 실패: ' + (data.message||''));
         siblingBtns.forEach(b => { b.disabled = false; });

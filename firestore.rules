@@ -104,6 +104,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ── 휴가신청 — 부서장→대표 결재 상태머신. 결재권한/현재 단계 검증이 필요한
+    //   쓰기는 전부 leave-api Cloud Function(Admin SDK)만 하도록 클라이언트 write를 막는다.
+    //   읽기는 전사 휴가 캘린더/결재대기 목록 표시를 위해 직원 전체 허용.
+    match /leaves/{id} {
+      allow read: if isEmployee();
+      allow write: if false;
+    }
+
     // ── 그 외 전부 명시적으로 나열되지 않은 컬렉션은 기본 차단 ──
     //   (열어두는 실수보다, 놓친 게 있으면 그 기능이 "권한 오류"로 눈에 띄게 막히는 편이
     //   훨씬 안전하다 — 배포 후 전체 탭을 한 번씩 눌러보며 이런 오류가 없는지 확인할 것)
