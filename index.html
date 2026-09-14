@@ -3094,6 +3094,23 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       <div id="slotMsg" style="font-size:12px;color:#555;margin-top:8px;text-align:center;"></div>
     </div>
 
+    <!-- 공휴일 관리 -->
+    <div class="rsv-card">
+      <div class="rsv-card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>공휴일 관리</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input type="date" id="holidayAddDate" style="flex:1;height:38px;padding:0 10px;border:1px solid #ddd;border-radius:10px;font-size:13px;font-family:inherit;">
+        <input type="text" id="holidayAddName" placeholder="이름(예: 신정)" style="flex:1;height:38px;padding:0 12px;border:1px solid #ddd;border-radius:10px;font-size:13px;font-family:inherit;">
+        <button onclick="addHolidayAdmin()" style="height:38px;padding:0 16px;white-space:nowrap;border-radius:10px;background:#111;color:#fff;border:none;cursor:pointer;">추가</button>
+      </div>
+      <div id="holidayAdminList" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+      <details>
+        <summary style="cursor:pointer;font-size:12px;color:#777;margin-bottom:8px;">여러 개 한번에 추가 (연간 공휴일 일괄 등록)</summary>
+        <textarea id="holidayBulkText" placeholder="한 줄에 하나씩, 날짜와 이름을 띄어써서 입력&#10;예)&#10;2026-01-01 신정&#10;2026-02-16 설날&#10;2026-02-17 설날" style="width:100%;height:90px;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:12.5px;font-family:inherit;resize:vertical;margin-bottom:8px;box-sizing:border-box;"></textarea>
+        <button onclick="addHolidaysBulkAdmin()" style="width:100%;height:36px;border-radius:10px;background:var(--brand);color:#fff;border:none;cursor:pointer;font-size:12.5px;font-weight:700;">일괄 추가</button>
+      </details>
+      <div id="holidayAdminMsg" style="font-size:12px;color:#555;margin-top:8px;text-align:center;"></div>
+    </div>
+
   </div>
 </div>
 
@@ -3786,9 +3803,100 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     if (!hadError) setTimeout(() => { if (msg) msg.textContent = ''; }, 6000);
   };
 
+  // ── 공휴일 관리자 목록 렌더 ──
+  function renderHolidayAdminList() {
+    const wrap = document.getElementById('holidayAdminList');
+    if (!wrap) return;
+    const entries = Object.entries(holidayMap).sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0);
+    if (entries.length === 0) {
+      wrap.innerHTML = '<div class="rsv-empty" style="padding:12px 0;">등록된 공휴일이 없습니다.</div>';
+      return;
+    }
+    wrap.innerHTML = entries.map(([date, name]) =>
+      `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #eee;border-radius:8px;font-size:12.5px;">
+        <span style="font-weight:700;">${_esc(date)}</span>
+        <span style="color:#777;flex:1;">${_esc(name)}</span>
+        <button onclick="deleteHolidayAdmin('${date}')" style="border:none;background:none;color:#c0392b;cursor:pointer;font-size:14px;line-height:1;">×</button>
+      </div>`
+    ).join('');
+  }
+
+  // ── 공휴일 한 개 추가 — 구글시트를 거치지 않고 Firestore(settings/holidays)에 바로 저장 ──
+  window.addHolidayAdmin = async function() {
+    const dateEl = document.getElementById('holidayAddDate');
+    const nameEl = document.getElementById('holidayAddName');
+    const date = dateEl.value;
+    const name = nameEl.value.trim();
+    if (!date || !name) { alert('날짜와 이름을 모두 입력해주세요.'); return; }
+    const msg = document.getElementById('holidayAdminMsg');
+    msg.textContent = '저장 중...';
+    try {
+      await window.fbEnsureAuth();
+      await window.FB.setDoc(window.FB.doc(window.FB.db, 'settings', 'holidays'), { [date]: name }, { merge: true });
+      holidayMap[date] = name;
+      renderHolidayAdminList();
+      dateEl.value = ''; nameEl.value = '';
+      msg.textContent = '저장 완료!';
+      setTimeout(() => msg.textContent = '', 2000);
+      if (typeof window._loadLeaveHolidays === 'function') window._loadLeaveHolidays().catch(()=>{});
+    } catch(e) {
+      msg.textContent = '오류: ' + e.message;
+    }
+  };
+
+  // ── 공휴일 일괄 추가 (연간 공휴일 한 번에 등록용) ──
+  window.addHolidaysBulkAdmin = async function() {
+    const ta = document.getElementById('holidayBulkText');
+    const msg = document.getElementById('holidayAdminMsg');
+    const lines = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) { alert('추가할 내용을 입력해주세요.'); return; }
+    const additions = {};
+    const badLines = [];
+    lines.forEach(line => {
+      const m = line.match(/^(\d{4}-\d{2}-\d{2})[\s,]+(.+)$/);
+      if (m) additions[m[1]] = m[2].trim();
+      else badLines.push(line);
+    });
+    if (Object.keys(additions).length === 0) { alert('인식된 항목이 없습니다. "YYYY-MM-DD 이름" 형식으로 입력해주세요.'); return; }
+    msg.textContent = '저장 중...';
+    try {
+      await window.fbEnsureAuth();
+      await window.FB.setDoc(window.FB.doc(window.FB.db, 'settings', 'holidays'), additions, { merge: true });
+      Object.assign(holidayMap, additions);
+      renderHolidayAdminList();
+      ta.value = '';
+      msg.textContent = `${Object.keys(additions).length}건 추가 완료!` + (badLines.length ? ` (인식 안 된 ${badLines.length}줄은 무시됨)` : '');
+      setTimeout(() => msg.textContent = '', 4000);
+      if (typeof window._loadLeaveHolidays === 'function') window._loadLeaveHolidays().catch(()=>{});
+    } catch(e) {
+      msg.textContent = '오류: ' + e.message;
+    }
+  };
+
+  // ── 공휴일 삭제 ──
+  window.deleteHolidayAdmin = async function(date) {
+    if (!confirm(`${date} (${holidayMap[date] || ''}) 공휴일을 삭제할까요?`)) return;
+    const msg = document.getElementById('holidayAdminMsg');
+    msg.textContent = '삭제 중...';
+    try {
+      await window.fbEnsureAuth();
+      const updated = Object.assign({}, holidayMap);
+      delete updated[date];
+      await window.FB.setDoc(window.FB.doc(window.FB.db, 'settings', 'holidays'), updated);
+      holidayMap = updated;
+      renderHolidayAdminList();
+      msg.textContent = '삭제 완료!';
+      setTimeout(() => msg.textContent = '', 2000);
+      if (typeof window._loadLeaveHolidays === 'function') window._loadLeaveHolidays().catch(()=>{});
+    } catch(e) {
+      msg.textContent = '오류: ' + e.message;
+    }
+  };
+
   // 초기 슬롯 그리드 렌더 — 공휴일 데이터를 먼저 불러온 뒤 오늘 날짜 기준으로 표시
   (async function initSlotGrid() {
     await loadAdminHolidays();
+    renderHolidayAdminList();
     await window.loadSlots();
   })();
 })();
