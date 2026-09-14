@@ -9136,14 +9136,14 @@ function csDateInputValue(val) {
     let _selectedEmpId = null;
 
     window.markEmpDirty = async function(empId, rowIdx) {
-      const tabsInput = document.getElementById(`emp-tabs-${rowIdx}`);
-      const tabsVal = tabsInput ? tabsInput.value : '';
-      const checkedTabs = tabsVal ? tabsVal.split(',').filter(Boolean) : [];
-      const allowedTabs = checkedTabs.length === ALL_TABS.length ? 'ALL' : checkedTabs.join(',');
+      // ★ 역할(STAFF/ADMIN)만 바꾸는 컨트롤인데 예전엔 탭권한(allowedTabs)까지 화면에 떠있는
+      //   값 그대로 같이 보내고 있었다 — 그 값이 최신 동기화가 덜 된 상태였다면, 역할만
+      //   바꾸려던 게 탭권한을 예전 값으로 덮어써버리는 구조적 문제가 있었다. 이제 이 컨트롤은
+      //   role만 보낸다(서버는 넘어오지 않은 필드는 건드리지 않음).
       const roleEl = document.getElementById(`emp-role-${rowIdx}`);
       const role = roleEl ? roleEl.value : 'staff';
       try {
-        const params = new URLSearchParams({ action: 'updateEmployee', id: empId, allowedTabs, role });
+        const params = new URLSearchParams({ action: 'updateEmployee', id: empId, role });
         const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
         const data = await res.json();
         if (data.status !== 'ok') { showAdminToast('' + (data.message||'오류'), true); return; }
@@ -9452,12 +9452,11 @@ function csDateInputValue(val) {
 
       closeTabPermModal();
 
-      // 즉시 서버 저장
-      const roleEl = document.getElementById(`emp-role-${_tabPermRowIdx}`);
-      const role = roleEl ? roleEl.value : 'staff';
+      // 즉시 서버 저장 — ★ 이 컨트롤은 탭권한만 바꾸므로 role은 같이 보내지 않는다(역할
+      //   드롭다운의 markEmpDirty와 서로의 필드를 덮어쓰지 않도록 완전히 분리).
       const finalTabs = allowedTabs.length === ALL_TABS.length ? 'ALL' : allowedTabs.join(',');
       try {
-        const params = new URLSearchParams({ action: 'updateEmployee', id: _tabPermEmpId, allowedTabs: finalTabs, role });
+        const params = new URLSearchParams({ action: 'updateEmployee', id: _tabPermEmpId, allowedTabs: finalTabs });
         const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
         const data = await res.json();
         if (data.status === 'ok') {
