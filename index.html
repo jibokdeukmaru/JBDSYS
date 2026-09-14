@@ -6623,7 +6623,20 @@ function csDateInputValue(val) {
   .notice-modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
   .notice-btn-submit { background:var(--brand); color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:700; cursor:pointer; }
   .notice-btn-cancel { background:#fff; color:#555; border:1px solid #ddd; border-radius:8px; padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; }
-  .notice-detail-content { font-size:13px; line-height:1.8; color:#333; white-space:pre-wrap; background:#fafafa; border-radius:8px; padding:16px; min-height:100px; }
+  /* ★ content는 리치에디터 HTML(p/ul/li 등)이 그대로 저장된다 — 예전엔 white-space:pre-wrap이
+     남아있어서, 붙여넣기 한 원본 HTML 안의 줄바꿈/들여쓰기 공백까지 전부 그대로(빈 줄처럼)
+     보여져 글이 실제보다 훨씬 늘어져 보이는 원인이었다(브라우저가 원래는 그런 공백을 무시함).
+     이제 지우고, p/ul/ol/li 자체의 여백만 좁게 잡아서 붙여넣은 원본과 비슷한 밀도로 보이게 한다. */
+  .notice-detail-content { font-size:13px; line-height:1.8; color:#333; background:#fafafa; border-radius:8px; padding:16px; min-height:100px; }
+  .notice-detail-content p { margin:0 0 10px; }
+  .notice-detail-content p:last-child { margin-bottom:0; }
+  .notice-detail-content ul, .notice-detail-content ol { margin:4px 0 10px; padding-left:22px; }
+  .notice-detail-content li { margin:2px 0; }
+  .notice-detail-content li p { margin:0; }
+  /* Google Docs 등에서 붙여넣을 때 항목 사이사이에 끼어드는 빈 문단(<p><br></p>)까지
+     실제 줄로 잡히면서 간격이 벌어지는 것도 같이 접어준다. */
+  .notice-detail-content p:empty,
+  .notice-detail-content p:has(> br:only-child) { display:none; }
   .notice-detail-meta { font-size:12px; color:#aaa; margin-bottom:14px; }
   #noticeContent[contenteditable]:empty:before { content: attr(placeholder); color:#aaa; }
   #noticeContent img { max-width:100%; border-radius:6px; margin:6px 0; display:block; }
