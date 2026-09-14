@@ -9227,8 +9227,17 @@ function csDateInputValue(val) {
               generated = Math.min(15 + Math.max(0, Math.floor((years - 4) / 2)), 25);
             }
             const total = generated + leaveAdjust;
-            const remaining = Math.max(total - usedLeave, 0);
-            calcEl.textContent = `(공식 ${generated}일 + 조정 ${leaveAdjust}일 = 부여 ${total}일 / 잔여 ${remaining}일)`;
+            // ★ 여기 "잔여"는 수동입력값(usedLeave)만 반영해서, 앱에서 신청·승인된 지난
+            //   휴가는 하나도 안 뺀 채로 나왔었다(연차현황 카드는 이미 고쳐져 있었는데 이
+            //   모달만 별개 코드라 안 고쳐짐) — 같은 방식으로 지난 확정 휴가를 더해서 계산.
+            const empIdForCalc = _selectedEmpId;
+            calcEl.textContent = `(공식 ${generated}일 + 조정 ${leaveAdjust}일 = 부여 ${total}일 / 잔여 계산 중...)`;
+            (window._ensureOrgLeavesLoaded ? window._ensureOrgLeavesLoaded() : Promise.resolve()).then(() => {
+              const pastUsed = (window._orgPastUsed && empIdForCalc) ? window._orgPastUsed(empIdForCalc) : 0;
+              const used = usedLeave + pastUsed;
+              const remaining = Math.max(total - used, 0);
+              calcEl.textContent = `(공식 ${generated}일 + 조정 ${leaveAdjust}일 = 부여 ${total}일 / 사용 ${used}일 / 잔여 ${remaining}일)`;
+            });
           } else if (calcEl) { calcEl.textContent = ''; }
         }
       } else {
@@ -14310,6 +14319,19 @@ if ('serviceWorker' in navigator) {
       .filter(r => r.id === empId && r.status === '확정' && _orgIsDeductType(r.leaveType) && String(r.endDate||'') < today)
       .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
   }
+  // ★ 직원정보 수정 모달의 "사용 연차" 계산 표시(9215번째 줄 근처)도 이 연차현황 카드와
+  //   같은 방식(usedLeave 수동값 + 앱에서 승인된 지난 휴가)으로 "잔여"를 보여줘야 하는데,
+  //   그쪽은 별개 클로저라 _orgLeaves/_orgPastUsed에 직접 접근을 못 해서 window에 노출한다.
+  window._orgPastUsed = _orgPastUsed;
+  let _orgLeavesLoadPromise = null;
+  window._ensureOrgLeavesLoaded = function() {
+    if (_orgLeaves.length || _orgLeavesLoadPromise) return _orgLeavesLoadPromise || Promise.resolve();
+    _orgLeavesLoadPromise = fetchWithRetry(`${RESERVE_URL}?action=getLeaves&role=admin`)
+      .then(r => r.json())
+      .then(ld => { if (ld.status === 'ok') _orgLeaves = ld.rows || []; })
+      .catch(() => { _orgLeaves = []; });
+    return _orgLeavesLoadPromise;
+  };
 
   window.loadAdminLeaveTable = async function() {
     try {
