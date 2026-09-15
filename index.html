@@ -26,6 +26,34 @@
   window._escHtml = function(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   };
+
+  // 연차 계산도 위 _escHtml과 같은 이유로 여기 통일한다 — 예전엔 연차현황 카드/직원수정모달/
+  // 개인정보(나의정보) 화면이 각자 자기 클로저 안에 거의 똑같은 공식을 따로 구현하고 있어서,
+  // 근속연수별 연차표를 고칠 때마다 한두 곳을 빠뜨려 화면마다 숫자가 어긋나는 사고가 반복됐다
+  // (예: 카드 19일인데 모달은 18일). 이제 모든 화면이 이 하나의 함수만 호출한다 — 표를 바꿀 땐
+  // 여기 한 곳만 고치면 전 화면에 동일하게 반영된다.
+  window._TENURE_LEAVE_TABLE = {
+    1:15, 2:15, 3:15, 4:16, 5:16, 6:17, 7:17, 8:18, 9:18, 10:19,
+    11:19, 12:20, 13:20, 14:21, 15:21, 16:22, 17:22, 18:23, 19:23, 20:24, 21:25
+  };
+  window._leaveByTenureYears = function(years) {
+    if (years <= 0) return 0;
+    const t = window._TENURE_LEAVE_TABLE[years];
+    return t != null ? t : 25; // 22년 초과 시 25일
+  };
+  // 입사일(+ 퇴사일이 있으면 그 시점) 기준 부여 연차일수. 1년 미만은 개월수 비례(최대 11일),
+  // 1년 이상은 회계연도 기준(올해 연도 − 입사 연도) 근속연수를 위 표에 대입.
+  window._calcAnnualLeaveDays = function(joinDateStr, endDateStr) {
+    if (!joinDateStr) return 0;
+    const join = new Date(joinDateStr);
+    const end = endDateStr ? new Date(endDateStr) : new Date();
+    const diffMs = end - join;
+    const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
+    const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+    if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
+    const years = end.getFullYear() - join.getFullYear();
+    return window._leaveByTenureYears(years);
+  };
 </script>
 <script type="module">
   // ══════════════════════════════════════════════════════════════
@@ -8735,22 +8763,8 @@ function csDateInputValue(val) {
             set('myiTenure', tenure);
         }
 
-        // 연차 계산 — calcAnnualLeave(연차현황 카드, 직원수정모달)와 반드시 같은 공식(달력연도
-        // 기준)을 써야 한다. 예전엔 여기만 실제 경과일수/365, /30 방식이라 근속연수가 또
-        // 다르게 나와서 세 군데 숫자가 다 어긋났었다 — 전 화면 동일 기준으로 통일.
-        const today2 = new Date();
-        const join = new Date(u.joinDate);
-        const end = u.leaveDate ? new Date(u.leaveDate) : today2;
-        const diffMs = end - join;
-        const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
-        const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
-        let generated;
-        if (diffYears < 1) {
-          generated = Math.min(Math.floor(diffMonths), 11);
-        } else {
-          const years = end.getFullYear() - join.getFullYear();
-          generated = Math.min(15 + Math.floor((years - 1) / 2), 25);
-        }
+        // 연차 계산 — window._calcAnnualLeaveDays(전 화면 공통, 근속연수별 연차표 적용)로 통일.
+        const generated = window._calcAnnualLeaveDays(u.joinDate, u.leaveDate);
 
         const baseUsed = parseInt(u.usedLeave || 0);
 
@@ -9233,18 +9247,7 @@ function csDateInputValue(val) {
           // 어긋났다(예: 카드 19일인데 모달은 18일) — 전 직원 동일 기준으로 통일.
           const calcEl = document.getElementById('empModalLeaveCalc');
           if (calcEl && src.dataset.joindate) {
-            const join = new Date(src.dataset.joindate);
-            const now = new Date();
-            const diffMs = now - join;
-            const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
-            const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
-            let generated;
-            if (diffYears < 1) {
-              generated = Math.min(Math.floor(diffMonths), 11);
-            } else {
-              const years = now.getFullYear() - join.getFullYear();
-              generated = Math.min(15 + Math.max(0, Math.floor((years - 4) / 2)), 25);
-            }
+            const generated = window._calcAnnualLeaveDays(src.dataset.joindate);
             const total = generated + leaveAdjust;
             // ★ 여기 "잔여"는 수동입력값(usedLeave)만 반영해서, 앱에서 신청·승인된 지난
             //   휴가는 하나도 안 뺀 채로 나왔었다(연차현황 카드는 이미 고쳐져 있었는데 이
@@ -13710,31 +13713,10 @@ if ('serviceWorker' in navigator) {
     return _leaveType;
   }
 
-  // 근속연수별 연차 설정 (회사 기준표 — 근속연수별 연차 설정 화면과 동일한 값)
-  const TENURE_LEAVE_TABLE = {
-    1:15, 2:15, 3:15, 4:16, 5:16, 6:17, 7:17, 8:18, 9:18, 10:19,
-    11:19, 12:20, 13:20, 14:21, 15:21, 16:22, 17:22, 18:23, 19:23, 20:24, 21:25
-  };
-  const TENURE_LEAVE_OVER = 25; // 22년 초과 시 지급
-  function _leaveByTenureYears(years) {
-    if (years <= 0) return 0;
-    if (years in TENURE_LEAVE_TABLE) return TENURE_LEAVE_TABLE[years];
-    return TENURE_LEAVE_OVER; // 21년을 넘는 근속연수는 모두 25일
-  }
-
-  // 연차 계산 (근로기준법)
+  // 연차 계산 (근로기준법) — 근속연수별 연차표는 window._calcAnnualLeaveDays 하나로 통일
+  // (전 화면이 이 함수만 호출 — 표를 바꿀 땐 그 정의부 한 곳만 고치면 됨).
   function calcAnnualLeave(joinDateStr) {
-    if (!joinDateStr) return 0;
-    const join = new Date(joinDateStr);
-    const today = new Date();
-    const diffMs = today - join;
-    const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
-    const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
-    if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
-    // 1년 이상은 회계연도 기준(입사일 기념일이 아니라 "올해 연도 − 입사 연도"로 근속연수
-    // 계산). 가산 일수는 근속연수별 연차 설정 화면의 표(1~21년 + 22년 초과) 값을 그대로 사용.
-    const years = today.getFullYear() - join.getFullYear();
-    return _leaveByTenureYears(years);
+    return window._calcAnnualLeaveDays(joinDateStr);
   }
 
   // 잔여 연차 업데이트
@@ -14437,23 +14419,9 @@ if ('serviceWorker' in navigator) {
     const big  = card.querySelector('.leave-remain .big'); if (big) big.textContent = remain;
   }
 
-  // 근속연수별 연차 설정 (회사 기준표) — calcAnnualLeave와 동일한 값 (별개 클로저라 중복 정의)
-  const TENURE_LEAVE_TABLE_CLIENT = {
-    1:15, 2:15, 3:15, 4:16, 5:16, 6:17, 7:17, 8:18, 9:18, 10:19,
-    11:19, 12:20, 13:20, 14:21, 15:21, 16:22, 17:22, 18:23, 19:23, 20:24, 21:25
-  };
+  // 근속연수별 연차표는 window._calcAnnualLeaveDays 하나로 통일 (calcAnnualLeave와 동일 함수 호출).
   function calcAnnualLeaveClient(joinDateStr) {
-    if (!joinDateStr) return 0;
-    const join = new Date(joinDateStr);
-    const today = new Date();
-    const diffMs = today - join;
-    const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
-    const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
-    if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
-    // 1년 이상은 회계연도 기준(올해 연도 − 입사 연도)으로 근속연수 계산 — calcAnnualLeave와 동일 방식.
-    const years = today.getFullYear() - join.getFullYear();
-    if (years <= 0) return 0;
-    return years in TENURE_LEAVE_TABLE_CLIENT ? TENURE_LEAVE_TABLE_CLIENT[years] : 25; // 22년 초과 시 25일
+    return window._calcAnnualLeaveDays(joinDateStr);
   }
 
   window.saveUsedLeave = async function(id) {
