@@ -13710,6 +13710,18 @@ if ('serviceWorker' in navigator) {
     return _leaveType;
   }
 
+  // 근속연수별 연차 설정 (회사 기준표 — 근속연수별 연차 설정 화면과 동일한 값)
+  const TENURE_LEAVE_TABLE = {
+    1:15, 2:15, 3:15, 4:16, 5:16, 6:17, 7:17, 8:18, 9:18, 10:19,
+    11:19, 12:20, 13:20, 14:21, 15:21, 16:22, 17:22, 18:23, 19:23, 20:24, 21:25
+  };
+  const TENURE_LEAVE_OVER = 25; // 22년 초과 시 지급
+  function _leaveByTenureYears(years) {
+    if (years <= 0) return 0;
+    if (years in TENURE_LEAVE_TABLE) return TENURE_LEAVE_TABLE[years];
+    return TENURE_LEAVE_OVER; // 21년을 넘는 근속연수는 모두 25일
+  }
+
   // 연차 계산 (근로기준법)
   function calcAnnualLeave(joinDateStr) {
     if (!joinDateStr) return 0;
@@ -13720,10 +13732,9 @@ if ('serviceWorker' in navigator) {
     const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
     if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
     // 1년 이상은 회계연도 기준(입사일 기념일이 아니라 "올해 연도 − 입사 연도"로 근속연수
-    // 계산). 가산 규칙은 다우오피스 실측값(5년차 15일/9년차 17일/10년차 18일)으로 역산해
-    // 확인한 방식 그대로 — 5년차까지는 가산 없이 15일, 6년차부터 2년마다 1일 가산.
+    // 계산). 가산 일수는 근속연수별 연차 설정 화면의 표(1~21년 + 22년 초과) 값을 그대로 사용.
     const years = today.getFullYear() - join.getFullYear();
-    return Math.min(15 + Math.max(0, Math.floor((years - 4) / 2)), 25);
+    return _leaveByTenureYears(years);
   }
 
   // 잔여 연차 업데이트
@@ -14426,6 +14437,11 @@ if ('serviceWorker' in navigator) {
     const big  = card.querySelector('.leave-remain .big'); if (big) big.textContent = remain;
   }
 
+  // 근속연수별 연차 설정 (회사 기준표) — calcAnnualLeave와 동일한 값 (별개 클로저라 중복 정의)
+  const TENURE_LEAVE_TABLE_CLIENT = {
+    1:15, 2:15, 3:15, 4:16, 5:16, 6:17, 7:17, 8:18, 9:18, 10:19,
+    11:19, 12:20, 13:20, 14:21, 15:21, 16:22, 17:22, 18:23, 19:23, 20:24, 21:25
+  };
   function calcAnnualLeaveClient(joinDateStr) {
     if (!joinDateStr) return 0;
     const join = new Date(joinDateStr);
@@ -14436,7 +14452,8 @@ if ('serviceWorker' in navigator) {
     if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
     // 1년 이상은 회계연도 기준(올해 연도 − 입사 연도)으로 근속연수 계산 — calcAnnualLeave와 동일 방식.
     const years = today.getFullYear() - join.getFullYear();
-    return Math.min(15 + Math.max(0, Math.floor((years - 4) / 2)), 25);
+    if (years <= 0) return 0;
+    return years in TENURE_LEAVE_TABLE_CLIENT ? TENURE_LEAVE_TABLE_CLIENT[years] : 25; // 22년 초과 시 25일
   }
 
   window.saveUsedLeave = async function(id) {
