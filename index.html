@@ -14328,6 +14328,14 @@ if ('serviceWorker' in navigator) {
       .filter(r => r.id === empId && r.status === '확정' && _orgIsDeductType(r.leaveType) && String(r.endDate||'') < today)
       .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
   }
+  // 앱에서 승인됐지만 아직 종료일이 안 지난(=아직 안 쓴) 확정 휴가 — "사용예정".
+  // 잔여 계산에는 안 넣지만(휴가신청 개인화면과 동일 기준), 연차 점검 시 한눈에 보이게 표시용으로 제공.
+  function _orgScheduled(empId) {
+    const today = new Date().toISOString().slice(0,10);
+    return _orgLeaves
+      .filter(r => r.id === empId && r.status === '확정' && _orgIsDeductType(r.leaveType) && String(r.endDate||'') >= today)
+      .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
+  }
   // ★ 직원정보 수정 모달의 "사용 연차" 계산 표시(9215번째 줄 근처)도 이 연차현황 카드와
   //   같은 방식(usedLeave 수동값 + 앱에서 승인된 지난 휴가)으로 "잔여"를 보여줘야 하는데,
   //   그쪽은 별개 클로저라 _orgLeaves/_orgPastUsed에 직접 접근을 못 해서 window에 노출한다.
@@ -14380,6 +14388,7 @@ if ('serviceWorker' in navigator) {
       const total    = calcAnnualLeaveClient(e.joinDate) + (Number(e.annualLeave) || 0);
       const baseUsed = parseFloat(e.usedLeave)||0;
       const pastUsed = _orgPastUsed(e.id);
+      const scheduled = _orgScheduled(e.id);
       const used     = baseUsed + pastUsed;
       const remain   = total - used;
       const pct      = total > 0 ? Math.min(100, Math.round(used/total*100)) : 0;
@@ -14390,7 +14399,7 @@ if ('serviceWorker' in navigator) {
             <div class="dp">${e.isHead ? '대표' : esc(e.dept||'-')}</div>
           </div>
           <div class="leave-bar-wrap">
-            <div class="leave-bar-top"><span>사용 ${used}일</span><span>부여 ${total}일</span></div>
+            <div class="leave-bar-top"><span>사용 ${used}일</span><span style="color:#e67e22;">사용예정 ${scheduled}일</span><span>부여 ${total}일</span></div>
             <div class="leave-track"><div class="leave-fill" style="width:${pct}%;"></div></div>
           </div>
           <div class="leave-remain"><div class="big">${remain}</div><div class="lbl">잔여(일)</div></div>
@@ -14418,11 +14427,12 @@ if ('serviceWorker' in navigator) {
     const card = document.getElementById('leaveCard_' + emp.id);
     if (!card) return;
     const total  = calcAnnualLeaveClient(emp.joinDate) + (Number(emp.annualLeave) || 0);
+    const scheduled = _orgScheduled(emp.id);
     const used   = (parseFloat(emp.usedLeave)||0) + _orgPastUsed(emp.id);
     const remain = total - used;
     const pct    = total > 0 ? Math.min(100, Math.round(used/total*100)) : 0;
     const fill = card.querySelector('.leave-fill'); if (fill) fill.style.width = pct + '%';
-    const top  = card.querySelector('.leave-bar-top'); if (top) top.innerHTML = `<span>사용 ${used}일</span><span>부여 ${total}일</span>`;
+    const top  = card.querySelector('.leave-bar-top'); if (top) top.innerHTML = `<span>사용 ${used}일</span><span style="color:#e67e22;">사용예정 ${scheduled}일</span><span>부여 ${total}일</span>`;
     const big  = card.querySelector('.leave-remain .big'); if (big) big.textContent = remain;
   }
 
