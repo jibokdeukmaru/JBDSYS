@@ -42,7 +42,11 @@
     return t != null ? t : 25; // 22년 초과 시 25일
   };
   // 입사일(+ 퇴사일이 있으면 그 시점) 기준 부여 연차일수. 1년 미만은 개월수 비례(최대 11일),
-  // 1년 이상은 회계연도 기준(올해 연도 − 입사 연도) 근속연수를 위 표에 대입.
+  // 1년 이상은 입사기념일 기준 만근속연수(예: 입사 10/10인데 아직 9월이면 그 기념일이 안
+  // 지났으므로 -1)를 위 표에 대입 — 예전엔 "올해 연도 − 입사 연도"로만 계산해서 기념일
+  // 전인 사람은 근속연수가 실제보다 1년 더 나오는 버그가 있었다(예: 김희주 이사, 입사
+  // 2020-10-10인데 2026-09-15 기준 기념일 전이라 실제는 5년차인데 6년차(17일)로 계산돼
+  // 공식 16일이어야 할 게 17일로 나왔었다).
   window._calcAnnualLeaveDays = function(joinDateStr, endDateStr) {
     if (!joinDateStr) return 0;
     const join = new Date(joinDateStr);
@@ -51,7 +55,10 @@
     const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44);
     const diffYears  = diffMs / (1000 * 60 * 60 * 24 * 365.25);
     if (diffYears < 1) return Math.min(Math.floor(diffMonths), 11);
-    const years = end.getFullYear() - join.getFullYear();
+    let years = end.getFullYear() - join.getFullYear();
+    const anniversaryPassed = (end.getMonth() > join.getMonth()) ||
+      (end.getMonth() === join.getMonth() && end.getDate() >= join.getDate());
+    if (!anniversaryPassed) years -= 1;
     return window._leaveByTenureYears(years);
   };
 </script>
@@ -13720,11 +13727,11 @@ if ('serviceWorker' in navigator) {
   }
 
   // 잔여 연차 업데이트
-  // ★ 예전엔 "사용"이 관리자가 수동으로 입력해두는 usedLeave 필드만 봐서, 캘린더에서
-  //   연차를 신청·확정받아도 이 숫자가 자동으로 안 올라갔다. 게다가 "사용예정"은 계산까지
-  //   해놓고 정작 "잔여" 계산식에는 반영을 안 시켜서, 앞으로 쓸 휴가를 신청해도 잔여가
-  //   그대로였다 — 확정된 신청 중 이미 지난 건 usedLeave에 더해 "사용"으로, 아직 안 지난
-  //   건 "사용예정"으로 자동 반영하고, 잔여는 부여-사용-사용예정으로 계산한다.
+  // ★ "사용"은 관리자가 수동으로 입력해두는 usedLeave 필드 + 앱에서 신청·확정된 휴가 중
+  //   이미 종료일이 지난 분을 더한 값이고, "사용예정"(아직 종료일 안 지난 확정건)은 참고용으로만
+  //   따로 표시한다. 잔여 계산식(부여-사용, 사용예정은 차감 안 함)은 연차현황 카드/직원목록
+  //   모달과 반드시 동일해야 한다 — 예전엔 여기만 잔여에서 사용예정까지 추가로 빼서 같은
+  //   직원인데 화면마다 잔여가 다르게 보이는 불일치가 있었다.
   function updateLeaveBalance() {
     const user = window._currentUser;
     if (!user) return;
@@ -13739,7 +13746,7 @@ if ('serviceWorker' in navigator) {
       .filter(r => String(r.endDate||'') >= today)
       .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
     const used = baseUsed + pastUsed;
-    const remain = total - used - scheduledDays;
+    const remain = total - used;
     document.getElementById('leaveTotal').textContent    = total + '일';
     document.getElementById('leaveUsed').textContent     = used + '일';
     const schedEl = document.getElementById('leaveScheduled');
