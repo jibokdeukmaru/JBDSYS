@@ -9328,28 +9328,18 @@ function csDateInputValue(val) {
         const data = await res.json();
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
 
-        // ★ 시트 저장 성공 시 Firestore employees 사본도 즉시 갱신 — 로그인이 Firestore를 우선
-        //   조회하는 구조라, 이걸 안 하면 방금 고친 내용이 로그인에는 반영 안 된 채로 남는다.
-        //   ★ birthday/cardUrl은 빈 값이면 아예 필드를 안 보내서(merge라 기존값 유지) — 수정 모달이
-        //   생일을 못 채운 채로 저장돼도 Firestore에 저장된 기존 생일이 지워지지 않게 방어.
-        try {
-          await window.fbEnsureAuth();
-          const fsUpdate = {
-            name, dept, title, joinDate, email, phone,
-            usedLeave: Number(usedLeave) || 0, annualLeave: Number(leaveAdjust) || 0,
-            isHead, isManager, team, stockBetaEditor, compatEditor, scheduleEditor
-          };
-          if (birthday) fsUpdate.birthday = birthday;
-          if (cardUrl) fsUpdate.cardUrl = cardUrl;
-          await window.FB.setDoc(window.FB.doc(window.FB.db, 'employees', id || _selectedEmpId), fsUpdate, { merge: true });
-        } catch (fsErr) { /* Firestore 갱신 실패해도 시트는 이미 저장됐으니 조용히 무시 */ }
+        // ★ Firestore employees 사본 동기화는 서버(addEmployee/updateEmployeeInfo →
+        //   _syncEmployeeRowToFirestore)가 시트 저장과 같은 요청 안에서 이미 끝내고 나서
+        //   status:'ok'를 돌려준다 — 예전엔 여기서 클라이언트가 완전히 같은 내용을 Firestore에
+        //   또 한번 써서(중복 네트워크 왕복) "저장" 버튼 반응이 느리게 느껴졌다. 서버가 이미
+        //   동기화를 끝낸 뒤이므로 제거.
 
         // 캐시 초기화
         if (window._allStaffMapCache) window._allStaffMapCache = null;
         if (window._staffListCache) window._staffListCache = null;
         msg.style.color='#1a7a45';
         msg.textContent = _empModalMode === 'add' ? '직원이 추가되었습니다.' : '수정되었습니다.';
-        setTimeout(() => { closeEmpModal(); loadEmployees(); }, 1000);
+        setTimeout(() => { closeEmpModal(); loadEmployees(); }, 400);
       } catch(e) { msg.style.color='#e74c3c'; msg.textContent='오류: ' + e.message; }
     };
 
