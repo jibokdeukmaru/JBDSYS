@@ -5781,35 +5781,20 @@ function csDateInputValue(val) {
         return;
       }
 
-      // ★ 재방문 검색: 이름/업체명/연락처/현장주소 4개 필드를 각각 접두사(prefix) 검색으로
-      //   전체 2000여건을 읽지 않고 Firestore에서 필요한 문서만 조회한 뒤 합쳐서 보여준다.
-      //   현장주소(addressLower)는 새로 추가된 파생 필드라 예전에 저장된 건은 검색되지 않을 수 있다.
+      // ★ 재방문 검색: 이름/업체명/연락처/현장주소 4개 필드에서 포함(contains) 일치로 찾는다.
+      //   예전엔 Firestore 접두사(prefix) 쿼리를 썼는데, "인테리어 오월"처럼 검색어가 필드
+      //   중간/뒤에 있으면 못 찾는 문제가 있었다(2026-09-15, "오월" 검색 시 "오월인테리어"만
+      //   걸리고 "인테리어 오월"은 누락됨). 전체 상담 데이터를 온디맨드로 1회 캐시하는
+      //   ensureFullConsults()를 재사용해 클라이언트에서 부분일치로 필터링하도록 변경.
       tbody.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색 중...</td></tr>';
-      await window.fbEnsureAuth();
+      const all = await ensureFullConsults();
       const phoneQ = qRaw.replace(/[^0-9]/g, '');
-      const fields = [
-        ['nameLower', q],
-        ['companyLower', q],
-        ['addressLower', q],
-      ];
-      if (phoneQ) fields.push(['phoneDigits', phoneQ]);
-
-      const queries = fields.map(function(f) {
-        return window.FB.getDocs(window.FB.query(
-          window.FB.collection(window.FB.db, 'consults'),
-          window.FB.orderBy(f[0]),
-          window.FB.orderBy("createdAtMs", "desc"),
-          window.FB.where(f[0], '>=', f[1]),
-          window.FB.where(f[0], '<=', f[1] + ''),
-          window.FB.limit(20)
-        ));
-      });
-      const snaps = await Promise.all(queries);
-      const byId = new Map();
-      snaps.forEach(function(snap) {
-        snap.docs.forEach(function(d) { if (!byId.has(d.id)) byId.set(d.id, { ...d.data(), _docId: d.id }); });
-      });
-      const matched = Array.from(byId.values());
+      const matched = all.filter(function(r) {
+        return String(r.name || '').toLowerCase().includes(q) ||
+          String(r.company || '').toLowerCase().includes(q) ||
+          String(r.address || '').toLowerCase().includes(q) ||
+          (phoneQ && String(r.phoneDigits || r.phone || '').replace(/[^0-9]/g, '').includes(phoneQ));
+      }).slice(0, 20);
 
       _revisitMatches = matched;
       window._revisitMatchesGlobal = matched;
