@@ -14601,7 +14601,7 @@ if ('serviceWorker' in navigator) {
           <div class="leave-bar-wrap">
             <div class="leave-bar-top"><span>사용 ${used}일</span><span style="color:#e67e22;">사용예정 ${scheduled}일</span><span>부여 ${total}일</span></div>
             <div class="leave-track"><div class="leave-fill" style="width:${pct}%;"></div></div>
-            <div class="leave-prevyear" style="font-size:10.5px;color:#aaa;margin-top:4px;">${prevY.year}년 미사용 연차 ${prevY.unused}일 (부여 ${prevY.granted}일 · 사용 ${prevY.used}일) — 이월 안 됨, 기록용</div>
+            ${(prevY.granted > 0 || prevY.used > 0) ? `<div class="leave-prevyear" style="font-size:10.5px;color:#aaa;margin-top:4px;">${prevY.year}년 미사용 연차 ${prevY.unused}일 (부여 ${prevY.granted}일 · 사용 ${prevY.used}일) — 이월 안 됨, 기록용</div>` : ''}
           </div>
           <div class="leave-remain"><div class="big">${remain}</div><div class="lbl">잔여(일)</div></div>
           <div class="leave-edit-btn" title="기사용 연차 수정"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></div>
