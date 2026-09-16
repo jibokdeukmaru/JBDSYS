@@ -1593,6 +1593,30 @@ async function _scheduleGetHistory(){
   const snap = await window.FB.getDocs(q);
   return snap.docs.map(d => d.data());
 }
+// 지금까지 쌓인 시공일정 수정기록을 전부 지운다(재고현황BETA의 clearHistory와 동일 패턴, 관리자페이지 요청으로 추가).
+async function _runScheduleClearHistory(){
+  await window.fbEnsureAuth();
+  const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, 'scheduleEditHistory'));
+  const docs = snap.docs;
+  let deleted = 0;
+  for (let i = 0; i < docs.length; i += 400) {
+    const batch = window.FB.writeBatch(window.FB.db);
+    docs.slice(i, i + 400).forEach(d => { batch.delete(d.ref); deleted++; });
+    await batch.commit();
+  }
+  return { deleted };
+}
+window.runScheduleClearHistory = async function(){
+  if (!confirm('시공일정 수정기록을 전부 삭제합니다. 되돌릴 수 없습니다.\n계속할까요?')) return;
+  const prog = document.getElementById('scheduleClearHistoryProgress');
+  if (prog) { prog.style.color = '#888'; prog.textContent = '삭제 중...'; }
+  try {
+    const { deleted } = await _runScheduleClearHistory();
+    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: ${deleted}건 삭제됨`; }
+  } catch (e) {
+    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
+  }
+};
 window.addEventListener('message', async (e) => {
   const data = e.data;
   if (!data || data.type !== 'scheduleRequest') return;
@@ -8097,16 +8121,30 @@ function csDateInputValue(val) {
         </div>
       </div>
 
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          재고현황(예약/실시간) 수정기록 전체 삭제
+      <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;">
+        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
+          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            재고현황(예약/실시간) 수정기록 전체 삭제
+          </div>
+          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
+          </div>
+          <button onclick="runStockBetaClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
+          <div id="stockBetaClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
         </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
+
+        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
+          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            시공일정 수정기록 전체 삭제
+          </div>
+          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
+          </div>
+          <button onclick="runScheduleClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
+          <div id="scheduleClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
         </div>
-        <button onclick="runStockBetaClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
-        <div id="stockBetaClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
       </div>
 
   </div>
