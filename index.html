@@ -1558,17 +1558,33 @@ window._stockBetaThemeVars = function(){
   out['--page-bg'] = g('--app-bg');
   return out;
 };
+// ★ 로그인 세션은 localStorage에 캐시돼 최대 8시간 그대로 유지된다(자동 재로그인) —
+// 그 사이 관리자가 편집권한 플래그를 바꿔도 이미 로그인해둔 사람 화면엔 반영이 안 되는
+// 문제가 있었다(2026-09-16, 권한 없는 직원이 실제로 편집 버튼을 눌러 기록까지 남은 사고로
+// 발견). 그래서 iframe 편집권한(canEdit)을 결정하기 직전엔 캐시된 window._currentUser를
+// 그대로 믿지 않고, Firestore에서 그 사람 최신 상태를 다시 한번 확인한다.
+window._freshCanEditFlags = async function(uid) {
+  try {
+    const data = await window.fetchEmployeesFS();
+    if (data.status === 'ok') {
+      const row = (data.rows || []).find(r => String(r.id) === String(uid));
+      if (row) return row;
+    }
+  } catch (e) {}
+  return window._currentUser; // 조회 실패 시에만 캐시된 값으로 폴백
+};
 window._loadStockBetaFrame = function(){
   const frame = document.getElementById('stockBetaFrame');
   if (!frame || frame.dataset.loaded === '1') return;
   frame.dataset.loaded = '1';
   // 로그인 사용자 ID를 넘겨줘서, 시안이 품번탭 순서를 사용자별로 기억할 수 있게 한다.
   // 편집권한(canEdit)은 관리자이거나 관리자가 개별로 지정한 사람(stockBetaEditor)만 true.
-  frame.addEventListener('load', function(){
+  frame.addEventListener('load', async function(){
     const u = window._currentUser;
     const uid = (u && u.id) || 'anon';
-    const canEdit = !!(u && (u.role === 'admin' || u.stockBetaEditor));
-    const canEditCompat = !!(u && (u.role === 'admin' || u.compatEditor));
+    const fresh = await window._freshCanEditFlags(uid);
+    const canEdit = !!(fresh && (fresh.role === 'admin' || fresh.stockBetaEditor));
+    const canEditCompat = !!(fresh && (fresh.role === 'admin' || fresh.compatEditor));
     try { frame.contentWindow.postMessage({ type: 'stockBetaInit', userId: uid, canEdit, canEditCompat, themeVars: window._stockBetaThemeVars() }, '*'); } catch(e) {}
   });
   const bytes = Uint8Array.from(atob(window._STOCK_BETA_HTML_B64), c => c.charCodeAt(0));
@@ -1584,10 +1600,11 @@ window._loadScheduleFrame = async function(){
   const frame = document.getElementById('scheduleFrame');
   if (!frame || frame.dataset.loaded === '1') return;
   frame.dataset.loaded = '1';
-  frame.addEventListener('load', function(){
+  frame.addEventListener('load', async function(){
     const u = window._currentUser;
     const uid = (u && u.id) || 'anon';
-    const canEdit = !!(u && (u.role === 'admin' || u.scheduleEditor));
+    const fresh = await window._freshCanEditFlags(uid);
+    const canEdit = !!(fresh && (fresh.role === 'admin' || fresh.scheduleEditor));
     try { frame.contentWindow.postMessage({ type: 'scheduleInit', userId: uid, canEdit, themeVars: window._stockBetaThemeVars() }, '*'); } catch(e) {}
   });
   const bytes = Uint8Array.from(atob(window._SCHEDULE_HTML_B64), c => c.charCodeAt(0));
@@ -11046,6 +11063,20 @@ function setTab(tabId, fromPopstate) {
     if (typeof window.refreshGuestTabSummary === 'function') window.refreshGuestTabSummary();
   }
   if (tabId === 'leaveManagerTab') {
+    // ★ 나비게이션 버튼 노출은 로그인 시점 캐시값 기준이라(최대 8시간 유지) 그 사이
+    //   관리자가 권한을 뺏어도 반영이 안 될 수 있다(시공일정표/재고현황 캐시 문제와
+    //   같은 원인, 2026-09-16) — 탭을 실제로 열 때 한번 더 최신 권한을 확인한다.
+    (async () => {
+      const u = window._currentUser;
+      const fresh = (typeof window._freshCanEditFlags === 'function') ? await window._freshCanEditFlags(u && u.id) : u;
+      if (!fresh || !(fresh.role === 'admin' || fresh.leaveManagerEditor)) {
+        alert('연차관리 접근 권한이 없습니다.');
+        const lmBtn = document.getElementById('leaveManagerTabBtn');
+        if (lmBtn) lmBtn.style.display = 'none';
+        if (typeof setTab === 'function') setTab('pricingTab');
+        return;
+      }
+    })();
     // 연차현황/결재완료내역 + 수동등록 폼의 사원 드롭다운용 직원목록 병렬 로드
     Promise.all([
       typeof loadEmployees === 'function' ? loadEmployees() : Promise.resolve(),
