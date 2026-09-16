@@ -66,10 +66,14 @@ async function fetchCollection(name) {
 }
 
 async function uploadCsv(drive, filename, csvText) {
+  // 서비스계정은 자체 저장용량이 0이라 "내 드라이브" 폴더엔 못 올린다(GaxiosError:
+  // "Service Accounts do not have storage quota") — 반드시 공유 드라이브(Shared Drive)
+  // 안의 폴더여야 하고, supportsAllDrives를 켜야 공유 드라이브 항목을 다룰 수 있다.
   const res = await drive.files.create({
     requestBody: { name: filename, parents: [DRIVE_FOLDER_ID], mimeType: 'text/csv' },
     media: { mimeType: 'text/csv', body: csvText },
     fields: 'id,name',
+    supportsAllDrives: true,
   });
   return res.data;
 }
@@ -80,6 +84,9 @@ async function cleanupOldBackups(drive) {
     q: `'${DRIVE_FOLDER_ID}' in parents and trashed = false`,
     fields: 'files(id,name,createdTime)',
     pageSize: 1000,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    corpora: 'allDrives',
   });
   const files = res.data.files || [];
   let deleted = 0;
@@ -87,7 +94,7 @@ async function cleanupOldBackups(drive) {
     const created = new Date(f.createdTime).getTime();
     if (created < cutoff) {
       try {
-        await drive.files.delete({ fileId: f.id });
+        await drive.files.delete({ fileId: f.id, supportsAllDrives: true });
         deleted++;
       } catch (e) {
         console.error('백업 파일 삭제 실패:', f.name, e.message);
