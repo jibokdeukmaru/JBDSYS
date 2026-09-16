@@ -62,22 +62,96 @@
     return window._leaveByTenureYears(years);
   };
 
+  // ── 회계연도 기준 연차 자동계산 (2026-09-16, 근로기준법 제60조 + "입사일 기준 보장 원칙")
+  // 매년 1/1 회계연도 정산 방식으로 바꾸되, 입사일(계속근로) 기준으로 계산했을 때보다
+  // 불리해지지 않도록 입사기념일(만 2/4/6...년)마다 부족분을 +1로 보정한다. 반환값은
+  // "잔여"가 아니라 입사일부터 대상일까지 "발생(부여)"된 누적 총량 — 잔여 계산은
+  // 아래 window._calcLeaveSummary에서 "사용"과 조합해서 한다. 헬퍼 이름들이 흔한
+  // 단어라 전역 오염을 피하려고 IIFE로 감싸고 window._calcFiscalYearLeave만 노출한다.
+  (function() {
+    function parseYmd(s) {
+      const [y, m, d] = s.split('-').map(Number);
+      return new Date(y, m - 1, d); // 로컬 자정 — UTC 파싱으로 인한 하루 밀림 방지
+    }
+    function addYears(d, n) { return new Date(d.getFullYear() + n, d.getMonth(), d.getDate()); }
+    function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, d.getDate()); }
+    function daysBetweenInclusive(a, b) { return Math.round((b - a) / 86400000) + 1; }
+    // 기준일 현재 만근속연수(완료된 정수 년수) — 입사기념일이 아직 안 지났으면 -1
+    function tenureFullYears(hire, atDate) {
+      let years = atDate.getFullYear() - hire.getFullYear();
+      const anniv = new Date(atDate.getFullYear(), hire.getMonth(), hire.getDate());
+      if (atDate < anniv) years -= 1;
+      return Math.max(0, years);
+    }
+    // 만근속연수 → 그 시점 기본 부여 연차 레벨(근로기준법 제60조④: 최초 1년 초과 매 2년마다
+    // 1일 가산, 25일 한도). 만2/4/6...년째 되는 날 이 레벨이 1씩 오른다.
+    function leaveLevel(fullYears) { return Math.min(25, 15 + Math.floor(fullYears / 2)); }
+
+    // hireDateStr/targetDateStr: 'YYYY-MM-DD'. 반환값은 입사일~targetDate 누적 발생량.
+    window._calcFiscalYearLeave = function(hireDateStr, targetDateStr) {
+      if (!hireDateStr || !targetDateStr) return { monthly_leaves: 0, annual_leaves: 0, additional_leaves: 0, total_leaves: 0 };
+      const hire = parseYmd(hireDateStr);
+      const target = parseYmd(targetDateStr);
+      if (target < hire) return { monthly_leaves: 0, annual_leaves: 0, additional_leaves: 0, total_leaves: 0 };
+
+      // 1) 월차 — 만1년 미만, 개근월당 1일, 최대 11개(만1년 시점 전날까지만 인정)
+      const oneYearMark = addYears(hire, 1);
+      const monthlyCutoff = new Date(oneYearMark.getTime() - 86400000);
+      let monthly_leaves = 0;
+      if (target >= addMonths(hire, 1)) {
+        const accrualEnd = target < monthlyCutoff ? target : monthlyCutoff;
+        let months = 0;
+        while (addMonths(hire, months + 1) <= accrualEnd) months++;
+        monthly_leaves = Math.min(11, months);
+      }
+
+      // 2) 회계연도 정산(매년 1/1) — 입사년도 다음 1/1은 일할비례, 이후는 그 시점 레벨 그대로
+      let annual_leaves = 0;
+      const hireYearEnd = new Date(hire.getFullYear(), 11, 31);
+      const firstJan1 = new Date(hire.getFullYear() + 1, 0, 1);
+      if (target >= firstJan1) {
+        const daysInHireYear = daysBetweenInclusive(hire, hireYearEnd);
+        annual_leaves += Math.round(15 * daysInHireYear / 365);
+        for (let y = hire.getFullYear() + 2; ; y++) {
+          const jan1 = new Date(y, 0, 1);
+          if (jan1 > target) break;
+          annual_leaves += leaveLevel(tenureFullYears(hire, jan1));
+        }
+      }
+
+      // 3) 입사기념일 가산 정산 — 만2/4/6...년마다 입사일 기준 보장을 위해 +1
+      //    (레벨은 짝수 기념일에만 오르고 그 해 1/1엔 아직 반영 전이라 항상 +1 보정이 필요)
+      let additional_leaves = 0;
+      for (let k = 2; ; k += 2) {
+        if (addYears(hire, k) > target) break;
+        additional_leaves += 1;
+      }
+
+      return { monthly_leaves, annual_leaves, additional_leaves, total_leaves: monthly_leaves + annual_leaves + additional_leaves };
+    };
+  })();
+
   // ── 잔여연차 산수는 이 함수 하나뿐 — 내정보/직원목록모달/휴가신청/연차현황 카드 등
   // 화면들은 전부 이 결과값만 받아서 숫자를 꽂아 넣기만 한다(직접 계산 금지). 화면마다
   // "앱에서 확정된 지난/예정 휴가일수"를 이미 다른 방식으로 캐싱해두고 있어(예: _allLeaves
   // 배열, _orgPastUsed()/_orgScheduled() 캐시, getLeaves API 응답 등) 그 값은 그대로
   // pastUsed/scheduled 인자로 받되, "부여=공식+조정", "사용=수동입력+지난확정분",
   // "잔여=부여-사용"을 조합하는 계산 자체는 여기서만 한다. (2026-09-16: 화면마다 이
-  // 산수를 따로 베껴 쓰다가 한 곳(내정보)에서 조정연차 반영을 빠뜨린 버그가 나서 통합함)
+  // 산수를 따로 베껴 쓰다가 한 곳(내정보)에서 조정연차 반영을 빠뜨린 버그가 나서 통합함.
+  // 같은 날 "회계연도 기준" 계산으로 전환 — window._calcAnnualLeaveDays(입사일 기준
+  // 근속연수표)는 더는 여기서 안 쓰지만, 다른 목적으로 참조될 수 있어 정의는 남겨둔다.)
   window._calcLeaveSummary = function(emp, pastUsed, scheduled) {
-    const generated = window._calcAnnualLeaveDays(emp.joinDate, emp.leaveDate);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const asOfStr = emp.leaveDate || todayStr;
+    const fy = window._calcFiscalYearLeave(emp.joinDate, asOfStr);
+    const generated = fy.total_leaves;
     const total = generated + (Number(emp.annualLeave) || 0);
     const baseUsed = parseFloat(emp.usedLeave) || 0;
     pastUsed = Number(pastUsed) || 0;
     scheduled = Number(scheduled) || 0;
     const used = baseUsed + pastUsed;
     const remain = total - used;
-    return { generated, total, baseUsed, pastUsed, used, scheduled, remain };
+    return { generated, total, baseUsed, pastUsed, used, scheduled, remain, fiscal: fy };
   };
 </script>
 <script type="module">
