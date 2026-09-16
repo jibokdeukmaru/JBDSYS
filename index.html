@@ -62,6 +62,19 @@
     return window._leaveByTenureYears(years);
   };
 
+  // 만근속연수(0-indexed)+1 = "N년차" 표시용. _calcAnnualLeaveDays와 같은 입사기념일
+  // 판정 로직을 그대로 재사용 — 근속연수표(연차일수)와 별개로 화면 라벨에만 쓴다.
+  window._tenureYearNumber = function(joinDateStr, endDateStr) {
+    if (!joinDateStr) return null;
+    const join = new Date(joinDateStr);
+    const end = endDateStr ? new Date(endDateStr) : new Date();
+    let years = end.getFullYear() - join.getFullYear();
+    const anniversaryPassed = (end.getMonth() > join.getMonth()) ||
+      (end.getMonth() === join.getMonth() && end.getDate() >= join.getDate());
+    if (!anniversaryPassed) years -= 1;
+    return Math.max(0, years) + 1;
+  };
+
   // ── 회계연도 기준 연차 자동계산 (2026-09-16, 근로기준법 제60조 + "입사일 기준 보장 원칙")
   // 매년 1/1에 그 해 몫만 새로 계산해서 리셋한다 — 미사용 연차 이월 없음(사용자 선택,
   // "가장 단순하고 버그 위험이 적은 방식"). ★ 첫 버전은 매년 발생량을 소멸 없이 평생
@@ -8289,7 +8302,7 @@ function csDateInputValue(val) {
 <section id="leaveManagerTab" class="tab-panel" style="display:none;">
   <div class="admin-wrap">
     <div class="admin-header">
-      <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>연차관리</h2>
+      <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>연차관리 <span style="font-size:12px;font-weight:500;color:var(--muted);">(입사일 기준)</span></h2>
     </div>
     <div id="leaveManagerMount"></div>
   </div>
@@ -14582,7 +14595,7 @@ if ('serviceWorker' in navigator) {
       return `<div class="leave-card" id="leaveCard_${e.id}">
         <div class="leave-row" onclick="toggleLeaveEdit('${e.id}')">
           <div class="leave-id">
-            <div class="nm">${esc(e.name)}</div>
+            <div class="nm">${esc(e.name)} <span style="font-size:11px;color:var(--muted);font-weight:600;">(${window._tenureYearNumber(e.joinDate, e.leaveDate) || '-'}년차)</span></div>
             <div class="dp">${e.isHead ? '대표' : esc(e.dept||'-')}</div>
           </div>
           <div class="leave-bar-wrap">
