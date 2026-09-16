@@ -8158,6 +8158,17 @@ function csDateInputValue(val) {
     <div id="orgLeaveList"></div>
   </div>
 
+  <div class="admin-card" style="margin-top:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+      <div class="admin-section-title" style="margin:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>결재완료 내역</div>
+      <select id="leaveApprovedFilterEmp" onchange="renderApprovedLeaveList(1)" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        <option value="">전체 사원</option>
+      </select>
+    </div>
+    <div id="approvedLeaveList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div id="approvedLeavePager" style="display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap;"></div>
+  </div>
+
   </div>
   </div>
 
@@ -10975,7 +10986,8 @@ function setTab(tabId, fromPopstate) {
     Promise.all([
       loadEmployees(),
       typeof loadInfoRequests === 'function' ? loadInfoRequests() : Promise.resolve(),
-      typeof loadAdminLeaveTable === 'function' ? loadAdminLeaveTable() : Promise.resolve()
+      typeof loadAdminLeaveTable === 'function' ? loadAdminLeaveTable() : Promise.resolve(),
+      typeof window.loadApprovedLeaves === 'function' ? window.loadApprovedLeaves() : Promise.resolve()
     ]);
     if (typeof loadAdminApiSettings === 'function') loadAdminApiSettings();
     if (typeof window.refreshGuestTabSummary === 'function') window.refreshGuestTabSummary();
@@ -14561,6 +14573,56 @@ if ('serviceWorker' in navigator) {
     const top  = card.querySelector('.leave-bar-top'); if (top) top.innerHTML = `<span>사용 ${used}일</span><span style="color:#e67e22;">사용예정 ${scheduled}일</span><span>부여 ${total}일</span>`;
     const big  = card.querySelector('.leave-remain .big'); if (big) big.textContent = remain;
   }
+
+  // ── 결재완료 내역(관리자페이지) — 대표 결재로 확정된 휴가신청을 사원별 필터 + 10건씩
+  // 페이지네이션으로 보여준다. 대표가 결재 필요 없이 자기 자신의 신청을 자동승인한 건
+  // (headApproval이 "자동승인(...)")도 결재는 됐으니 그대로 포함한다.
+  let _approvedLeavesCache = [];
+  let _approvedLeavePage = 1;
+  const APPROVED_LEAVE_PAGE_SIZE = 10;
+  window.loadApprovedLeaves = async function() {
+    try {
+      const data = await window._leaveApiCall('getLeaves', { role: 'admin' });
+      if (data.status !== 'ok') return;
+      const rows = (data.rows || []).filter(r => r.status === '확정' && r.headApproval);
+      rows.sort((a, b) => String(b.headApproval || '').localeCompare(String(a.headApproval || '')));
+      _approvedLeavesCache = rows;
+      const sel = document.getElementById('leaveApprovedFilterEmp');
+      if (sel) {
+        const names = Array.from(new Set(rows.map(r => r.name).filter(Boolean))).sort();
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">전체 사원</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+        sel.value = names.includes(cur) ? cur : '';
+      }
+      renderApprovedLeaveList(1);
+    } catch (e) {}
+  };
+  window.renderApprovedLeaveList = function(page) {
+    const list = document.getElementById('approvedLeaveList');
+    const pager = document.getElementById('approvedLeavePager');
+    if (!list) return;
+    const filterName = (document.getElementById('leaveApprovedFilterEmp') || {}).value || '';
+    const filtered = filterName ? _approvedLeavesCache.filter(r => r.name === filterName) : _approvedLeavesCache;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / APPROVED_LEAVE_PAGE_SIZE));
+    page = Math.min(Math.max(1, page || 1), totalPages);
+    _approvedLeavePage = page;
+    const pageRows = filtered.slice((page - 1) * APPROVED_LEAVE_PAGE_SIZE, page * APPROVED_LEAVE_PAGE_SIZE);
+    list.innerHTML = pageRows.length ? pageRows.map(r => {
+      const approvedAt = String(r.headApproval || '').replace(/^[^(]*\(|\)$/g, '');
+      const period = r.endDate && r.endDate !== r.startDate ? `${r.startDate} ~ ${r.endDate}` : (r.startDate || '');
+      return `<div style="display:flex;align-items:center;gap:14px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;">
+        <div style="min-width:90px;font-weight:700;font-size:13px;">${esc(r.name)}<span style="color:#999;font-weight:400;font-size:11px;margin-left:4px;">${esc(r.dept || '')}</span></div>
+        <div style="font-size:12.5px;color:#666;">${esc(r.leaveType || '')} ${r.days || 0}일</div>
+        <div style="font-size:12.5px;color:#666;">${esc(period)}</div>
+        <div style="margin-left:auto;font-size:11.5px;color:#aaa;">결재 ${esc(approvedAt)}</div>
+      </div>`;
+    }).join('') : '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px 0;">결재완료 내역이 없습니다.</div>';
+    if (pager) {
+      pager.innerHTML = totalPages <= 1 ? '' : Array.from({ length: totalPages }, (_, i) => i + 1).map(p =>
+        `<button onclick="renderApprovedLeaveList(${p})" style="min-width:30px;padding:5px 8px;border-radius:7px;border:1px solid ${p === page ? 'var(--brand)' : '#ddd'};background:${p === page ? 'var(--brand)' : '#fff'};color:${p === page ? '#fff' : '#666'};font-size:12px;font-weight:700;cursor:pointer;">${p}</button>`
+      ).join('');
+    }
+  };
 
   // 근속연수별 연차표는 window._calcAnnualLeaveDays 하나로 통일 (calcAnnualLeave와 동일 함수 호출).
   function calcAnnualLeaveClient(joinDateStr) {
