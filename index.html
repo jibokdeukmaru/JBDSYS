@@ -8161,9 +8161,32 @@ function csDateInputValue(val) {
   <div class="admin-card" style="margin-top:20px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
       <div class="admin-section-title" style="margin:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>결재완료 내역</div>
-      <select id="leaveApprovedFilterEmp" onchange="renderApprovedLeaveList(1)" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
-        <option value="">전체 사원</option>
-      </select>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="leaveApprovedFilterEmp" onchange="renderApprovedLeaveList(1)" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+          <option value="">전체 사원</option>
+        </select>
+        <button class="admin-btn" onclick="toggleManualLeaveForm()">+ 과거 기록 수동 등록</button>
+      </div>
+    </div>
+    <div id="manualLeaveFormWrap" style="display:none;margin-bottom:14px;padding:14px;border:1px dashed var(--border);border-radius:10px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <select id="manualLeaveEmp" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;min-width:130px;"></select>
+        <select id="manualLeaveType" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+          <option value="연차">연차</option>
+          <option value="반차">반차</option>
+          <option value="반반차">반반차</option>
+          <option value="건강검진반일">건강검진(반일)</option>
+          <option value="건강검진종일">건강검진(종일)</option>
+          <option value="출산휴가">출산휴가</option>
+        </select>
+        <input type="date" id="manualLeaveStart" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        <span style="color:#999;">~</span>
+        <input type="date" id="manualLeaveEnd" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        <input type="number" id="manualLeaveDays" placeholder="일수" min="0" step="0.5" style="width:70px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;text-align:center;">
+        <input type="text" id="manualLeaveReason" placeholder="비고(선택)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        <button class="admin-btn primary" onclick="submitManualLeave()">등록</button>
+      </div>
+      <div id="manualLeaveMsg" style="font-size:11.5px;margin-top:8px;"></div>
     </div>
     <div id="approvedLeaveList" style="display:flex;flex-direction:column;gap:8px;"></div>
     <div id="approvedLeavePager" style="display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap;"></div>
@@ -14621,6 +14644,47 @@ if ('serviceWorker' in navigator) {
       pager.innerHTML = totalPages <= 1 ? '' : Array.from({ length: totalPages }, (_, i) => i + 1).map(p =>
         `<button onclick="renderApprovedLeaveList(${p})" style="min-width:30px;padding:5px 8px;border-radius:7px;border:1px solid ${p === page ? 'var(--brand)' : '#ddd'};background:${p === page ? 'var(--brand)' : '#fff'};color:${p === page ? '#fff' : '#666'};font-size:12px;font-weight:700;cursor:pointer;">${p}</button>`
       ).join('');
+    }
+  };
+
+  // ── 과거 연차 사용 기록 수동 등록 — 결재 절차 없이 바로 확정 상태로 leaves 컬렉션에
+  // 추가한다(leave-api의 adminCreateLeave). 앱 도입 전 사용분 등 실제로는 이미 지나간
+  // 휴가를 뒤늦게 기록해둘 때 씀 — 신규 신청 승인 절차와는 별개.
+  window.toggleManualLeaveForm = function() {
+    const wrap = document.getElementById('manualLeaveFormWrap');
+    if (!wrap) return;
+    const opening = wrap.style.display === 'none';
+    wrap.style.display = opening ? 'block' : 'none';
+    if (opening) {
+      const sel = document.getElementById('manualLeaveEmp');
+      const emps = (window._allEmployees || []).filter(e => !e.leaveDate && String(e.name || '').trim() !== '관리자');
+      if (sel) sel.innerHTML = emps.map(e => `<option value="${esc(e.id)}" data-name="${esc(e.name)}" data-dept="${esc(e.dept || '')}">${esc(e.name)}(${esc(e.dept || '-')})</option>`).join('');
+    }
+  };
+  window.submitManualLeave = async function() {
+    const sel = document.getElementById('manualLeaveEmp');
+    const opt = sel && sel.selectedOptions[0];
+    const msg = document.getElementById('manualLeaveMsg');
+    if (!opt) { if (msg) { msg.style.color = '#c0392b'; msg.textContent = '사원을 선택해주세요.'; } return; }
+    const startDate = document.getElementById('manualLeaveStart').value;
+    const endDate = document.getElementById('manualLeaveEnd').value || startDate;
+    const days = parseFloat(document.getElementById('manualLeaveDays').value) || 0;
+    if (!startDate || !days) { if (msg) { msg.style.color = '#c0392b'; msg.textContent = '시작일과 일수를 입력해주세요.'; } return; }
+    const leaveType = document.getElementById('manualLeaveType').value;
+    const reason = document.getElementById('manualLeaveReason').value || '';
+    if (msg) { msg.style.color = '#888'; msg.textContent = '등록 중...'; }
+    try {
+      const data = await window._leaveApiCall('adminCreateLeave', {
+        id: opt.value, name: opt.dataset.name, dept: opt.dataset.dept,
+        startDate, endDate, days, leaveType, reason
+      });
+      if (data.status !== 'ok') { if (msg) { msg.style.color = '#c0392b'; msg.textContent = '실패: ' + (data.message || ''); } return; }
+      if (msg) { msg.style.color = '#1a7a45'; msg.textContent = '✔ 등록 완료'; }
+      ['manualLeaveStart', 'manualLeaveEnd', 'manualLeaveDays', 'manualLeaveReason'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      window.loadApprovedLeaves();
+      if (typeof loadAdminLeaveTable === 'function') loadAdminLeaveTable();
+    } catch (e) {
+      if (msg) { msg.style.color = '#c0392b'; msg.textContent = '오류: ' + e.message; }
     }
   };
 

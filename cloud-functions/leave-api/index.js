@@ -48,6 +48,24 @@ async function notifyLeaveApprover(status, approverIds, name, leaveType, days) {
   }
 }
 
+// 관리자가 과거 이력(앱 도입 전 사용분 등)을 결재 절차 없이 바로 확정 상태로 등록.
+// 관리자페이지 "결재완료 내역" 카드의 수동 등록 폼에서만 호출된다.
+async function adminCreateLeave(p) {
+  const id = String(p.id || '');
+  const days = parseFloat(p.days) || 0;
+  const now = nowStr();
+  const startDate = String(p.startDate || '');
+  const docRef = await db.collection('leaves').add({
+    empId: id, name: p.name || '', dept: p.dept || '',
+    appliedAt: now, startDate, endDate: String(p.endDate || startDate),
+    days, leaveType: p.leaveType || '연차', reason: p.reason || '(관리자 수동 등록)',
+    status: '확정', managerApproval: '관리자 수동등록', headApproval: `관리자 수동등록(${now})`,
+    approverIds: [], requestType: '', prevSnapshot: null, selectedDates: [],
+    deducted: false, createdAtMs: Date.now()
+  });
+  return { status: 'ok', applyId: docRef.id };
+}
+
 async function submitLeave(p) {
   const id = String(p.id || '');
   const isHead = p.isHead === 'true' || p.isHead === true;
@@ -271,6 +289,7 @@ exports.leaveApi = async (req, res) => {
     let result;
     switch (action) {
       case 'applyLeave': result = await submitLeave(params); break;
+      case 'adminCreateLeave': result = await adminCreateLeave(params); break;
       case 'getLeaves': result = await getLeaves(params); break;
       case 'getLeavesPublic': result = await getLeavesPublic(); break;
       case 'approveLeave': result = await approveLeave(params); break;
