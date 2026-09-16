@@ -14555,20 +14555,9 @@ if ('serviceWorker' in navigator) {
   //   같은 방식(usedLeave 수동값 + 앱에서 승인된 지난 휴가)으로 "잔여"를 보여줘야 하는데,
   //   그쪽은 별개 클로저라 _orgLeaves/_orgPastUsed에 직접 접근을 못 해서 window에 노출한다.
   window._orgPastUsed = _orgPastUsed;
-  // ★ 회계연도 기준(이월 없음)으로 바뀌면서 매년 1/1에 그 해 미사용분이 그냥 사라지는데,
-  //   관리자가 나중에 참고(예: 연차수당 정산)할 수 있게 "직전년도에 얼마가 부여됐고 그중
-  //   얼마를 못 썼는지"는 기록 삼아 남겨서 보여준다 — 실제 잔여 계산에는 안 쓰고 표시 전용.
-  //   usedLeave(수동입력, 앱 이전 기사용분)는 특정 연도에 귀속된 값이 아니라서 여기 포함 안 함.
-  function _orgPrevYearUnused(empId, emp) {
-    const prevYear = new Date().getFullYear() - 1;
-    const fy = window._calcFiscalYearLeave(emp.joinDate, prevYear + '-12-31');
-    const granted = fy.total_leaves;
-    const used = _orgLeaves
-      .filter(r => r.id === empId && r.status === '확정' && _orgIsDeductType(r.leaveType) && String(r.endDate||'').slice(0, 4) === String(prevYear))
-      .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
-    return { year: prevYear, granted, used, unused: Math.max(0, granted - used) };
-  }
-  window._orgPrevYearUnused = _orgPrevYearUnused;
+  // ★ 2026-09-16: "직전년도 미사용 연차"(회계연도 기준 실험 때 추가) 표시는 회사 정책이
+  //   최종적으로 입사일 기준으로 확정되면서 제거함 — window._calcFiscalYearLeave로 만든
+  //   가상의 "회계연도 부여량"은 실제로 적용된 적 없는 숫자라 표시하면 혼란만 줌.
   let _orgLeavesLoadPromise = null;
   window._ensureOrgLeavesLoaded = function() {
     if (_orgLeaves.length || _orgLeavesLoadPromise) return _orgLeavesLoadPromise || Promise.resolve();
@@ -14619,7 +14608,6 @@ if ('serviceWorker' in navigator) {
       const _s = window._calcLeaveSummary(e, pastUsed, scheduled);
       const total = _s.total, baseUsed = _s.baseUsed, used = _s.used, remain = _s.remain;
       const pct      = total > 0 ? Math.min(100, Math.round(used/total*100)) : 0;
-      const prevY = _orgPrevYearUnused(e.id, e);
       return `<div class="leave-card" id="leaveCard_${e.id}">
         <div class="leave-row" onclick="toggleLeaveEdit('${e.id}')">
           <div class="leave-id">
@@ -14629,7 +14617,6 @@ if ('serviceWorker' in navigator) {
           <div class="leave-bar-wrap">
             <div class="leave-bar-top"><span>사용 ${used}일</span><span style="color:#e67e22;">사용예정 ${scheduled}일</span><span>부여 ${total}일</span></div>
             <div class="leave-track"><div class="leave-fill" style="width:${pct}%;"></div></div>
-            ${(prevY.granted > 0 || prevY.used > 0) ? `<div class="leave-prevyear" style="font-size:10.5px;color:#aaa;margin-top:4px;">${prevY.year}년 미사용 연차 ${prevY.unused}일 (부여 ${prevY.granted}일 · 사용 ${prevY.used}일) — 이월 안 됨, 기록용</div>` : ''}
           </div>
           <div class="leave-remain"><div class="big">${remain}</div><div class="lbl">잔여(일)</div></div>
           <div class="leave-edit-btn" title="기사용 연차 수정"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></div>
