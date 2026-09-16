@@ -50,6 +50,7 @@ async function login(p) {
     approverIds: emp.approverIds, birthday: emp.birthday, cardUrl: emp.cardUrl,
     homeTab: emp.homeTab, team: emp.team,
     stockBetaEditor: !!emp.stockBetaEditor, compatEditor: !!emp.compatEditor, scheduleEditor: !!emp.scheduleEditor,
+    leaveManagerEditor: !!emp.leaveManagerEditor,
   };
 
   const claims = { role: user.role || null, email: user.email || null };
