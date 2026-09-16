@@ -137,21 +137,23 @@
   // 배열, _orgPastUsed()/_orgScheduled() 캐시, getLeaves API 응답 등) 그 값은 그대로
   // pastUsed/scheduled 인자로 받되, "부여=공식+조정", "사용=수동입력+지난확정분",
   // "잔여=부여-사용"을 조합하는 계산 자체는 여기서만 한다. (2026-09-16: 화면마다 이
-  // 산수를 따로 베껴 쓰다가 한 곳(내정보)에서 조정연차 반영을 빠뜨린 버그가 나서 통합함.
-  // 같은 날 "회계연도 기준" 계산으로 전환 — window._calcAnnualLeaveDays(입사일 기준
-  // 근속연수표)는 더는 여기서 안 쓰지만, 다른 목적으로 참조될 수 있어 정의는 남겨둔다.)
+  // 산수를 따로 베껴 쓰다가 한 곳(내정보)에서 조정연차 반영을 빠뜨린 버그가 나서 통합함.)
+  // ★ 2026-09-16 같은 날 "회계연도 기준(window._calcFiscalYearLeave)"으로 잠깐 바꿨다가
+  //   롤백함 — 그 함수는 입사일부터 지금까지 매년 발생량을 소멸 없이 평생 그대로 누적
+  //   합산하는 방식이라, 장기근속자일수록 총량이 비현실적으로 커지는 버그가 있었다(예:
+  //   10년차 184일, 20년차 405일). 실제 연차는 해마다 쓰거나 소멸하는 것이지 평생 쌓이는
+  //   게 아닌데 그 소멸/이월 규칙을 안 넣은 채로 배포해서 발생. 이월/소멸 정책을 제대로
+  //   설계하기 전까지는 기존 방식(이번 근속연도 부여량만 계산하는 _calcAnnualLeaveDays)을
+  //   그대로 쓴다 — window._calcFiscalYearLeave 자체는 코드에 남겨두되 여기서는 호출 안 함.
   window._calcLeaveSummary = function(emp, pastUsed, scheduled) {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const asOfStr = emp.leaveDate || todayStr;
-    const fy = window._calcFiscalYearLeave(emp.joinDate, asOfStr);
-    const generated = fy.total_leaves;
+    const generated = window._calcAnnualLeaveDays(emp.joinDate, emp.leaveDate);
     const total = generated + (Number(emp.annualLeave) || 0);
     const baseUsed = parseFloat(emp.usedLeave) || 0;
     pastUsed = Number(pastUsed) || 0;
     scheduled = Number(scheduled) || 0;
     const used = baseUsed + pastUsed;
     const remain = total - used;
-    return { generated, total, baseUsed, pastUsed, used, scheduled, remain, fiscal: fy };
+    return { generated, total, baseUsed, pastUsed, used, scheduled, remain };
   };
 </script>
 <script type="module">
