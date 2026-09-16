@@ -8809,9 +8809,12 @@ function csDateInputValue(val) {
         }
 
         // 연차 계산 — window._calcAnnualLeaveDays(전 화면 공통, 근속연수별 연차표 적용)로 통일.
-        const generated = window._calcAnnualLeaveDays(u.joinDate, u.leaveDate);
+        // ★ 여기(내정보 화면)만 조정연차(annualLeave 필드)를 안 더하고 있었고, 사용연차도
+        //   parseInt라 소수점(반차 등)이 잘려나갔다 — updateLeaveBalance()/직원목록 모달과
+        //   같은 공식(공식+조정, parseFloat)으로 맞춘다.
+        const generated = window._calcAnnualLeaveDays(u.joinDate, u.leaveDate) + (Number(u.annualLeave) || 0);
 
-        const baseUsed = parseInt(u.usedLeave || 0);
+        const baseUsed = parseFloat(u.usedLeave) || 0;
 
         const totalEl = document.getElementById('myiLeaveTotal');
         if (totalEl) totalEl.textContent = `/ ${generated} 일`;
