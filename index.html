@@ -61,6 +61,24 @@
     if (!anniversaryPassed) years -= 1;
     return window._leaveByTenureYears(years);
   };
+
+  // ── 잔여연차 산수는 이 함수 하나뿐 — 내정보/직원목록모달/휴가신청/연차현황 카드 등
+  // 화면들은 전부 이 결과값만 받아서 숫자를 꽂아 넣기만 한다(직접 계산 금지). 화면마다
+  // "앱에서 확정된 지난/예정 휴가일수"를 이미 다른 방식으로 캐싱해두고 있어(예: _allLeaves
+  // 배열, _orgPastUsed()/_orgScheduled() 캐시, getLeaves API 응답 등) 그 값은 그대로
+  // pastUsed/scheduled 인자로 받되, "부여=공식+조정", "사용=수동입력+지난확정분",
+  // "잔여=부여-사용"을 조합하는 계산 자체는 여기서만 한다. (2026-09-16: 화면마다 이
+  // 산수를 따로 베껴 쓰다가 한 곳(내정보)에서 조정연차 반영을 빠뜨린 버그가 나서 통합함)
+  window._calcLeaveSummary = function(emp, pastUsed, scheduled) {
+    const generated = window._calcAnnualLeaveDays(emp.joinDate, emp.leaveDate);
+    const total = generated + (Number(emp.annualLeave) || 0);
+    const baseUsed = parseFloat(emp.usedLeave) || 0;
+    pastUsed = Number(pastUsed) || 0;
+    scheduled = Number(scheduled) || 0;
+    const used = baseUsed + pastUsed;
+    const remain = total - used;
+    return { generated, total, baseUsed, pastUsed, used, scheduled, remain };
+  };
 </script>
 <script type="module">
   // ══════════════════════════════════════════════════════════════
@@ -8808,25 +8826,19 @@ function csDateInputValue(val) {
             set('myiTenure', tenure);
         }
 
-        // 연차 계산 — window._calcAnnualLeaveDays(전 화면 공통, 근속연수별 연차표 적용)로 통일.
-        // ★ 여기(내정보 화면)만 조정연차(annualLeave 필드)를 안 더하고 있었고, 사용연차도
-        //   parseInt라 소수점(반차 등)이 잘려나갔다 — updateLeaveBalance()/직원목록 모달과
-        //   같은 공식(공식+조정, parseFloat)으로 맞춘다.
-        const generated = window._calcAnnualLeaveDays(u.joinDate, u.leaveDate) + (Number(u.annualLeave) || 0);
-
-        const baseUsed = parseFloat(u.usedLeave) || 0;
-
+        // 연차 계산 — 산수는 window._calcLeaveSummary 하나뿐, 여기선 결과값만 받아 표시한다.
         const totalEl = document.getElementById('myiLeaveTotal');
-        if (totalEl) totalEl.textContent = `/ ${generated} 일`;
 
-        // 3구간(사용/예정/남은) 프로그레스 렌더
-        const _renderLeaveSegments = (used, scheduled) => {
-          const remaining = Math.max(generated - used, 0);
-          const sched = Math.max(0, Math.min(scheduled || 0, remaining)); // 예정은 남은 범위 내로 클램프
+        // 3구간(사용/예정/남은) 프로그레스 렌더. pastUsed/scheduled: 앱에서 확정된 지난/예정 휴가일수.
+        const _renderLeaveSegments = (pastUsed, scheduled) => {
+          const s = window._calcLeaveSummary(u, pastUsed, scheduled);
+          if (totalEl) totalEl.textContent = `/ ${s.total} 일`;
+          const remaining = Math.max(s.remain, 0);
+          const sched = Math.max(0, Math.min(s.scheduled, remaining)); // 예정은 남은 범위 내로 클램프
           const realRemain = Math.max(remaining - sched, 0);
           set('myiLeaveLeft', realRemain);
-          const g = generated > 0 ? generated : 1;
-          const usedPct  = Math.min(100, Math.round((used / g) * 100));
+          const g = s.total > 0 ? s.total : 1;
+          const usedPct  = Math.min(100, Math.round((s.used / g) * 100));
           const schedPct = Math.min(100 - usedPct, Math.round((sched / g) * 100));
           const remainPct = Math.max(0, 100 - usedPct - schedPct);
           const segU = document.getElementById('myiSegUsed');
@@ -8839,10 +8851,10 @@ function csDateInputValue(val) {
           const legU = document.getElementById('myiLegUsed');
           const legS = document.getElementById('myiLegScheduled');
           if (legR) legR.textContent = realRemain;
-          if (legU) legU.textContent = used;
+          if (legU) legU.textContent = s.used;
           if (legS) legS.textContent = sched;
         };
-        _renderLeaveSegments(baseUsed, 0); // 실제 신청내역 오기 전 우선 수동값 기준으로 즉시 표시
+        _renderLeaveSegments(0, 0); // 실제 신청내역 오기 전 우선 수동값 기준으로 즉시 표시
 
         // ★ 실제 신청내역 중 확정된 것 — 이미 지난 건은 "사용"에 자동 합산, 아직 안 지난 건은
         //   "예정"으로 반영한다 (휴가신청 탭의 updateLeaveBalance()와 동일한 방식).
@@ -8855,7 +8867,7 @@ function csDateInputValue(val) {
               const myConfirmed = (data.rows||[]).filter(r => String(r.id) === String(u.id) && r.status === '확정' && isDeduct(r.leaveType));
               const pastUsed = myConfirmed.filter(r => String(r.endDate||'') < todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
               const scheduledDays = myConfirmed.filter(r => String(r.endDate||'') >= todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
-              _renderLeaveSegments(baseUsed + pastUsed, scheduledDays);
+              _renderLeaveSegments(pastUsed, scheduledDays);
             }
           } catch(e) { /* 실패 시 수동값 기준으로 유지 */ }
         })();
@@ -9295,18 +9307,15 @@ function csDateInputValue(val) {
           // 어긋났다(예: 카드 19일인데 모달은 18일) — 전 직원 동일 기준으로 통일.
           const calcEl = document.getElementById('empModalLeaveCalc');
           if (calcEl && src.dataset.joindate) {
-            const generated = window._calcAnnualLeaveDays(src.dataset.joindate);
-            const total = generated + leaveAdjust;
-            // ★ 여기 "잔여"는 수동입력값(usedLeave)만 반영해서, 앱에서 신청·승인된 지난
-            //   휴가는 하나도 안 뺀 채로 나왔었다(연차현황 카드는 이미 고쳐져 있었는데 이
-            //   모달만 별개 코드라 안 고쳐짐) — 같은 방식으로 지난 확정 휴가를 더해서 계산.
+            // 산수는 window._calcLeaveSummary 하나뿐 — 여기선 결과값만 받아 표시한다.
+            const empForCalc = { joinDate: src.dataset.joindate, annualLeave: leaveAdjust, usedLeave };
             const empIdForCalc = _selectedEmpId;
-            calcEl.textContent = `(공식 ${generated}일 + 조정 ${leaveAdjust}일 = 부여 ${total}일 / 잔여 계산 중...)`;
+            const s0 = window._calcLeaveSummary(empForCalc, 0, 0);
+            calcEl.textContent = `(공식 ${s0.generated}일 + 조정 ${leaveAdjust}일 = 부여 ${s0.total}일 / 잔여 계산 중...)`;
             (window._ensureOrgLeavesLoaded ? window._ensureOrgLeavesLoaded() : Promise.resolve()).then(() => {
               const pastUsed = (window._orgPastUsed && empIdForCalc) ? window._orgPastUsed(empIdForCalc) : 0;
-              const used = usedLeave + pastUsed;
-              const remaining = Math.max(total - used, 0);
-              calcEl.textContent = `(공식 ${generated}일 + 조정 ${leaveAdjust}일 = 부여 ${total}일 / 사용 ${used}일 / 잔여 ${remaining}일)`;
+              const s = window._calcLeaveSummary(empForCalc, pastUsed, 0);
+              calcEl.textContent = `(공식 ${s.generated}일 + 조정 ${leaveAdjust}일 = 부여 ${s.total}일 / 사용 ${s.used}일 / 잔여 ${Math.max(s.remain, 0)}일)`;
             });
           } else if (calcEl) { calcEl.textContent = ''; }
         }
@@ -13766,8 +13775,6 @@ if ('serviceWorker' in navigator) {
   function updateLeaveBalance() {
     const user = window._currentUser;
     if (!user) return;
-    const total = calcAnnualLeave(user.joinDate) + (Number(user.annualLeave) || 0);
-    const baseUsed = parseFloat(user.usedLeave) || 0;
     const today = new Date().toISOString().slice(0,10);
     const myConfirmed = _allLeaves.filter(r => r.id === user.id && r.status === '확정' && _isDeductType(r.leaveType));
     const pastUsed = myConfirmed
@@ -13776,13 +13783,12 @@ if ('serviceWorker' in navigator) {
     const scheduledDays = myConfirmed
       .filter(r => String(r.endDate||'') >= today)
       .reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
-    const used = baseUsed + pastUsed;
-    const remain = total - used;
-    document.getElementById('leaveTotal').textContent    = total + '일';
-    document.getElementById('leaveUsed').textContent     = used + '일';
+    const s = window._calcLeaveSummary(user, pastUsed, scheduledDays);
+    document.getElementById('leaveTotal').textContent    = s.total + '일';
+    document.getElementById('leaveUsed').textContent     = s.used + '일';
     const schedEl = document.getElementById('leaveScheduled');
-    if (schedEl) schedEl.textContent = scheduledDays + '일';
-    document.getElementById('leaveRemain').textContent   = remain + '일';
+    if (schedEl) schedEl.textContent = s.scheduled + '일';
+    document.getElementById('leaveRemain').textContent   = s.remain + '일';
   }
 
   // 패널 열기 → 탭으로 이동 (드롭다운 등 기존 호출 호환용)
@@ -14108,7 +14114,7 @@ if ('serviceWorker' in navigator) {
     const dateListText = sorted.map(d => d.slice(5).replace('-', '/')).join(', ');
     let confirmMsg = `[휴가 신청 확인]\n\n종류: ${saveLeaveType}\n신청 날짜(총 ${sorted.length}일): ${dateListText}\n총 일수: ${days}일\n`;
     if (_isDeductType(saveLeaveType)) {
-      const total = calcAnnualLeave(user.joinDate) + (Number(user.annualLeave) || 0);
+      const total = window._calcLeaveSummary(user, 0, 0).total;
       const used  = parseFloat(user.usedLeave) || 0;
       const pendingDays = _allLeaves
         .filter(r => r.id === user.id && _isDeductType(r.leaveType) && (r.status === '확정' || r.status === '대기' || r.status === '대표승인대기'))
@@ -14416,12 +14422,10 @@ if ('serviceWorker' in navigator) {
     const sorted = [...head, ...others, ...noDept];
 
     list.innerHTML = sorted.map(e => {
-      const total    = calcAnnualLeaveClient(e.joinDate) + (Number(e.annualLeave) || 0);
-      const baseUsed = parseFloat(e.usedLeave)||0;
       const pastUsed = _orgPastUsed(e.id);
       const scheduled = _orgScheduled(e.id);
-      const used     = baseUsed + pastUsed;
-      const remain   = total - used;
+      const _s = window._calcLeaveSummary(e, pastUsed, scheduled);
+      const total = _s.total, baseUsed = _s.baseUsed, used = _s.used, remain = _s.remain;
       const pct      = total > 0 ? Math.min(100, Math.round(used/total*100)) : 0;
       return `<div class="leave-card" id="leaveCard_${e.id}">
         <div class="leave-row" onclick="toggleLeaveEdit('${e.id}')">
@@ -14457,10 +14461,8 @@ if ('serviceWorker' in navigator) {
   function updateLeaveCard(emp) {
     const card = document.getElementById('leaveCard_' + emp.id);
     if (!card) return;
-    const total  = calcAnnualLeaveClient(emp.joinDate) + (Number(emp.annualLeave) || 0);
-    const scheduled = _orgScheduled(emp.id);
-    const used   = (parseFloat(emp.usedLeave)||0) + _orgPastUsed(emp.id);
-    const remain = total - used;
+    const _s = window._calcLeaveSummary(emp, _orgPastUsed(emp.id), _orgScheduled(emp.id));
+    const total = _s.total, used = _s.used, remain = _s.remain, scheduled = _s.scheduled;
     const pct    = total > 0 ? Math.min(100, Math.round(used/total*100)) : 0;
     const fill = card.querySelector('.leave-fill'); if (fill) fill.style.width = pct + '%';
     const top  = card.querySelector('.leave-bar-top'); if (top) top.innerHTML = `<span>사용 ${used}일</span><span style="color:#e67e22;">사용예정 ${scheduled}일</span><span>부여 ${total}일</span>`;
