@@ -63,11 +63,13 @@
   };
 
   // ── 회계연도 기준 연차 자동계산 (2026-09-16, 근로기준법 제60조 + "입사일 기준 보장 원칙")
-  // 매년 1/1 회계연도 정산 방식으로 바꾸되, 입사일(계속근로) 기준으로 계산했을 때보다
-  // 불리해지지 않도록 입사기념일(만 2/4/6...년)마다 부족분을 +1로 보정한다. 반환값은
-  // "잔여"가 아니라 입사일부터 대상일까지 "발생(부여)"된 누적 총량 — 잔여 계산은
-  // 아래 window._calcLeaveSummary에서 "사용"과 조합해서 한다. 헬퍼 이름들이 흔한
-  // 단어라 전역 오염을 피하려고 IIFE로 감싸고 window._calcFiscalYearLeave만 노출한다.
+  // 매년 1/1에 그 해 몫만 새로 계산해서 리셋한다 — 미사용 연차 이월 없음(사용자 선택,
+  // "가장 단순하고 버그 위험이 적은 방식"). ★ 첫 버전은 매년 발생량을 소멸 없이 평생
+  // 누적합산했다가 장기근속자 총량이 10년차 184일/20년차 405일처럼 폭증하는 버그로
+  // 배포 당일 롤백됨([[jbdsys-fiscal-year-leave]] 메모리 참고) — 그래서 이번엔 "지금
+  // 이 순간 기준으로 이번 회계연도에 얼마가 부여되는지"만 계산하고 과거 회계연도는
+  // 아예 안 더한다(연도가 바뀌면 그 전 해 몫은 그냥 사라짐). 헬퍼 이름이 흔한 단어라
+  // 전역 오염을 피하려고 IIFE로 감싸고 window._calcFiscalYearLeave만 노출한다.
   (function() {
     function parseYmd(s) {
       const [y, m, d] = s.split('-').map(Number);
@@ -76,7 +78,9 @@
     function addYears(d, n) { return new Date(d.getFullYear() + n, d.getMonth(), d.getDate()); }
     function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, d.getDate()); }
     function daysBetweenInclusive(a, b) { return Math.round((b - a) / 86400000) + 1; }
-    // 기준일 현재 만근속연수(완료된 정수 년수) — 입사기념일이 아직 안 지났으면 -1
+    // 기준일 현재 만근속연수(완료된 정수 년수) — 입사기념일이 아직 안 지났으면 -1.
+    // "오늘" 기준으로 매번 다시 계산하므로 입사기념일이 지난 해엔 자동으로 레벨이
+    // 올라간다 — 별도의 "가산 top-up" 버킷이 필요 없다(첫 버전과의 핵심 차이).
     function tenureFullYears(hire, atDate) {
       let years = atDate.getFullYear() - hire.getFullYear();
       const anniv = new Date(atDate.getFullYear(), hire.getMonth(), hire.getDate());
@@ -84,15 +88,17 @@
       return Math.max(0, years);
     }
     // 만근속연수 → 그 시점 기본 부여 연차 레벨(근로기준법 제60조④: 최초 1년 초과 매 2년마다
-    // 1일 가산, 25일 한도). 만2/4/6...년째 되는 날 이 레벨이 1씩 오른다.
+    // 1일 가산, 25일 한도).
     function leaveLevel(fullYears) { return Math.min(25, 15 + Math.floor(fullYears / 2)); }
 
-    // hireDateStr/targetDateStr: 'YYYY-MM-DD'. 반환값은 입사일~targetDate 누적 발생량.
+    // hireDateStr/targetDateStr: 'YYYY-MM-DD'. 반환값은 "이번 회계연도(또는 만1년 전이면
+    // 이번 개근월차)"에 해당하는 부여량만 — 과거 연도분은 이월 없이 포함 안 함.
     window._calcFiscalYearLeave = function(hireDateStr, targetDateStr) {
-      if (!hireDateStr || !targetDateStr) return { monthly_leaves: 0, annual_leaves: 0, additional_leaves: 0, total_leaves: 0 };
+      const empty = { monthly_leaves: 0, period_grant: 0, total_leaves: 0, phase: 'none' };
+      if (!hireDateStr || !targetDateStr) return empty;
       const hire = parseYmd(hireDateStr);
       const target = parseYmd(targetDateStr);
-      if (target < hire) return { monthly_leaves: 0, annual_leaves: 0, additional_leaves: 0, total_leaves: 0 };
+      if (target < hire) return empty;
 
       // 1) 월차 — 만1년 미만, 개근월당 1일, 최대 11개(만1년 시점 전날까지만 인정)
       const oneYearMark = addYears(hire, 1);
@@ -104,30 +110,24 @@
         while (addMonths(hire, months + 1) <= accrualEnd) months++;
         monthly_leaves = Math.min(11, months);
       }
+      if (target < oneYearMark) {
+        return { monthly_leaves, period_grant: 0, total_leaves: monthly_leaves, phase: 'monthly' };
+      }
 
-      // 2) 회계연도 정산(매년 1/1) — 입사년도 다음 1/1은 일할비례, 이후는 그 시점 레벨 그대로
-      let annual_leaves = 0;
-      const hireYearEnd = new Date(hire.getFullYear(), 11, 31);
+      // 2) 만1년 이후 — 입사년도 다음 1/1이 속한 해(첫 정산연도)는 그 해 일할비례 고정값,
+      //    그 이후 해는 "오늘" 기준 근속연수의 레벨을 그대로(이월 없이) 그 해 부여량으로 씀.
       const firstJan1 = new Date(hire.getFullYear() + 1, 0, 1);
-      if (target >= firstJan1) {
+      let period_grant, phase;
+      if (target.getFullYear() === firstJan1.getFullYear()) {
+        const hireYearEnd = new Date(hire.getFullYear(), 11, 31);
         const daysInHireYear = daysBetweenInclusive(hire, hireYearEnd);
-        annual_leaves += Math.round(15 * daysInHireYear / 365);
-        for (let y = hire.getFullYear() + 2; ; y++) {
-          const jan1 = new Date(y, 0, 1);
-          if (jan1 > target) break;
-          annual_leaves += leaveLevel(tenureFullYears(hire, jan1));
-        }
+        period_grant = Math.round(15 * daysInHireYear / 365);
+        phase = 'first-settlement';
+      } else {
+        period_grant = leaveLevel(tenureFullYears(hire, target));
+        phase = 'annual';
       }
-
-      // 3) 입사기념일 가산 정산 — 만2/4/6...년마다 입사일 기준 보장을 위해 +1
-      //    (레벨은 짝수 기념일에만 오르고 그 해 1/1엔 아직 반영 전이라 항상 +1 보정이 필요)
-      let additional_leaves = 0;
-      for (let k = 2; ; k += 2) {
-        if (addYears(hire, k) > target) break;
-        additional_leaves += 1;
-      }
-
-      return { monthly_leaves, annual_leaves, additional_leaves, total_leaves: monthly_leaves + annual_leaves + additional_leaves };
+      return { monthly_leaves, period_grant, total_leaves: period_grant, phase };
     };
   })();
 
@@ -138,22 +138,23 @@
   // pastUsed/scheduled 인자로 받되, "부여=공식+조정", "사용=수동입력+지난확정분",
   // "잔여=부여-사용"을 조합하는 계산 자체는 여기서만 한다. (2026-09-16: 화면마다 이
   // 산수를 따로 베껴 쓰다가 한 곳(내정보)에서 조정연차 반영을 빠뜨린 버그가 나서 통합함.)
-  // ★ 2026-09-16 같은 날 "회계연도 기준(window._calcFiscalYearLeave)"으로 잠깐 바꿨다가
-  //   롤백함 — 그 함수는 입사일부터 지금까지 매년 발생량을 소멸 없이 평생 그대로 누적
-  //   합산하는 방식이라, 장기근속자일수록 총량이 비현실적으로 커지는 버그가 있었다(예:
-  //   10년차 184일, 20년차 405일). 실제 연차는 해마다 쓰거나 소멸하는 것이지 평생 쌓이는
-  //   게 아닌데 그 소멸/이월 규칙을 안 넣은 채로 배포해서 발생. 이월/소멸 정책을 제대로
-  //   설계하기 전까지는 기존 방식(이번 근속연도 부여량만 계산하는 _calcAnnualLeaveDays)을
-  //   그대로 쓴다 — window._calcFiscalYearLeave 자체는 코드에 남겨두되 여기서는 호출 안 함.
+  // ★ 2026-09-16: 회계연도 기준(window._calcFiscalYearLeave)으로 전환. 첫 버전은 매년
+  //   발생량을 소멸 없이 평생 누적합산해서 장기근속자 총량이 폭증하는 버그로 배포 당일
+  //   롤백됐었는데([[jbdsys-fiscal-year-leave]] 참고), 이번엔 "이월 없음"(사용자 선택)으로
+  //   다시 설계 — _calcFiscalYearLeave가 과거 연도는 전혀 안 더하고 "지금 이 순간 기준
+  //   이번 회계연도 몫"만 반환하므로 매년 1/1에 자동으로 리셋된다.
   window._calcLeaveSummary = function(emp, pastUsed, scheduled) {
-    const generated = window._calcAnnualLeaveDays(emp.joinDate, emp.leaveDate);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const asOfStr = emp.leaveDate || todayStr;
+    const fy = window._calcFiscalYearLeave(emp.joinDate, asOfStr);
+    const generated = fy.total_leaves;
     const total = generated + (Number(emp.annualLeave) || 0);
     const baseUsed = parseFloat(emp.usedLeave) || 0;
     pastUsed = Number(pastUsed) || 0;
     scheduled = Number(scheduled) || 0;
     const used = baseUsed + pastUsed;
     const remain = total - used;
-    return { generated, total, baseUsed, pastUsed, used, scheduled, remain };
+    return { generated, total, baseUsed, pastUsed, used, scheduled, remain, fiscal: fy };
   };
 </script>
 <script type="module">
