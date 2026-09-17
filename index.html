@@ -403,6 +403,22 @@ window.fetchEmployeesFS = async function() {
 .oneui-cal .flatpickr-current-month {
   font-size: 16px; font-weight: 800; color: #222;
 }
+/* 상단 월(드롭다운)·연도 글자를 날짜 그리드와 같은 폰트/느낌으로 맞춘다 —
+   flatpickr 기본 CSS가 이 두 컨트롤에만 자체 폰트(font-family 미상속)를 박아둬서 따로 튀었다. */
+.oneui-cal .flatpickr-current-month .flatpickr-monthDropdown-months,
+.oneui-cal .flatpickr-current-month input.cur-year {
+  font-family: inherit !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #222 !important;
+  background: transparent;
+}
+/* 연도 옆 위/아래 화살표(스피너) — 클릭할 때마다 숫자가 바뀌는 불필요한 컨트롤이라 제거.
+   달력에서 날짜를 직접 골라 연도를 바꾸는 흐름(월 드롭다운/좌우 화살표)만 남긴다. */
+.oneui-cal .numInputWrapper span.arrowUp,
+.oneui-cal .numInputWrapper span.arrowDown { display: none !important; }
+.oneui-cal .numInputWrapper input.cur-year { padding-right: 0 !important; }
+.oneui-cal .numInputWrapper:hover { background: transparent !important; }
 .oneui-cal .flatpickr-prev-month, .oneui-cal .flatpickr-next-month { fill:#999; }
 .oneui-cal .flatpickr-weekdays { margin-top: 6px; }
 .oneui-cal .flatpickr-weekday { font-weight: 700; font-size: 12px; color:#999; }
@@ -1459,7 +1475,7 @@ window.fetchEmployeesFS = async function() {
     let html = days.map(d => '<div style="text-align:center;font-size:11px;font-weight:700;color:#aaa;padding:4px 0;">' + d + '</div>').join('');
     for (let i = 0; i < firstDay; i++) html += '<div></div>';
     // 예약관리 탭의 공휴일 관리와 같은 소스(전역 holidayMap, settings/holidays) — 별도 조회 없이 재사용.
-    const _pcalHolidays = (typeof holidayMap !== 'undefined' && holidayMap) ? holidayMap : {};
+    const _pcalHolidays = window.holidayMap || {};
     for (let d = 1; d <= lastDate; d++) {
       const key = _pcalDateKey(_pcalYear, _pcalMonth, d);
       const note = _pcalNotes[key];
@@ -3490,7 +3506,10 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     '14:00~14:30','14:30~15:00','15:00~15:30','15:30~16:00'
   ];
 
+  // ★ 이 IIFE 밖(개인달력 등 다른 <script> 블록)에서도 같은 공휴일 데이터를 읽을 수 있어야 해서
+  //   window.holidayMap에도 항상 같이 올려둔다 — let만 쓰면 이 함수 스코프 밖에서는 안 보인다.
   let holidayMap = {}; // { "2026-01-01": "신정", ... } — 소비자 예약폼과 동일 소스
+  window.holidayMap = holidayMap;
   let currentSlots = WEEKDAY_SLOTS; // 현재 선택된 날짜 기준 슬롯 목록 (동적으로 바뀜)
 
   // ★ 매주 금요일 오전 4개 슬롯은 기본 마감 — 서버(예약스크립트)의 _computeSlotsForDate와 동일 규칙.
@@ -3519,6 +3538,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       console.warn('공휴일 정보 로드 실패:', e.message);
       holidayMap = {};
     }
+    window.holidayMap = holidayMap;
   }
 
   // 날짜(YYYY-MM-DD) 기준 슬롯 목록 결정: 평일 14개 / 토요일 12개 / 일요일·공휴일 0개
@@ -4130,6 +4150,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       delete updated[date];
       await window.FB.setDoc(window.FB.doc(window.FB.db, 'settings', 'holidays'), updated);
       holidayMap = updated;
+      window.holidayMap = holidayMap;
       renderHolidayAdminList();
       msg.textContent = '삭제 완료!';
       setTimeout(() => msg.textContent = '', 2000);
@@ -11137,7 +11158,10 @@ function setTab(tabId, fromPopstate) {
   }
   // ★ 화면 밀도 기능(applyUiDensity)과 무관한 별개 기능이라 독립적으로 호출 — 예전엔 위 블록 안에
   //   얹혀있어서 applyUiDensity가 아직 준비 안 된 시점엔 드롭다운이 안 채워지는 문제가 있었다.
-  if (tabId === 'myInfoTab' && typeof populateHomeTabSelect === 'function') {
+  // ★ "내 홈 화면 설정" 카드는 실제로는 myInfoTab이 아니라 mySettingsTab(내 설정) 안에 있는데
+  //   이 조건은 계속 myInfoTab만 보고 있었다 — 그래서 내 설정 탭에 들어가도 드롭다운이 영원히
+  //   안 채워지고 있었다(카드가 다른 탭으로 옮겨지면서 이 트리거는 안 따라간 것으로 보임).
+  if (tabId === 'mySettingsTab' && typeof populateHomeTabSelect === 'function') {
     populateHomeTabSelect();
   }
   if (tabId === 'adminTab' && typeof loadEmployees === 'function') {
@@ -14830,7 +14854,11 @@ if ('serviceWorker' in navigator) {
       });
       if (data.status !== 'ok') { if (msg) { msg.style.color = '#c0392b'; msg.textContent = '실패: ' + (data.message || ''); } return; }
       if (msg) { msg.style.color = '#1a7a45'; msg.textContent = '✔ 등록 완료'; }
-      ['manualLeaveStart', 'manualLeaveEnd', 'manualLeaveDays', 'manualLeaveReason'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      ['manualLeaveStart', 'manualLeaveEnd', 'manualLeaveDays', 'manualLeaveReason'].forEach(id => {
+        const el = document.getElementById(id); if (!el) return;
+        el.value = '';
+        if (el._flatpickr) el._flatpickr.clear(); // One UI 달력의 내부 선택 상태도 같이 비운다
+      });
       window.loadApprovedLeaves();
       if (typeof loadAdminLeaveTable === 'function') loadAdminLeaveTable();
     } catch (e) {
@@ -17250,7 +17278,9 @@ document.addEventListener('DOMContentLoaded', function() {
   //   flatpickr는 자체 JS 팝업이라 그 트릭이 필요 없다 — type만 text로 바꿔 그대로 붙인다.
   //   change 이벤트는 그대로 발생하므로 cfDate/cfWorkDate로 값을 복사하는 기존 문서 위임
   //   리스너(위쪽 document.addEventListener('change', ...))는 손대지 않아도 계속 동작한다.
-  ['cfDatePicker', 'cfWorkDatePicker'].forEach(function(id) {
+  // ★ ERP 내에서 달력 아이콘/네이티브 달력을 눌러 여는 나머지 날짜 입력들도 전부 동일하게
+  //   One UI 스타일로 통일한다(공휴일 관리, 연차 과거기록 수동등록 시작일/종료일).
+  ['cfDatePicker', 'cfWorkDatePicker', 'holidayAddDate', 'manualLeaveStart', 'manualLeaveEnd'].forEach(function(id) {
     const el = document.getElementById(id);
     if (!el) return;
     el.type = 'text';
