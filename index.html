@@ -17248,6 +17248,37 @@ window.applyOneUIDatePicker = function(el, opts) {
       doneBtn.onclick = function() { fpInst.close(); };
       footer.appendChild(cancelBtn); footer.appendChild(sep); footer.appendChild(doneBtn);
       fpInst.calendarContainer.appendChild(footer);
+
+      // ★ 연도 칸(cur-year)은 flatpickr가 만든 일반 input이라 월 드롭다운(select)과 달리
+      //   브라우저가 휠 스크롤을 자동으로 지원해주지 않는다 — 월처럼 휠/드래그로 연도가
+      //   바뀌도록 직접 붙여준다(값 스핀 화살표는 계속 숨겨둔 채로, 제스처로만 이동).
+      //   jumpToDate는 선택된 날짜는 건드리지 않고 화면에 보이는 연/월만 이동시킨다.
+      const yearInput = fpInst.calendarContainer.querySelector('input.cur-year');
+      if (yearInput) {
+        yearInput.addEventListener('wheel', function(e) {
+          e.preventDefault();
+          const delta = e.deltaY > 0 ? 1 : -1;
+          fpInst.jumpToDate(new Date(fpInst.currentYear + delta, fpInst.currentMonth, 1));
+        }, { passive: false });
+
+        // 모바일: 삼성 One UI처럼 연도 칸을 위/아래로 드래그하면 24px당 1년씩 이동
+        let dragStartY = null, dragBaseYear = null;
+        yearInput.addEventListener('touchstart', function(e) {
+          dragStartY = e.touches[0].clientY;
+          dragBaseYear = fpInst.currentYear;
+        }, { passive: true });
+        yearInput.addEventListener('touchmove', function(e) {
+          if (dragStartY === null) return;
+          e.preventDefault();
+          const diff = dragStartY - e.touches[0].clientY; // 위로 드래그 = 양수
+          const steps = Math.trunc(diff / 24);
+          const newYear = dragBaseYear + steps;
+          if (newYear !== fpInst.currentYear) {
+            fpInst.jumpToDate(new Date(newYear, fpInst.currentMonth, 1));
+          }
+        }, { passive: false });
+        yearInput.addEventListener('touchend', function() { dragStartY = null; dragBaseYear = null; });
+      }
     }
   }, opts || {}));
   return fp;
