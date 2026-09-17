@@ -473,10 +473,9 @@ window.fetchEmployeesFS = async function() {
   .tabs { display:flex; gap:8px; align-items:center; overflow-x:auto; overflow-y:visible; flex:1; scrollbar-width:none; -ms-overflow-style:none; cursor:grab; user-select:none; }
   .tabs::-webkit-scrollbar { display:none; }
   .tabs.dragging { cursor:grabbing; }
-  .tab-btn { min-height:36px; padding:0 15px; border:1px solid transparent; border-radius:999px; background:transparent; color:var(--tab-text); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; transition:background .14s ease, color .14s ease, border-color .14s ease; }
-  .tab-btn:hover { background:var(--tab-hover); color:var(--brand-dark); border-color:transparent; }
-  /* 모던 SaaS GNB: 진한 브랜드색 필 대신, 연한 하이라이트 배경 + 브랜드색 텍스트로 무게감을 낮춤 */
-  .tab-btn.active { background:var(--tab-hover); color:var(--brand-dark); border-color:transparent; font-weight:700; box-shadow:none; }
+  .tab-btn { min-height:36px; padding:0 15px; border:1px solid var(--tab-border); border-radius:999px; background:var(--tab-bg); color:var(--tab-text); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; transition:background .14s ease, color .14s ease, border-color .14s ease; }
+  .tab-btn:hover { background:var(--tab-hover); color:var(--brand-dark); border-color:var(--border-2); }
+  .tab-btn.active { background:var(--brand); color:#FCF7F0; border-color:var(--brand); font-weight:700; box-shadow:0 1px 2px rgba(120,70,30,0.22); }
   .user-info-badge { 
     flex-shrink:0; display:flex; align-items:center; justify-content:center;
     width:36px; height:36px; border-radius:50%;
@@ -4309,7 +4308,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
   .dw-filter-chips { display:flex; gap:6px; margin-left:auto; }
   .dw-chip { padding:4px 12px; border-radius:999px; border:1px solid #ddd; background:#fff; font-size:11.5px; font-weight:700; color:#666; cursor:pointer; }
-  .dw-chip.on { background:#1F2937; color:#fff; border-color:#1F2937; }
+  .dw-chip.on { background:#222; color:#fff; border-color:#222; }
 
   /* ── 허용메뉴(탭 권한 설정) 모달: PC에서는 2열로 한번에 다 보이게, 모바일은 기존 1열 스크롤 유지 ── */
   #tabPermModalBox { max-width:420px; }
@@ -4323,9 +4322,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   .dw-toolbar { display:flex; align-items:center; gap:16px; padding:6px 2px; border-top:1px solid #e8e8e8; border-bottom:1px solid #e8e8e8; margin-bottom:0; }
   .dw-toolbar-item { display:flex; align-items:center; gap:5px; font-size:12.5px; color:#444; font-weight:700; cursor:pointer; background:#fff; border:1.5px solid var(--border-2); border-radius:8px; padding:7px 14px; transition:background .12s, border-color .12s; }
   .dw-toolbar-item:hover { background:var(--cream-2); border-color:var(--brand); }
-  /* 대표 액션(등록)만 포인트 컬러로 채워서 위계를 높이고, 나머지는 아웃라인으로 낮춘다 */
-  .dw-toolbar-item.primary { background:#1F2937; color:#fff; border-color:#1F2937; }
-  .dw-toolbar-item.primary:hover { background:#111827; border-color:#111827; }
   .dw-toolbar-spacer { flex:1; }
   .dw-toolbar-select { border:1px solid #ddd; border-radius:5px; padding:4px 4px; font-size:12px; color:#555; width:50px; }
 
@@ -4389,18 +4385,11 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   .cscal-pop-item:hover { background:var(--border); }
   .cscal-pop-item .t { color:var(--brand); font-weight:700; margin-right:5px; }
 
-  /* 모던 B2B SaaS 톤: 헤더는 테마 브랜드색 대신 고정 뉴트럴 그레이, 보더도 연한 회색으로
-     고정해서 8종 테마 색을 바꿔도 표 크롬(chrome)은 항상 같은 톤을 유지한다. 행 높이는
-     기존(6.5px 패딩)보다 약 1.4배로 늘려 세로 여백을 확보. */
-  table.dw-table { border-collapse:collapse; font-size:13px; line-height:1.5; table-layout:fixed; min-width:100%; }
-  table.dw-table thead th { position:relative; padding:11px 10px; text-align:center; font-weight:700; color:#495057; background:#F8F9FA; border:1px solid #E9ECEF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; user-select:none; }
-  table.dw-table tbody td { padding:11px 10px; text-align:center; border:1px solid #E9ECEF; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  table.dw-table { border-collapse:collapse; font-size:12.5px; table-layout:fixed; min-width:100%; }
+  table.dw-table thead th { position:relative; padding:8px 8px; text-align:center; font-weight:800; color:#fff; background:var(--brand); border:1.5px solid var(--brand-deep); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; user-select:none; }
+  table.dw-table tbody td { padding:6.5px 8px; text-align:center; border:1.5px solid var(--border-2); color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   table.dw-table tbody tr { cursor:pointer; }
-  table.dw-table tbody tr:hover { background:#F8F9FA; }
-  /* 정렬 규칙: 문자(상담자/성함/업체명)는 좌측, 나머지(숫자·배지·날짜)는 중앙 정렬 유지 */
-  #csTable thead th:nth-child(5), #csTable tbody td:nth-child(5),
-  #csTable thead th:nth-child(6), #csTable tbody td:nth-child(6),
-  #csTable thead th:nth-child(7), #csTable tbody td:nth-child(7) { text-align:left; }
+  table.dw-table tbody tr:hover { background:var(--cream-2); }
 
   .dw-col-resizer { position:absolute; right:-3px; top:0; width:6px; height:100%; cursor:col-resize; z-index:2; }
   .dw-col-resizer:hover { background:var(--brand); opacity:0.4; }
@@ -4413,8 +4402,8 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   .dw-td-name { font-weight:500; }
   .dw-td-name .nbadge { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; background:#e74c3c; color:#fff; font-size:8.5px; font-weight:800; margin-left:3px; vertical-align:middle; }
 
-  .dw-status-pill { display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:700; }
-  .dw-status-pill.예약 { background:#FFEDD5; color:#C2410C; }
+  .dw-status-pill { display:inline-block; padding:3px 10px; border-radius:5px; font-size:12px; font-weight:700; }
+  .dw-status-pill.예약 { background:#fdf1d0; color:#a87900; }
   .dw-status-pill.상담완료 { background:#eceff5; color:#5b6472; }
   .dw-status-pill.샘플수령 { background:#d4edda; color:#1a7a45; }
   .dw-status-pill.미방문 { background:#fde8e8; color:#c0392b; }
@@ -4634,7 +4623,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   </div>
 
   <div class="dw-toolbar">
-    <button class="dw-toolbar-item primary" onclick="openManualRegister()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>등록</button>
+    <button class="dw-toolbar-item" onclick="openManualRegister()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>등록</button>
     <button class="dw-toolbar-item" onclick="deleteCheckedConsults()" style="color:#c0392b;border-color:#e6b0aa;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제</button>
     <button class="dw-toolbar-item" id="myConsultsBtn" onclick="toggleMyConsults()" style="color:#2c5fc4;border-color:#b8cced;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>나의상담내역</button>
     <button class="dw-toolbar-item" onclick="openConsultTrash()">삭제목록 복원</button>
@@ -5705,7 +5694,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
                   <span class="dw-status-pill ${status}">${status}</span>
                   ${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:4px;vertical-align:middle;">N</span>' : ''}
                   <span class="cs-card-name">${r.name||'-'}</span>
-                  ${isRevisit ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:#e8f5e9;color:#2e7d32;font-size:10.5px;font-weight:700;margin-left:5px;vertical-align:middle;">재방문</span>' : ''}
+                  ${isRevisit ? '<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;background:#e8f5e9;color:#2e7d32;font-size:10.5px;font-weight:700;margin-left:5px;vertical-align:middle;">재방문</span>' : ''}
                   <span class="cs-card-arrow">›</span>
                 </div>
                 <div class="cs-card-rows">
@@ -5727,7 +5716,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           <td>${i + 1 + start}</td>
           <td onclick="event.stopPropagation()"><input type="checkbox" class="dw-checkbox"></td>
           <td><span class="dw-status-pill ${status}">${status}</span>${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:3px;vertical-align:middle;">N</span>' : ''}</td>
-          <td style="text-align:center;">${isRevisit ? '<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:700;">재방문</span>' : ''}</td>
+          <td style="text-align:center;">${isRevisit ? '<span style="display:inline-block;padding:3px 10px;border-radius:6px;background:#2e7d32;color:#fff;font-size:11px;font-weight:700;">재방문</span>' : ''}</td>
           <td>${counselorDisplay}</td>
           <td class="dw-td-name">${r.name||''} <span style="color:#ccc;font-size:11px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span></td>
           <td>${r.company||''}</td>
@@ -6108,7 +6097,7 @@ function csDateInputValue(val) {
         return;
       }
       const statusColor = (s) => {
-        if (s==='예약') return 'background:#FFEDD5;color:#C2410C;';
+        if (s==='예약') return 'background:#fdf1d0;color:#a87900;';
         if (s==='상담완료') return 'background:#eceff5;color:#5b6472;';
         if (s==='샘플수령') return 'background:#d4edda;color:#1a7a45;';
         if (s==='미방문') return 'background:#fde8e8;color:#c0392b;';
@@ -6554,7 +6543,7 @@ function csDateInputValue(val) {
   // 리스트뷰(dw-status-pill)와 동일한 상태별 색상 — 캘린더/팝오버 공용
   function _csStatusStyle(r) {
     const s = String(getDisplayStatus(r) || '').replace(/\s/g,'');
-    if (s === '예약')     return 'background:#FFEDD5;color:#C2410C;';
+    if (s === '예약')     return 'background:#fdf1d0;color:#a87900;';
     if (s === '상담완료') return 'background:#eceff5;color:#5b6472;';
     if (s === '샘플수령') return 'background:#d4edda;color:#1a7a45;';
     if (s === '미방문')   return 'background:#fde8e8;color:#c0392b;';
@@ -6875,11 +6864,11 @@ function csDateInputValue(val) {
   .notice-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .notice-header h2 { font-size:17px; font-weight:800; margin:0; }
   .notice-write-btn { padding:8px 18px; background:var(--brand); color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
-  table.notice-table { width:100%; border-collapse:collapse; font-size:13px; line-height:1.5; }
-  table.notice-table th { padding:13px 12px; background:#F8F9FA; border-top:1px solid #E9ECEF; border-bottom:1px solid #E9ECEF; font-weight:700; color:#495057; text-align:center; }
-  table.notice-table td { padding:14px 12px; border-bottom:1px solid #E9ECEF; color:#333; }
+  table.notice-table { width:100%; border-collapse:collapse; font-size:13px; }
+  table.notice-table th { padding:10px 12px; background:#fafafa; border-top:2px solid #333; border-bottom:1px solid #ddd; font-weight:700; color:#555; text-align:center; }
+  table.notice-table td { padding:11px 12px; border-bottom:1px solid #eee; color:#333; }
   table.notice-table tbody tr { cursor:pointer; }
-  table.notice-table tbody tr:hover { background:#F8F9FA; }
+  table.notice-table tbody tr:hover { background:#f9f8ff; }
   .notice-badge { display:inline-block; background:#e74c3c; color:#fff; border-radius:4px; padding:1px 6px; font-size:11px; font-weight:700; margin-right:4px; }
   .notice-empty { padding:60px; text-align:center; color:#aaa; font-size:13px; }
 
@@ -8147,14 +8136,12 @@ function csDateInputValue(val) {
   .admin-toolbar { display:flex; gap:10px; margin-bottom:14px; }
   .admin-btn { padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; border:1px solid #ddd; background:#fff; color:#555; }
   .admin-btn.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
-  /* 관리자/연차관리 등 표 형태 탭 — 쇼룸상담 표와 같은 톤(연회색 헤더, 연한 보더,
-     넉넉한 행높이)으로 통일 */
-  table.admin-table { width:100%; border-collapse:collapse; font-size:13px; line-height:1.5; }
-  table.admin-table th { padding:11px 10px; background:#F8F9FA; border:1px solid #E9ECEF; font-weight:700; color:#495057; text-align:center; }
-  table.admin-table td { padding:11px 10px; border:1px solid #E9ECEF; text-align:center; color:#333; }
-  table.admin-table tbody tr:hover { background:#F8F9FA; }
+  table.admin-table { width:100%; border-collapse:collapse; font-size:13px; }
+  table.admin-table th { padding:10px 8px; background:#fafafa; border:1px solid #e5e5e5; font-weight:700; color:#555; text-align:center; }
+  table.admin-table td { padding:10px 8px; border:1px solid #f0f0f0; text-align:center; color:#333; }
+  table.admin-table tbody tr:hover { background:var(--cream-2); }
   .admin-empty { padding:40px; text-align:center; color:#aaa; font-size:13px; }
-  .admin-status-badge { display:inline-block; padding:4px 12px; border-radius:999px; font-size:11.5px; font-weight:700; }
+  .admin-status-badge { display:inline-block; padding:3px 10px; border-radius:5px; font-size:11.5px; font-weight:700; }
   .admin-status-badge.재직 { background:#d1f0e0; color:#1a7a45; }
   .admin-status-badge.퇴직 { background:#fde8e8; color:#c0392b; }
   .admin-status-badge.휴직 { background:#fdf1d0; color:#a87900; }
