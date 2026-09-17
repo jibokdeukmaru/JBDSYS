@@ -8308,8 +8308,8 @@ function csDateInputValue(val) {
     </div>
     <div id="manualLeaveFormWrap" style="display:none;margin-bottom:14px;padding:14px;border:1px dashed var(--border);border-radius:10px;">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <select id="manualLeaveEmp" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;min-width:130px;"></select>
-        <select id="manualLeaveType" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        <select id="manualLeaveEmp" style="width:150px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;"></select>
+        <select id="manualLeaveType" style="width:110px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
           <option value="연차">연차</option>
           <option value="반차">반차</option>
           <option value="반반차">반반차</option>
@@ -8317,9 +8317,15 @@ function csDateInputValue(val) {
           <option value="건강검진종일">건강검진(종일)</option>
           <option value="출산휴가">출산휴가</option>
         </select>
-        <input type="date" id="manualLeaveStart" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        <span style="position:relative;display:inline-block;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:#999;pointer-events:none;"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <input type="date" id="manualLeaveStart" style="width:130px;padding:6px 8px 6px 30px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        </span>
         <span style="color:#999;">~</span>
-        <input type="date" id="manualLeaveEnd" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        <span style="position:relative;display:inline-block;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:#999;pointer-events:none;"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <input type="date" id="manualLeaveEnd" style="width:130px;padding:6px 8px 6px 30px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+        </span>
         <input type="number" id="manualLeaveDays" placeholder="일수" min="0" step="0.5" style="width:70px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;text-align:center;">
         <input type="text" id="manualLeaveReason" placeholder="비고(선택)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
         <button class="admin-btn primary" onclick="submitManualLeave()">등록</button>
