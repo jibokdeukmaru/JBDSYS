@@ -390,6 +390,49 @@ window.fetchEmployeesFS = async function() {
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://npmcdn.com/flatpickr/dist/l10n/ko.js"></script>
+<!-- 날짜 선택 팝업 — 삼성 One UI 캘린더 스타일 테마(카드형, 일=빨강/토=파랑, 오늘=원 테두리,
+     선택일=채워진 원, 하단 취소/완료) -->
+<style>
+.flatpickr-calendar.oneui-cal {
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+  border: none;
+  width: 310px !important;
+}
+.oneui-cal .flatpickr-months { padding: 14px 6px 4px; }
+.oneui-cal .flatpickr-current-month {
+  font-size: 16px; font-weight: 800; color: #222;
+}
+.oneui-cal .flatpickr-prev-month, .oneui-cal .flatpickr-next-month { fill:#999; }
+.oneui-cal .flatpickr-weekdays { margin-top: 6px; }
+.oneui-cal .flatpickr-weekday { font-weight: 700; font-size: 12px; color:#999; }
+.oneui-cal .flatpickr-weekday:first-child { color:#e74c3c; }
+.oneui-cal .flatpickr-weekday:last-child { color:#3b82f6; }
+.oneui-cal .flatpickr-day {
+  border-radius: 50%; font-size: 13.5px; font-weight: 600; color:#333;
+  max-width: 38px; height: 38px; line-height: 38px; margin: 1px auto;
+}
+.oneui-cal .flatpickr-day.oneui-sun { color:#e74c3c; }
+.oneui-cal .flatpickr-day.oneui-sat { color:#3b82f6; }
+.oneui-cal .flatpickr-day.prevMonthDay, .oneui-cal .flatpickr-day.nextMonthDay { color:#ccc !important; }
+.oneui-cal .flatpickr-day.today {
+  border: 1.5px solid var(--brand, #A2693E); background: transparent; color:#333;
+}
+.oneui-cal .flatpickr-day.selected, .oneui-cal .flatpickr-day.selected:hover {
+  background: var(--brand, #A2693E); border-color: var(--brand, #A2693E); color:#fff;
+}
+.oneui-cal .flatpickr-day:hover { background:#f2ede8; }
+.oneui-cal-footer {
+  display:flex; align-items:center; justify-content:center;
+  border-top: 1px solid #eee; margin-top: 6px; padding: 4px 0;
+}
+.oneui-cal-footer button {
+  flex:1; border:none; background:none; padding:12px 0; font-size:14.5px; font-weight:700;
+  cursor:pointer; color:#888;
+}
+.oneui-cal-footer button.oneui-cal-done { color: var(--brand, #A2693E); }
+.oneui-cal-footer .oneui-cal-sep { width:1px; height:18px; background:#eee; }
+</style>
 <style>
   
 .grid-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
@@ -1415,9 +1458,12 @@ window.fetchEmployeesFS = async function() {
     const todayKey = _pcalDateKey(now.getFullYear(), now.getMonth(), now.getDate());
     let html = days.map(d => '<div style="text-align:center;font-size:11px;font-weight:700;color:#aaa;padding:4px 0;">' + d + '</div>').join('');
     for (let i = 0; i < firstDay; i++) html += '<div></div>';
+    // 예약관리 탭의 공휴일 관리와 같은 소스(전역 holidayMap, settings/holidays) — 별도 조회 없이 재사용.
+    const _pcalHolidays = (typeof holidayMap !== 'undefined' && holidayMap) ? holidayMap : {};
     for (let d = 1; d <= lastDate; d++) {
       const key = _pcalDateKey(_pcalYear, _pcalMonth, d);
       const note = _pcalNotes[key];
+      const holidayName = _pcalHolidays[key] || '';
       const isToday = key === todayKey;
       const isSelected = key === _pcalSelectedDate;
       // 오늘/이후 날짜는 내용이 많을수록(출고 건수 등) 실무에서 중요하게 보는 칸이라
@@ -1430,6 +1476,7 @@ window.fetchEmployeesFS = async function() {
         + 'background:' + (isSelected ? 'var(--brand)' : (note ? 'var(--cream)' : 'transparent')) + ';'
         + 'border:1px solid ' + (isToday ? 'var(--brand)' : (note ? 'var(--border)' : '#f0f0f0')) + ';">'
         + '<div style="font-size:12px;font-weight:700;' + (isSelected ? 'color:#fff;' : 'color:#333;') + '">' + d + '</div>'
+        + (holidayName ? '<div style="font-size:9px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + (isSelected ? '#ffd6d6' : '#e74c3c') + ';">' + _pcalEsc(holidayName) + '</div>' : '')
         + (note ? '<div style="' + notePreviewStyle + (isSelected ? 'color:#fff;' : 'color:#888;') + '">' + _pcalEsc(note) + '</div>' : '')
         + '</div>';
     }
@@ -5280,8 +5327,31 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   }
 
   // 실제 서버 요청: 최근 100건 (getConsults). 성공 시 캐시 갱신 + 렌더
-  async function _fetchConsults() {
-    if (_consultsLoading) return;
+  // ★ 모바일에서 간헐적으로 "쇼룸데이터를 불러오지 못했습니다" 오류가 나는데, 그 순간의
+  //   실제 메시지를 저장해두지 않아서 원인 진단이 안 됐다 — localStorage에 최근 기록을 남겨서
+  //   재현 시 바로 확인할 수 있게 한다(최대 20건, 오래된 것부터 버림).
+  function _logConsultLoadError(e, phase) {
+    try {
+      const key = 'consultLoadErrorLog';
+      const log = JSON.parse(localStorage.getItem(key) || '[]');
+      log.push({
+        time: new Date().toISOString(),
+        phase, // '1st' | 'retry'
+        message: (e && e.message) || String(e),
+        code: (e && e.code) || '',
+        ua: navigator.userAgent
+      });
+      while (log.length > 20) log.shift();
+      localStorage.setItem(key, JSON.stringify(log));
+    } catch (_) { /* 로깅 실패는 무시 — 원래 흐름을 막지 않는다 */ }
+  }
+  window.getConsultLoadErrorLog = function() {
+    try { return JSON.parse(localStorage.getItem('consultLoadErrorLog') || '[]'); }
+    catch (_) { return []; }
+  };
+
+  async function _fetchConsults(isRetry) {
+    if (!isRetry && _consultsLoading) return;
     _consultsLoading = true;
     try {
       await window.fbEnsureAuth();
@@ -5306,6 +5376,15 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         if (_consultsMode === 'recent') renderConsultList();
       });
     } catch(e) {
+      _logConsultLoadError(e, isRetry ? 'retry' : '1st');
+      // ★ 첫 실패는 대개 인증 세션 복원이 아직 안 끝난 순간에 걸린 레이스 컨디션이라,
+      //   로그아웃 후 재로그인하면 사라지곤 했다 — 그와 같은 효과(인증을 다시 확실히 맺고
+      //   재조회)를 자동으로 한 번 시도해서 사용자가 직접 재로그인하지 않아도 되게 한다.
+      if (!isRetry) {
+        _consultsLoading = false;
+        await new Promise(r => setTimeout(r, 800));
+        return _fetchConsults(true);
+      }
       if (!_consultsCache) {
         const bodyEl = document.getElementById('csTableBody');
         if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="9">오류: ${e.message}</td></tr>`;
@@ -5593,8 +5672,8 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
                   <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
                   <span class="dw-status-pill ${status}">${status}</span>
                   ${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:4px;vertical-align:middle;">N</span>' : ''}
-                  ${isRevisit ? '<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;background:#e8f5e9;color:#2e7d32;font-size:10.5px;font-weight:700;margin-left:5px;vertical-align:middle;">재방문</span>' : ''}
                   <span class="cs-card-name">${r.name||'-'}</span>
+                  ${isRevisit ? '<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;background:#e8f5e9;color:#2e7d32;font-size:10.5px;font-weight:700;margin-left:5px;vertical-align:middle;">재방문</span>' : ''}
                   <span class="cs-card-arrow">›</span>
                 </div>
                 <div class="cs-card-rows">
@@ -5773,7 +5852,12 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     const _todayStr = `${_now.getFullYear()}-${_pad(_now.getMonth()+1)}-${_pad(_now.getDate())}`;
     document.getElementById('cfDate').value = _todayStr;
     const _cfDatePicker = document.getElementById('cfDatePicker');
-    if (_cfDatePicker) _cfDatePicker.value = _todayStr;
+    if (_cfDatePicker) {
+      _cfDatePicker.value = _todayStr;
+      // ★ flatpickr가 붙어있으면(One UI 팝업) 내부 선택 상태도 같이 맞춰줘야 팝업을 열었을 때
+      //   '오늘'이 채워진 원(선택됨)으로 보인다 — .value만 바꾸면 flatpickr는 모른다.
+      if (_cfDatePicker._flatpickr) _cfDatePicker._flatpickr.setDate(_todayStr, false);
+    }
     document.getElementById('cfTime').value = `${_pad(_now.getHours())}:${_pad(_now.getMinutes())}`;
     document.getElementById('csFormOverlay').classList.add('open');
     document.body.classList.add('overlay-open');
@@ -8193,13 +8277,13 @@ function csDateInputValue(val) {
 
   <div class="admin-card" style="margin-top:20px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-      <div class="admin-section-title" style="margin:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>결재완료 내역</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="admin-section-title" style="margin:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>결재완료 내역</div>
         <select id="leaveApprovedFilterEmp" onchange="renderApprovedLeaveList(1)" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
           <option value="">전체 사원</option>
         </select>
-        <button class="admin-btn" onclick="toggleManualLeaveForm()">+ 과거 기록 수동 등록</button>
       </div>
+      <button class="admin-btn" onclick="toggleManualLeaveForm()">+ 과거 기록 수동 등록</button>
     </div>
     <div id="manualLeaveFormWrap" style="display:none;margin-bottom:14px;padding:14px;border:1px dashed var(--border);border-radius:10px;">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -17100,23 +17184,78 @@ if ('serviceWorker' in navigator) {
 })();
 </script>
 
-<!-- 입사일 캘린더: 연도 숫자를 직접 타이핑해서 바로 이동 가능하게 개선 -->
+<!-- 날짜 선택 팝업: 삼성 One UI 스타일 캘린더 공용 헬퍼 (카드형, 일/토 색상, 오늘=원 테두리,
+     선택일=채워진 원, 하단 취소/완료) — flatpickr 기반. 취소를 누르면 팝업을 연 시점의
+     값으로 되돌리고, 완료를 누르면 고른 날짜를 그대로 확정하고 닫는다. -->
 <script>
+window.applyOneUIDatePicker = function(el, opts) {
+  if (typeof flatpickr === 'undefined' || !el) return null;
+  if (flatpickr.l10ns && flatpickr.l10ns.ko) flatpickr.localize(flatpickr.l10ns.ko);
+  let _snapshotVal = el.value;
+  const fp = flatpickr(el, Object.assign({
+    dateFormat: 'Y-m-d',
+    disableMobile: true, // ★ 얘 없으면 모바일에선 flatpickr가 자동으로 자체 팝업을 포기하고
+                          //   다시 브라우저 기본(네이티브) 달력으로 넘겨버린다 — 정작 이 작업이
+                          //   필요한 모바일에서 One UI 스타일이 하나도 안 보이게 되는 셈이라 필수.
+    closeOnSelect: false,
+    onDayCreate: function(dObj, dStr, fpInst, dayElem) {
+      const dow = dayElem.dateObj.getDay();
+      if (dow === 0) dayElem.classList.add('oneui-sun');
+      else if (dow === 6) dayElem.classList.add('oneui-sat');
+    },
+    onOpen: function(selectedDates, dateStr, fpInst) {
+      _snapshotVal = fpInst.input.value; // 취소 시 되돌릴 기준값을 열 때마다 다시 스냅샷
+    },
+    onReady: function(selectedDates, dateStr, fpInst) {
+      fpInst.calendarContainer.classList.add('oneui-cal');
+      const footer = document.createElement('div');
+      footer.className = 'oneui-cal-footer';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.textContent = '취소';
+      const sep = document.createElement('div');
+      sep.className = 'oneui-cal-sep';
+      const doneBtn = document.createElement('button');
+      doneBtn.type = 'button'; doneBtn.className = 'oneui-cal-done'; doneBtn.textContent = '완료';
+      cancelBtn.onclick = function() { fpInst.setDate(_snapshotVal || null, true); fpInst.close(); };
+      doneBtn.onclick = function() { fpInst.close(); };
+      footer.appendChild(cancelBtn); footer.appendChild(sep); footer.appendChild(doneBtn);
+      fpInst.calendarContainer.appendChild(footer);
+    }
+  }, opts || {}));
+  return fp;
+};
+
 document.addEventListener('DOMContentLoaded', function() {
   if (typeof flatpickr === 'undefined') return;
-  if (flatpickr.l10ns && flatpickr.l10ns.ko) flatpickr.localize(flatpickr.l10ns.ko);
-  const el = document.getElementById('empModalJoinDate');
-  if (!el) return;
-  const fp = flatpickr(el, { dateFormat: 'Y-m-d', allowInput: true });
-  // ★ "20150201"처럼 구분자 없이 숫자 8자리만 입력하면 flatpickr가 dateFormat(Y-m-d)과
-  //   안 맞다고 그냥 무시해버려서 "입력이 안 먹힌다"고 느껴졌다 — 8자리 숫자면 자동으로
-  //   yyyy-mm-dd로 바꿔서 flatpickr에 다시 반영해준다.
-  el.addEventListener('blur', function() {
-    const digits = el.value.replace(/[^0-9]/g, '');
-    if (digits.length === 8) {
-      const formatted = digits.slice(0,4) + '-' + digits.slice(4,6) + '-' + digits.slice(6,8);
-      fp.setDate(formatted, true);
-    }
+
+  // 입사일(직원정보수정) — 숫자 8자리 직접 타이핑 지원은 그대로 유지
+  const joinEl = document.getElementById('empModalJoinDate');
+  if (joinEl) {
+    const fpJoin = window.applyOneUIDatePicker(joinEl, { allowInput: true });
+    // ★ "20150201"처럼 구분자 없이 숫자 8자리만 입력하면 flatpickr가 dateFormat(Y-m-d)과
+    //   안 맞다고 그냥 무시해버려서 "입력이 안 먹힌다"고 느껴졌다 — 8자리 숫자면 자동으로
+    //   yyyy-mm-dd로 바꿔서 flatpickr에 다시 반영해준다.
+    joinEl.addEventListener('blur', function() {
+      const digits = joinEl.value.replace(/[^0-9]/g, '');
+      if (digits.length === 8) {
+        const formatted = digits.slice(0,4) + '-' + digits.slice(4,6) + '-' + digits.slice(6,8);
+        fpJoin.setDate(formatted, true);
+      }
+    });
+  }
+
+  // 쇼룸상담 등록/수정 — "일정" 및 "시공 확정일"의 달력 아이콘 팝업
+  // ★ 예전엔 아이콘 위에 투명 type=date input을 겹쳐서, 브라우저가 실사용자 탭으로 인식해
+  //   네이티브 달력을 직접 띄우게 하는 트릭이었다(showPicker 합성 호출은 모바일에서 잘 안 먹혀서).
+  //   flatpickr는 자체 JS 팝업이라 그 트릭이 필요 없다 — type만 text로 바꿔 그대로 붙인다.
+  //   change 이벤트는 그대로 발생하므로 cfDate/cfWorkDate로 값을 복사하는 기존 문서 위임
+  //   리스너(위쪽 document.addEventListener('change', ...))는 손대지 않아도 계속 동작한다.
+  ['cfDatePicker', 'cfWorkDatePicker'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.type = 'text';
+    el.readOnly = true;
+    window.applyOneUIDatePicker(el);
   });
 });
 </script>
