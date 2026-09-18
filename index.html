@@ -2867,7 +2867,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;">
   <div id="ivStageIndicator" style="display:none; align-items:center; gap:6px; flex-wrap:wrap;"></div>
   <div style="flex:1;"></div>
-  <button type="button" id="ivVaultLockBtn" class="iv-vault-btn" onclick="openQuoteVault()" title="영업 견적서 저장소" style="display:none;">
+  <button type="button" id="ivVaultLockBtn" class="iv-vault-btn" onclick="_ivCheckPinThenOpen()" title="영업 견적서 저장소" style="display:none;">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
   </button>
 </div>
@@ -13527,6 +13527,8 @@ async function saveInvoicePdf() {
 // ============================================================
 const IV_STAGE_LABELS = { preSurvey:'실측전', postSurvey:'실측후', interimPaid:'중도금납입', settled:'정산서' };
 const IV_STAGE_ORDER = ['preSurvey','postSurvey','interimPaid','settled'];
+const IV_MIN_YEAR = 2026; // 24/25년 데이터 없이 26년부터만 운영 — 목록에서 그 이전 연도 제거
+const IV_VAULT_PIN = '7736'; // 자물쇠 진입용 4자리 PIN(초기값) — 코드에 고정, 화면에서 바꾸는 기능은 아직 없음
 
 window._ivVaultState = { binding: null, flags: null };
 window._ivBrowseCache = {};
@@ -13791,15 +13793,33 @@ function _ivCloseFlowModal(result) {
 }
 window._ivFlowPick = (v) => _ivCloseFlowModal(v);
 
+// 폴더가 폴더 안에 계속 중첩될 수 있으므로(무한 depth), 드롭다운에서도 들여쓰기로
+// 전체 계층을 한눈에 보여준다.
+function _ivFolderOptionsHtml(folders, selectedId) {
+    const byParent = {};
+    folders.forEach(f => { const p = f.parentId || null; (byParent[p] = byParent[p] || []).push(f); });
+    Object.values(byParent).forEach(arr => arr.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko')));
+    let html = '';
+    const walk = (parentId, depth) => {
+        (byParent[parentId] || []).forEach(f => {
+            html += `<option value="${f.id}" ${f.id === selectedId ? 'selected' : ''}>${'　'.repeat(depth)}${depth ? '└ ' : ''}${f.name}</option>`;
+            walk(f.id, depth + 1);
+        });
+    };
+    walk(null, 0);
+    return html;
+}
+
 async function _ivOpenFolderPickModal(ownerId) {
     const folders = await _ivFetchFolders(ownerId);
     let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">저장 위치 선택</div>`;
+    html += `<input type="text" id="ivFileNameInput" placeholder="파일명을 입력하세요" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;box-sizing:border-box;">`;
     html += `<select id="ivFolderSelect" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;box-sizing:border-box;">
         <option value="">-- 최상위(폴더 없음) --</option>
-        ${folders.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+        ${_ivFolderOptionsHtml(folders, null)}
       </select>`;
     html += `<div style="display:flex;gap:8px;margin-bottom:14px;">
-        <input type="text" id="ivNewFolderName" placeholder="새 폴더 이름" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;">
+        <input type="text" id="ivNewFolderName" placeholder="새 폴더 이름(선택한 폴더 안에 생성됨)" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;">
         <button type="button" class="secondary" onclick="_ivFlowCreateFolder()">폴더 생성</button>
       </div>`;
     html += `<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:16px;cursor:pointer;">
@@ -13813,20 +13833,21 @@ async function _ivOpenFolderPickModal(ownerId) {
         const name = (nameInput?.value || '').trim();
         if (!name) return;
         await window.fbEnsureAuth();
-        const ref = await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId, name, parentId: null, createdAt: window.FB.serverTimestamp() });
+        const parentId = document.getElementById('ivFolderSelect')?.value || null;
+        const ref = await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId, name, parentId: parentId || null, createdAt: window.FB.serverTimestamp() });
+        folders.push({ id: ref.id, ownerId, name, parentId: parentId || null });
         const sel = document.getElementById('ivFolderSelect');
         if (sel) {
-            const opt = document.createElement('option');
-            opt.value = ref.id; opt.textContent = name;
-            sel.appendChild(opt);
-            sel.value = ref.id;
+            sel.innerHTML = `<option value="">-- 최상위(폴더 없음) --</option>${_ivFolderOptionsHtml(folders, ref.id)}`;
         }
         if (nameInput) nameInput.value = '';
     };
     window._ivFlowConfirmFolder = function() {
+        const fileName = (document.getElementById('ivFileNameInput')?.value || '').trim();
+        if (!fileName) { showToast('파일명을 입력해주세요'); return; }
         const folderId = document.getElementById('ivFolderSelect')?.value || null;
         const shared = !!document.getElementById('ivShareCheck')?.checked;
-        _ivCloseFlowModal({ folderId: folderId || null, shared });
+        _ivCloseFlowModal({ folderId: folderId || null, shared, fileName });
     };
     return _ivOpenFlowModal(html);
 }
@@ -13835,7 +13856,7 @@ async function _ivOpenFolderPickModal(ownerId) {
 // 저장된 데이터가 있는 단계 중 아무거나 골라서 그대로 불러온다.
 async function _ivOpenStageLoadModal(quote, existingStages) {
     let html = `<div style="font-size:15px;font-weight:800;margin-bottom:4px;">불러오기</div>`;
-    html += `<div style="font-size:12px;color:#888;margin-bottom:12px;">${quote.companyName || ''} — 어느 단계를 불러올까요?</div>`;
+    html += `<div style="font-size:12px;color:#888;margin-bottom:12px;">${quote.fileName || quote.companyName || ''} — 어느 단계를 불러올까요?</div>`;
     html += IV_STAGE_ORDER.map(s => {
         const has = existingStages.includes(s);
         if (!has) return `<button type="button" disabled style="width:100%;text-align:left;margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid #eee;background:#f7f7f7;color:#bbb;cursor:not-allowed;">${IV_STAGE_LABELS[s]} (저장된 데이터 없음)</button>`;
@@ -13866,7 +13887,7 @@ window.saveInvoiceToVault = async function() {
         const base = {
             authorId: flags.id, authorName: flags.name, authorTitle: flags.title,
             category, type: isStaged ? 'staged' : 'simple',
-            companyName, folderId: folderChoice.folderId || null,
+            companyName, fileName: folderChoice.fileName, folderId: folderChoice.folderId || null,
             year: now.getFullYear(), sharedWithDept: !!folderChoice.shared,
             createdAt: window.FB.serverTimestamp(), updatedAt: window.FB.serverTimestamp(),
         };
@@ -13944,6 +13965,14 @@ window.loadInvoiceFromVaultQuote = async function(quote) {
     showToast('불러왔습니다 (' + IV_STAGE_LABELS[chosenStage] + ')');
 };
 
+// 자물쇠 아이콘 클릭 시 검증 없이 바로 모달이 뜨던 것을, PIN 확인 후에만 열리도록.
+window._ivCheckPinThenOpen = function() {
+    const pin = prompt('비밀번호 4자리를 입력하세요');
+    if (pin === null) return;
+    if (pin.trim() !== IV_VAULT_PIN) { showToast('비밀번호가 올바르지 않습니다'); return; }
+    openQuoteVault();
+};
+
 // ---------------- 저장소 찾아보기 모달 ----------------
 window.openQuoteVault = async function() {
     await window.fbEnsureAuth();
@@ -13952,7 +13981,7 @@ window.openQuoteVault = async function() {
     if (!flags.access) { showToast('저장소 접근 권한이 없습니다'); return; }
     window._ivBrowse = { year: new Date().getFullYear(), employeeId: flags.id, folderId: null, view: 'browse', search: '' };
     // 좌측 경로 트리(윈도우 탐색기 스타일) 펼침 상태 + 직원별 폴더 캐시 — 저장소 열 때마다 새로 시작.
-    window._ivTree = { expandedYears: {}, expandedEmployees: {} };
+    window._ivTree = { expandedYears: {}, expandedEmployees: {}, expandedFolders: {} };
     window._ivFoldersCacheByEmp = {};
     const modal = document.getElementById('quoteVaultModal');
     if (modal) modal.style.display = 'flex';
@@ -13997,8 +14026,10 @@ window._ivCreateFolderInline = async function() {
     if (!name || !name.trim()) return;
     await window.fbEnsureAuth();
     const ownerId = window._ivBrowse.employeeId;
-    await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId, name: name.trim(), parentId: null, createdAt: window.FB.serverTimestamp() });
+    const parentId = window._ivBrowse.folderId || null; // 지금 보고 있는 폴더 안에 생성(중첩 지원)
+    await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId, name: name.trim(), parentId, createdAt: window.FB.serverTimestamp() });
     window._ivFoldersCacheByEmp[ownerId] = await _ivFetchFolders(ownerId);
+    if (parentId) window._ivTree.expandedFolders[parentId] = true;
     _ivRenderVaultBody();
 };
 window._ivToggleShare = async function(id, shared) {
@@ -14015,10 +14046,10 @@ window._ivToggleCompleted = async function(id, completed) {
 // (폴더는 직원별 소유라, 다른 직원 폴더로는 옮길 수 없음).
 async function _ivOpenMoveModal(q) {
     const folders = await _ivFetchFolders(q.authorId);
-    let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">폴더로 이동 — ${q.companyName || '(업체명 미입력)'}</div>`;
+    let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">폴더로 이동 — ${q.fileName || q.companyName || '(파일명 미입력)'}</div>`;
     html += `<select id="ivMoveFolderSelect" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;margin-bottom:14px;box-sizing:border-box;">
         <option value="" ${!q.folderId ? 'selected' : ''}>-- 최상위(폴더 없음) --</option>
-        ${folders.map(f => `<option value="${f.id}" ${q.folderId === f.id ? 'selected' : ''}>${f.name}</option>`).join('')}
+        ${_ivFolderOptionsHtml(folders, q.folderId || null)}
       </select>`;
     html += `<button type="button" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;" onclick="_ivFlowPick(document.getElementById('ivMoveFolderSelect').value)">이동</button>`;
     html += `<button type="button" class="secondary" style="width:100%;margin-top:8px;" onclick="_ivFlowPick(null)">취소</button>`;
@@ -14058,26 +14089,37 @@ window._ivRenameFolder = async function(id) {
     window._ivFoldersCacheByEmp[flags.id] = await _ivFetchFolders(flags.id);
     _ivRenderVaultBody();
 };
+// 폴더 안에 폴더가 계속 중첩될 수 있어서, 삭제 대상 폴더의 모든 하위 폴더까지 함께
+// 찾아서 지우고, 그 안의(하위 폴더 포함) 견적서는 데이터 유실 없이 삭제된 폴더의
+// 상위 폴더(없으면 최상위)로 끌어올린다.
 window._ivDeleteFolder = async function(id) {
     const flags = window._ivVaultState.flags;
-    const cur = (window._ivFoldersCacheByEmp[flags.id] || []).find(f => f.id === id);
-    const name = cur ? cur.name : '이 폴더';
     await window.fbEnsureAuth();
-    // 이 폴더 안에 있는 견적서 개수 확인(폴더는 소유자만 삭제 가능하므로 authorId==본인 기준으로 조회)
-    const snap = await window.FB.getDocs(window.FB.query(_ivCol('salesQuotes'), window.FB.where('authorId', '==', flags.id), window.FB.where('folderId', '==', id)));
-    const count = snap.size;
+    const allFolders = await _ivFetchFolders(flags.id);
+    const cur = allFolders.find(f => f.id === id);
+    const name = cur ? cur.name : '이 폴더';
+    const parentId = cur ? (cur.parentId || null) : null;
+    const collectDescendants = (pid) => {
+        const kids = allFolders.filter(f => (f.parentId || null) === pid);
+        return kids.reduce((acc, k) => acc.concat(k.id, collectDescendants(k.id)), []);
+    };
+    const descendantIds = collectDescendants(id);
+    const allIds = [id, ...descendantIds];
+
+    const myQuotes = await _ivFetchQuotesFor(flags.id);
+    const affected = myQuotes.filter(q => allIds.includes(q.folderId));
+    const count = affected.length;
     const msg = count > 0
-        ? `"${name}" 폴더 안에 견적서 ${count}건이 있습니다. 삭제하면 그 견적서들은 모두 최상위로 이동됩니다. 계속할까요?`
-        : `"${name}" 폴더를 삭제하시겠습니까?`;
+        ? `"${name}" 폴더(하위 폴더 포함) 안에 견적서 ${count}건이 있습니다. 삭제하면 그 견적서들은 모두 상위 폴더로 이동됩니다. 계속할까요?`
+        : (descendantIds.length > 0 ? `"${name}" 폴더와 하위 폴더 ${descendantIds.length}개를 모두 삭제하시겠습니까?` : `"${name}" 폴더를 삭제하시겠습니까?`);
     if (!confirm(msg)) return;
+
     if (count > 0) {
-        const writes = [];
-        snap.forEach(d => writes.push(window.FB.updateDoc(_ivDoc('salesQuotes', d.id), { folderId: null, updatedAt: window.FB.serverTimestamp() })));
-        await Promise.all(writes);
+        await Promise.all(affected.map(q => window.FB.updateDoc(_ivDoc('salesQuotes', q.id), { folderId: parentId, updatedAt: window.FB.serverTimestamp() })));
     }
-    await window.FB.deleteDoc(_ivDoc('salesQuoteFolders', id));
+    await Promise.all(allIds.map(fid => window.FB.deleteDoc(_ivDoc('salesQuoteFolders', fid))));
     window._ivFoldersCacheByEmp[flags.id] = await _ivFetchFolders(flags.id);
-    if (window._ivBrowse.folderId === id) window._ivBrowse.folderId = null;
+    if (allIds.includes(window._ivBrowse.folderId)) window._ivBrowse.folderId = parentId;
     _ivRenderVaultBody();
 };
 
@@ -14090,13 +14132,14 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
             return `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:${has ? 'var(--brand)' : '#f7f7f7'};color:${has ? '#fff' : '#ccc'};">${IV_STAGE_LABELS[s]}</span>`;
           }).join(' ')
         : `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#eee;color:#555;">${q.category || ''}</span>`;
+    const displayTitle = q.fileName || q.companyName || '(파일명 미입력)';
     const subtitle = locationLabel
-        ? `${q.authorName || ''} · 📁 ${locationLabel} · ${stageStrip}`
-        : `${q.authorName || ''} · ${stageStrip}`;
+        ? `${q.companyName || ''} · ${q.authorName || ''} · 📁 ${locationLabel} · ${stageStrip}`
+        : `${q.companyName || ''} · ${q.authorName || ''} · ${stageStrip}`;
     return `
-      <div style="border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:${q.completed ? '#f2f9f4' : '#fff'};">
+      <div draggable="true" ondragstart="_ivTreeDragStart(event,'${q.id}')" style="border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:${q.completed ? '#f2f9f4' : '#fff'};cursor:grab;">
         <div style="cursor:pointer;flex:1;min-width:160px;" onclick="_ivBrowseOpenQuote('${q.id}')">
-          <div style="font-weight:700;font-size:13px;">${q.companyName || '(업체명 미입력)'}${q.completed ? '<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#1a7a45;color:#fff;margin-left:6px;font-weight:700;">완료</span>' : ''}</div>
+          <div style="font-weight:700;font-size:13px;">📄 ${displayTitle}${q.completed ? '<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#1a7a45;color:#fff;margin-left:6px;font-weight:700;">완료</span>' : ''}</div>
           <div style="font-size:11px;color:#999;margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">${subtitle}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
@@ -14113,7 +14156,9 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
 
 function _ivYearOptsHtml(br) {
     const curYear = new Date().getFullYear();
-    return [curYear, curYear - 1, curYear - 2]
+    const years = [];
+    for (let y = curYear; y >= IV_MIN_YEAR; y--) years.push(y);
+    return years
         .map(y => `<option value="${y}" ${br.year === y ? 'selected' : ''}>${y}년</option>`).join('')
         + `<option value="all" ${br.year === 'all' ? 'selected' : ''}>전체연도</option>`;
 }
@@ -14121,7 +14166,7 @@ function _ivYearOptsHtml(br) {
 function _ivSearchBarHtml(br) {
     return `<div style="display:flex;gap:8px;margin-bottom:14px;">
         <div style="display:flex;flex:1;">
-          <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
+          <input type="text" id="ivBrowseSearch" placeholder="파일명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
           <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;">🔍</button>
         </div>
         ${br.search ? `<button type="button" class="secondary" onclick="_ivBrowseSetSearch('')">검색 지우기</button>` : ''}
@@ -14138,7 +14183,7 @@ window._ivTreeDropOnFolder = async function(e, folderId, ownerId) {
     e.currentTarget.style.background = '';
     const quoteId = e.dataTransfer.getData('text/plain');
     if (!quoteId) return;
-    const q = (window._ivTreeQuotesById || {})[quoteId];
+    const q = (window._ivTreeQuotesById || {})[quoteId] || (window._ivBrowseCache || {})[quoteId];
     if (!q || q.authorId !== ownerId) { showToast('본인 폴더로만 이동할 수 있습니다'); return; }
     if ((q.folderId || null) === (folderId || null)) return;
     await window.fbEnsureAuth();
@@ -14147,13 +14192,45 @@ window._ivTreeDropOnFolder = async function(e, folderId, ownerId) {
     _ivRenderVaultBody();
 };
 
-// 윈도우 탐색기 스타일 좌측 경로 트리 — 연도(고정 3개) → 직원(펼치면 조회) → 자유폴더/최상위파일(펼치면 조회).
-// treeQuotesByEmp: 펼쳐진 직원별로 미리 조회해둔 견적서 목록(폴더 미지정 파일을 트리에 노출하고
-// 드래그해서 폴더로 옮길 수 있게 하기 위함, [[jbdsys-erp-project]] 요청).
+window._ivToggleFolderNode = function(id) {
+    window._ivTree.expandedFolders[id] = !window._ivTree.expandedFolders[id];
+    _ivRenderVaultBody();
+};
+
+// 폴더 안에 폴더가 계속 중첩될 수 있으므로(요청: "거미줄처럼") 재귀적으로 렌더링 —
+// 폴더 자신은 직원 노드처럼 펼치기/접기 가능하고, 펼치면 하위 폴더와 그 폴더에 바로
+// 담긴 견적서(파일)가 들여쓰기로 이어서 나온다.
+function _ivRenderFolderNode(f, folders, quotesForEmp, y, empId, br, depth) {
+    const expanded = !!window._ivTree.expandedFolders[f.id];
+    const fActive = br.year === y && br.employeeId === empId && br.folderId === f.id;
+    const children = folders.filter(x => (x.parentId || null) === f.id);
+    const filesHere = quotesForEmp.filter(q => (q.folderId || null) === f.id);
+    const hasChildren = children.length > 0 || filesHere.length > 0;
+    const pad = 32 + depth * 16;
+    let html = `<div class="iv-tree-row" style="padding-left:${pad}px;" ondragover="event.preventDefault();" ondragenter="this.style.background='#eef7f0'" ondragleave="this.style.background=''" ondrop="_ivTreeDropOnFolder(event,'${f.id}','${empId}')">
+      <span class="iv-tree-toggle" onclick="_ivToggleFolderNode('${f.id}')">${hasChildren ? (expanded ? '▾' : '▸') : ''}</span>
+      <span class="iv-tree-label${fActive ? ' active' : ''}" onclick="_ivSelectNode(${y},'${empId}','${f.id}')" ondblclick="event.stopPropagation();_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경">📁 ${f.name}</span>
+    </div>`;
+    if (expanded) {
+        children.forEach(c => { html += _ivRenderFolderNode(c, folders, quotesForEmp, y, empId, br, depth + 1); });
+        filesHere.forEach(q => {
+            window._ivTreeQuotesById[q.id] = q;
+            html += `<div class="iv-tree-row" style="padding-left:${pad + 16}px;">
+              <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동">📄 ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
+            </div>`;
+        });
+    }
+    return html;
+}
+
+// 윈도우 탐색기 스타일 좌측 경로 트리 — 연도(26년부터) → 직원(펼치면 조회) → 폴더(중첩 가능,
+// 펼치면 조회)/최상위파일. treeQuotesByEmp: 펼쳐진 직원별로 미리 조회해둔 견적서 목록
+// (폴더 미지정 파일을 트리에 노출하고 드래그로 폴더에 옮길 수 있게 하기 위함).
 function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
     window._ivTreeQuotesById = {};
     const curYear = new Date().getFullYear();
-    const years = [curYear, curYear - 1, curYear - 2];
+    const years = [];
+    for (let y = curYear; y >= IV_MIN_YEAR; y--) years.push(y);
     let html = '';
     years.forEach(y => {
         const yExpanded = !!window._ivTree.expandedYears[y];
@@ -14172,20 +14249,16 @@ function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
             if (!empExpanded) return;
             const folders = window._ivFoldersCacheByEmp[e.id] || [];
             const quotesForEmp = (treeQuotesByEmp && treeQuotesByEmp[e.id]) || [];
+            const topFolders = folders.filter(f => !f.parentId);
             const rootQuotes = quotesForEmp.filter(q => !q.folderId);
             rootQuotes.forEach(q => { window._ivTreeQuotesById[q.id] = q; });
-            if (!folders.length && !rootQuotes.length) {
+            if (!topFolders.length && !rootQuotes.length) {
                 html += `<div class="iv-tree-row" style="padding-left:32px;color:#bbb;font-size:11px;">비어 있음</div>`;
             } else {
-                folders.forEach(f => {
-                    const fActive = br.year === y && br.employeeId === e.id && br.folderId === f.id;
-                    html += `<div class="iv-tree-row" style="padding-left:32px;" ondragover="event.preventDefault();" ondragenter="this.style.background='#eef7f0'" ondragleave="this.style.background=''" ondrop="_ivTreeDropOnFolder(event,'${f.id}','${e.id}')">
-                      <span class="iv-tree-label${fActive ? ' active' : ''}" onclick="_ivSelectNode(${y},'${e.id}','${f.id}')" ondblclick="event.stopPropagation();_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경">📁 ${f.name}</span>
-                    </div>`;
-                });
+                topFolders.forEach(f => { html += _ivRenderFolderNode(f, folders, quotesForEmp, y, e.id, br, 0); });
                 rootQuotes.forEach(q => {
                     html += `<div class="iv-tree-row" style="padding-left:32px;">
-                      <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동">📄 ${q.companyName || '(업체명 미입력)'}</span>
+                      <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동">📄 ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
                     </div>`;
                 });
             }
@@ -14240,18 +14313,34 @@ async function _ivRenderVaultBody() {
     const folders = window._ivFoldersCacheByEmp[br.employeeId] || [];
     const curFolder = br.folderId ? folders.find(f => f.id === br.folderId) : null;
     const empLabel = curEmp ? `${curEmp.name || ''} ${curEmp.title || ''}` : '';
-    const pathLabel = `📅 ${br.year}년 / 👤 ${empLabel}` + (curFolder ? ` / <span style="cursor:pointer;text-decoration:underline dotted;" ondblclick="_ivRenameFolder('${curFolder.id}')" title="더블클릭하면 이름변경">📁 ${curFolder.name}</span>` : '');
+    // 폴더가 계속 중첩될 수 있으므로 최상위부터 현재 폴더까지 전체 경로를 부모ID를 따라
+    // 거슬러 올라가며 구성 — 브레드크럼의 각 폴더명도 더블클릭하면 이름변경 가능.
+    const folderChain = [];
+    for (let f = curFolder; f; f = f.parentId ? folders.find(x => x.id === f.parentId) : null) folderChain.unshift(f);
+    const pathLabel = `📅 ${br.year}년 / 👤 ${empLabel}` + folderChain.map(f =>
+        ` / <span style="cursor:pointer;text-decoration:underline dotted;" ondblclick="_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경">📁 ${f.name}</span>`
+    ).join('');
 
     let rightHtml = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <div style="font-size:12px;color:#888;">${pathLabel}</div>
         <div style="display:flex;gap:6px;">
-          ${isOwner && !br.folderId ? `<button type="button" class="secondary" onclick="_ivCreateFolderInline()">+ 새 폴더</button>` : ''}
+          ${isOwner ? `<button type="button" class="secondary" onclick="_ivCreateFolderInline()">+ 새 폴더</button>` : ''}
           ${isOwner && br.folderId ? `<button type="button" class="secondary" style="font-size:11px;" onclick="_ivRenameFolder('${br.folderId}')">이름변경</button>` : ''}
           ${isOwner && br.folderId ? `<button type="button" class="secondary" style="font-size:11px;color:#e74c3c;" onclick="_ivDeleteFolder('${br.folderId}')">폴더삭제</button>` : ''}
         </div>
       </div>`;
+    // 현재 폴더의 하위 폴더도 카드로 보여줘서(탐색기의 폴더+파일 목록처럼) 클릭해서
+    // 들어가거나, 파일을 드래그해서 그 카드에 놓아 이동할 수 있게 한다.
+    const subFolders = folders.filter(f => (f.parentId || null) === (br.folderId || null));
+    rightHtml += subFolders.map(f => `
+        <div style="border:1px dashed #ddd;border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;cursor:pointer;background:#fafafa;"
+             ondragover="event.preventDefault();" ondragenter="this.style.background='#eef7f0'" ondragleave="this.style.background='#fafafa'"
+             ondrop="_ivTreeDropOnFolder(event,'${f.id}','${br.employeeId}')" onclick="_ivSelectNode(${br.year},'${br.employeeId}','${f.id}')"
+             ondblclick="event.stopPropagation();_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경">
+          <span style="font-size:16px;">📁</span><span style="font-weight:700;font-size:13px;">${f.name}</span>
+        </div>`).join('');
     rightHtml += !inFolder.length
-        ? `<div style="text-align:center;color:#aaa;padding:30px 0;">견적서가 없습니다</div>`
+        ? (subFolders.length ? '' : `<div style="text-align:center;color:#aaa;padding:30px 0;">견적서가 없습니다</div>`)
         : inFolder.map(q => _ivRenderQuoteRow(q, flags)).join('');
 
     body.innerHTML = _ivSearchBarHtml(br)
@@ -14271,7 +14360,7 @@ async function _ivRenderSearchResults(body, flags, employees, kw) {
         const quotes = await _ivFetchQuotesFor(emp.id);
         quotes.forEach(q => {
             window._ivBrowseCache[q.id] = q;
-            if ((q.companyName || '').includes(kw) && (br.year === 'all' || q.year === br.year)) {
+            if ((q.fileName || '').includes(kw) && (br.year === 'all' || q.year === br.year)) {
                 results.push(q);
             }
         });
@@ -14294,7 +14383,7 @@ async function _ivRenderSearchResults(body, flags, employees, kw) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <select id="ivBrowseYear" onchange="_ivBrowseSetYear(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">${_ivYearOptsHtml(br)}</select>
         <div style="display:flex;flex:1;min-width:140px;">
-          <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
+          <input type="text" id="ivBrowseSearch" placeholder="파일명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
           <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;">🔍</button>
         </div>
         <button type="button" class="secondary" onclick="_ivBrowseSetSearch('')">검색 지우기</button>
