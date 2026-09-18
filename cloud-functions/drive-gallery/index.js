@@ -3,7 +3,10 @@
 // 서비스계정(GMAIL_SA_EMAIL/GMAIL_SA_KEY, daily-backup/auth-api와 동일)을 그대로 재사용
 // 하며, 새로 API/서비스계정을 만들지 않는다 — 대상 최상위 폴더를 이 서비스계정 이메일에
 // "뷰어"로 공유해두기만 하면 된다(daily-backup의 "편집자" 공유와 같은 방식, 권한만 낮음).
-const { google } = require('googleapis');
+// ★ package.json이 "type":"module"(Cloud Run "함수 작성" 콘솔 기본 템플릿)이라 ESM
+//   import/export + functions-framework의 명시적 registration(functions.http)을 쓴다.
+import functions from '@google-cloud/functions-framework';
+import { google } from 'googleapis';
 
 const SA_EMAIL = process.env.GMAIL_SA_EMAIL;
 const SA_KEY = (process.env.GMAIL_SA_KEY || '').replace(/\\n/g, '\n');
@@ -60,7 +63,7 @@ async function listFolder(drive, folderId) {
   return { folders, images };
 }
 
-exports.driveGallery = async (req, res) => {
+functions.http('driveGallery', async (req, res) => {
   const key = (req.query && req.query._appKey) || (req.body && req.body._appKey);
   if (key !== INTERNAL_KEY) {
     return res.status(403).json({ status: 'error', message: '인증 실패' });
@@ -109,4 +112,4 @@ exports.driveGallery = async (req, res) => {
     console.error('드라이브 갤러리 조회 실패:', e);
     res.status(500).json({ status: 'error', message: e.message });
   }
-};
+});
