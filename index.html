@@ -13966,10 +13966,29 @@ window.loadInvoiceFromVaultQuote = async function(quote) {
 };
 
 // 자물쇠 아이콘 클릭 시 검증 없이 바로 모달이 뜨던 것을, PIN 확인 후에만 열리도록.
+// ★ window.prompt()는 데스크톱 앱(Electron 렌더러)에서 지원 안 돼서(이메일 폴더/공용 확인창과
+//   동일한 문제) 웹에서만 입력창이 보이고 앱에서는 아예 안 뜬다 — native prompt 대신 자체 모달
+//   (ivPinModal)로 받는다.
 window._ivCheckPinThenOpen = function() {
-    const pin = prompt('비밀번호 4자리를 입력하세요');
-    if (pin === null) return;
-    if (pin.trim() !== IV_VAULT_PIN) { showToast('비밀번호가 올바르지 않습니다'); return; }
+    const modal = document.getElementById('ivPinModal');
+    const input = document.getElementById('ivPinInput');
+    if (!modal || !input) return;
+    input.value = '';
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => input.focus(), 50);
+};
+window._ivClosePinModal = function() {
+    const modal = document.getElementById('ivPinModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.removeProperty('overflow');
+};
+window._ivSubmitPin = function() {
+    const input = document.getElementById('ivPinInput');
+    const pin = input ? input.value.trim() : '';
+    if (!pin) return;
+    if (pin !== IV_VAULT_PIN) { showToast('비밀번호가 올바르지 않습니다'); return; }
+    window._ivClosePinModal();
     openQuoteVault();
 };
 
@@ -18927,6 +18946,22 @@ window.submitFindPw = async function() {
     <div style="display:flex;gap:8px;">
       <button onclick="_appConfirmResolve(false)" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">아니요</button>
       <button onclick="_appConfirmResolve(true)" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">예</button>
+    </div>
+  </div>
+</div>
+
+<!-- ★ 영업 견적서 저장소 진입 PIN 입력 모달 — window.prompt()가 데스크톱 앱(Electron)에서
+     지원되지 않아(위 이메일 폴더/공용 확인창과 동일한 문제) 자물쇠 클릭 시 입력창 자체가 안
+     뜨던 문제를 동일한 커스텀 모달 패턴으로 대체. -->
+<div id="ivPinModal" style="display:none;position:fixed;inset:0;z-index:40000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:320px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#222;">🔒 비밀번호 입력</h3>
+    <input type="password" id="ivPinInput" placeholder="4자리 비밀번호" maxlength="4" inputmode="numeric"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();_ivSubmitPin();}"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:4px;text-align:center;">
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button onclick="_ivClosePinModal()" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">취소</button>
+      <button onclick="_ivSubmitPin()" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">확인</button>
     </div>
   </div>
 </div>
