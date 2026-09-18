@@ -670,8 +670,18 @@ window.fetchEmployeesFS = async function() {
 .gal-nav-next { right:12px; }
 .gal-counter { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.5); color:#fff; font-size:12px; padding:4px 12px; border-radius:12px; z-index:2; }
 .gal-title-bar { position:absolute; top:0; left:0; right:0; padding:10px 16px; background:linear-gradient(rgba(0,0,0,.5),transparent); color:#fff; font-size:13px; font-weight:700; z-index:2; }
+.gal-fs-btn { display:none; position:absolute; bottom:14px; right:12px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.15); border:none; color:#fff; font-size:18px; cursor:pointer; align-items:center; justify-content:center; z-index:3; }
+.gal-fs-btn:hover { background:rgba(255,255,255,.3); }
+.gal-close-btn { display:none; position:absolute; top:12px; right:12px; width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,.35); border:none; color:#fff; font-size:20px; line-height:1; cursor:pointer; align-items:center; justify-content:center; z-index:4; }
+.gal-close-btn:hover { background:rgba(0,0,0,.5); }
+.gal-wrap.gal-fs { position:fixed; inset:0; z-index:99998; width:100vw; height:100vh; height:100dvh; border:none; border-radius:0; }
+.gal-wrap.gal-fs .gal-tree { display:none; }
+.gal-wrap.gal-fs .gal-view { height:100%; }
+.gal-wrap.gal-fs .gal-close-btn { display:flex; }
 @media screen and (max-width: 768px) {
     .gal-wrap { flex-direction:column; height:calc(100vh - 160px); }
+    .gal-fs-btn { display:flex; }
+    .gal-wrap.gal-fs .gal-fs-btn { display:none; }
     .gal-tree { width:100%; max-height:180px; border-right:none; border-bottom:1px solid #eee; }
 }
 /* ==========================================================================
@@ -1067,7 +1077,7 @@ window.fetchEmployeesFS = async function() {
       <button type="button" class="tab-btn" data-tab="personalCalTab">개인달력</button>
       <button type="button" class="tab-btn" data-tab="noticeTab">전사게시판</button>
       <button type="button" class="tab-btn" id="wikiTabBtn" data-tab="wikiTab">지복득마루위키</button>
-      <button type="button" class="tab-btn" data-tab="galleryTab">이미지 갤러리</button>
+      <button type="button" class="tab-btn" data-tab="galleryTab">시공사례</button>
       <button type="button" class="tab-btn" data-tab="leaveTab" id="leaveTabBtn" style="display:none;">휴가신청</button>
       <button type="button" class="tab-btn" data-tab="leaveManagerTab" id="leaveManagerTabBtn" style="display:none;">연차관리</button>
       <button type="button" class="tab-btn" data-tab="smsTab" id="smsTabBtn" style="display:none;">문자발송</button>
@@ -1737,9 +1747,21 @@ window.fetchEmployeesFS = async function() {
         <button type="button" class="gal-nav-btn gal-nav-next" onclick="window._galNav(1)">›</button>
         <div class="gal-counter">${index + 1} / ${images.length}</div>
       ` : ''}
+      <button type="button" class="gal-fs-btn" onclick="window._galToggleFullscreen()" title="전체화면">⛶</button>
+      <button type="button" class="gal-close-btn" onclick="window._galToggleFullscreen()" title="닫기">×</button>
     `;
     attachDrag();
   }
+
+  // 모바일에서 화면이 좁아 이미지가 작게 보이는 문제 보완용 — 실제 브라우저 전체화면 API 대신
+  // .gal-wrap을 position:fixed로 뷰포트 전체에 덮어써서 폴더트리를 숨기고 이미지 뷰만 꽉 채운다.
+  // (iOS Safari는 Fullscreen API 지원이 불안정해 CSS 방식이 더 안정적)
+  window._galToggleFullscreen = function() {
+    const wrap = document.querySelector('.gal-wrap');
+    if (!wrap) return;
+    const isFs = wrap.classList.toggle('gal-fs');
+    document.body.style.overflow = isFs ? 'hidden' : '';
+  };
 
   window._galNav = function(dir) {
     if (!state.current || !state.current.images.length) return;
@@ -11598,7 +11620,7 @@ const TAB_LABELS = {
   pricingTab:'단가표', calculatorTab:'계산기', stockBetaTab:'재고현황(예약/실시간)', scheduleTab:'시공일정표',
   invoiceTab:'견적서', consultTab:'쇼룸상담', reservationTab:'예약관리',
   cardScanTab:'명함스캐닝', contactsTab:'연락처', floorplanTab:'면적분석',
-  memoTab:'메모장', personalCalTab:'개인달력', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득마루위키', galleryTab:'이미지 갤러리'
+  memoTab:'메모장', personalCalTab:'개인달력', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득마루위키', galleryTab:'시공사례'
 };
 
 // ── 내 홈 화면 설정 ──
