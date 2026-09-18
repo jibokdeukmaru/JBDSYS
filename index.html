@@ -3371,7 +3371,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     <div class="inv-preview-label">
       <span>견적서 미리보기</span>
     </div>
-    <div id="_invDebugInfo" style="font-size:11px;color:#e11;font-weight:700;margin-bottom:6px;"></div>
     <div style="overflow-x:auto;">
       <div id="invoiceDoc">
         <div class="inv-corner-accent"></div>
@@ -13055,17 +13054,22 @@ function updateInvoiceScale() {
     const wrap = document.querySelector('#invoiceTab .inv-preview-wrap > div[style]');
     if (!wrap) return;
     const doc = document.getElementById('invoiceDoc');
-    const rawH = doc ? doc.scrollHeight : 1312;
+    if (!doc) return;
     // 패딩 제외한 실제 너비
     const containerW = wrap.clientWidth || (window.innerWidth - 44);
     const cap = isMob ? 1 : 0.8;
     const scale = Math.max(0.15, Math.min(cap, containerW / 930));
     document.documentElement.style.setProperty('--inv-scale', scale.toFixed(4));
-    // TEMP 진단용 — 원인 파악 후 제거
-    const _dbg = document.getElementById('_invDebugInfo');
-    if (_dbg) _dbg.textContent = `[진단] isMob=${isMob} screen.width=${window.screen && window.screen.width} innerWidth=${window.innerWidth} containerW=${containerW} scale=${scale.toFixed(3)} wrapCW=${wrap.clientWidth}`;
-    const scaledH = Math.round(rawH * scale);
-    wrap.style.height = scaledH + 'px';
+    // 계산한 배율을 CSS 변수 경유가 아니라 요소에 직접(인라인) 강제 적용한다 — 실기기(폴드8
+    // 펼친 화면 등, PC로 분류되는 화면)에서 --inv-scale 계산값(예: 0.654)은 맞는데도 실제
+    // 화면엔 반영이 안 돼 우측이 잘리던 사례가 확인됨(진단 로그로 확인). 인라인 스타일은
+    // !important가 없는 외부 CSS 규칙보다 항상 우선 적용되므로 캐스케이드 문제를 원천 차단한다.
+    // (768px 이하 실제 좁은 화면의 모바일 !important 규칙은 그대로 이 인라인 값을 덮어써서 유지된다.)
+    doc.style.transform = `scale(${scale})`;
+    // 실제로 적용된 배율 기준 실측 높이로 wrap을 맞춘다 — scale*rawH로 "추정"하면 위 문제처럼
+    // 실제 적용 배율과 어긋날 때 미리보기 하단에 빈 여백이 남거나 내용이 잘리므로 항상 실측한다.
+    const measuredH = Math.round(doc.getBoundingClientRect().height) || Math.round((doc.scrollHeight || 1312) * scale);
+    wrap.style.height = measuredH + 'px';
     wrap.style.overflow = 'hidden';
     wrap.style.position = 'relative';
 }
