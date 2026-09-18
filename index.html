@@ -8472,38 +8472,38 @@ function csDateInputValue(val) {
       </div>
       <!-- ★ 2026-09-16: 사용연차/조정연차 입력은 "연차관리" 전용 탭(연차 현황 카드의
            인라인 편집)으로 옮겼다 — 여기서 빼는 대신 그 탭에서 두 값을 같이 수정 가능. -->
-      <!-- 직책 설정 -->
-      <div style="display:flex;flex-wrap:wrap;gap:8px 14px;padding:10px 12px;background:var(--cream);border-radius:8px;">
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalIsHead" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+      <!-- 직책 설정 — 견적서 탭 체크박스(.inv-grid-2 옆 2열 grid)와 동일한 방식으로 정리 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;padding:10px 12px;background:var(--cream);border-radius:8px;">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalIsHead" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           대표
         </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalIsManager" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalIsManager" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           부서장
         </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalStockBetaEditor" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalStockBetaEditor" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           재고현황(예약/실시간) 편집권한
         </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalCompatEditor" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalCompatEditor" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           재고현황 호환여부 편집권한
         </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalScheduleEditor" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalScheduleEditor" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           시공일정표 편집권한
         </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalLeaveManagerEditor" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalLeaveManagerEditor" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           연차관리 탭 접근권한
         </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalQuoteVaultAccess" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalQuoteVaultAccess" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           견적서 저장소 접근권한(Sales)
         </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="empModalQuoteVaultViewAll" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+        <label style="display:flex;align-items:flex-start;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;line-height:1.35;">
+          <input type="checkbox" id="empModalQuoteVaultViewAll" style="width:14px;height:14px;flex-shrink:0;margin-top:1px;accent-color:var(--brand);">
           견적서 저장소 전체열람(대표)
         </label>
       </div>
