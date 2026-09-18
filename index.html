@@ -14007,6 +14007,37 @@ window._ivBrowseOpenQuote = async function(id) {
     if (!q) return;
     await window.loadInvoiceFromVaultQuote(q);
 };
+window._ivRenameFolder = async function(id) {
+    const cur = (window._ivFoldersCache || []).find(f => f.id === id);
+    const name = prompt('폴더 이름을 입력하세요', cur ? cur.name : '');
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    await window.fbEnsureAuth();
+    await window.FB.updateDoc(_ivDoc('salesQuoteFolders', id), { name: trimmed });
+    _ivRenderVaultBody();
+};
+window._ivDeleteFolder = async function(id) {
+    const cur = (window._ivFoldersCache || []).find(f => f.id === id);
+    const name = cur ? cur.name : '이 폴더';
+    await window.fbEnsureAuth();
+    const flags = window._ivVaultState.flags;
+    // 이 폴더 안에 있는 견적서 개수 확인(폴더는 소유자만 삭제 가능하므로 authorId==본인 기준으로 조회)
+    const snap = await window.FB.getDocs(window.FB.query(_ivCol('salesQuotes'), window.FB.where('authorId', '==', flags.id), window.FB.where('folderId', '==', id)));
+    const count = snap.size;
+    const msg = count > 0
+        ? `"${name}" 폴더 안에 견적서 ${count}건이 있습니다. 삭제하면 그 견적서들은 모두 최상위로 이동됩니다. 계속할까요?`
+        : `"${name}" 폴더를 삭제하시겠습니까?`;
+    if (!confirm(msg)) return;
+    if (count > 0) {
+        const writes = [];
+        snap.forEach(d => writes.push(window.FB.updateDoc(_ivDoc('salesQuotes', d.id), { folderId: null, updatedAt: window.FB.serverTimestamp() })));
+        await Promise.all(writes);
+    }
+    await window.FB.deleteDoc(_ivDoc('salesQuoteFolders', id));
+    if (window._ivBrowse.folderId === id) window._ivBrowse.folderId = null;
+    _ivRenderVaultBody();
+};
 
 function _ivRenderQuoteRow(q, flags, locationLabel) {
     const canManage = q.authorId === flags.id || flags.viewAll;
@@ -14058,6 +14089,7 @@ async function _ivRenderVaultBody() {
     if (kw) { return _ivRenderSearchResults(body, flags, employees, kw); }
 
     const folders = await _ivFetchFolders(br.employeeId);
+    window._ivFoldersCache = folders;
     let quotes = await _ivFetchQuotesFor(br.employeeId);
     window._ivBrowseCache = {};
     quotes.forEach(q => { window._ivBrowseCache[q.id] = q; });
@@ -14065,21 +14097,35 @@ async function _ivRenderVaultBody() {
     const inFolder = quotes.filter(q => (q.folderId || null) === (br.folderId || null));
 
     const empOpts = employees.map(e => `<option value="${e.id}" ${br.employeeId === e.id ? 'selected' : ''}>${e.name || ''} ${e.title || ''}</option>`).join('');
+    const isOwner = br.employeeId === flags.id;
 
     let html = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
         <select id="ivBrowseYear" onchange="_ivBrowseSetYear(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">${_ivYearOptsHtml(br)}</select>
         <select id="ivBrowseEmp" onchange="_ivBrowseSetEmployee(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:140px;">${empOpts}</select>
-        <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" oninput="_ivBrowseSetSearch(this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:140px;">
+        <div style="display:flex;flex:1;min-width:140px;">
+          <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
+          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;cursor:pointer;">🔍</button>
+        </div>
       </div>`;
 
     if (br.folderId) {
         const f = folders.find(x => x.id === br.folderId);
-        html += `<div style="margin-bottom:10px;"><button type="button" class="secondary" onclick="_ivBrowseSetFolder(null)">← 상위로</button> <strong style="margin-left:8px;">📁 ${f ? f.name : ''}</strong></div>`;
+        html += `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="secondary" onclick="_ivBrowseSetFolder(null)">← 상위로</button>
+          <strong>📁 ${f ? f.name : ''}</strong>
+          ${isOwner ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;" onclick="_ivRenameFolder('${br.folderId}')">이름변경</button>` : ''}
+          ${isOwner ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;color:#e74c3c;" onclick="_ivDeleteFolder('${br.folderId}')">폴더삭제</button>` : ''}
+        </div>`;
     } else {
         html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-          ${folders.map(f => `<button type="button" class="secondary" onclick="_ivBrowseSetFolder('${f.id}')">📁 ${f.name}</button>`).join('')}
-          ${br.employeeId === flags.id ? `<button type="button" class="secondary" onclick="_ivCreateFolderInline()">+ 새 폴더</button>` : ''}
+          ${folders.map(f => `
+            <span style="display:inline-flex;align-items:stretch;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
+              <button type="button" class="secondary" style="border:none;border-radius:0;" onclick="_ivBrowseSetFolder('${f.id}')">📁 ${f.name}</button>
+              ${isOwner ? `<button type="button" title="이름변경" style="border:none;border-left:1px solid #eee;background:#fff;padding:0 8px;cursor:pointer;color:#888;" onclick="event.stopPropagation();_ivRenameFolder('${f.id}')">✎</button>` : ''}
+              ${isOwner ? `<button type="button" title="삭제" style="border:none;border-left:1px solid #eee;background:#fff;padding:0 8px;cursor:pointer;color:#e74c3c;" onclick="event.stopPropagation();_ivDeleteFolder('${f.id}')">×</button>` : ''}
+            </span>`).join('')}
+          ${isOwner ? `<button type="button" class="secondary" onclick="_ivCreateFolderInline()">+ 새 폴더</button>` : ''}
         </div>`;
     }
 
@@ -14122,7 +14168,10 @@ async function _ivRenderSearchResults(body, flags, employees, kw) {
     let html = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <select id="ivBrowseYear" onchange="_ivBrowseSetYear(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">${_ivYearOptsHtml(br)}</select>
-        <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" oninput="_ivBrowseSetSearch(this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:140px;">
+        <div style="display:flex;flex:1;min-width:140px;">
+          <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
+          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;cursor:pointer;">🔍</button>
+        </div>
         <button type="button" class="secondary" onclick="_ivBrowseSetSearch('')">검색 지우기</button>
       </div>
       <div style="font-size:12px;color:#888;margin-bottom:10px;">"${kw}" 검색결과 ${results.length}건 (저장소 전체, 내가 열람 가능한 범위)</div>`;
