@@ -3628,12 +3628,13 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   window.LEAVE_API_URL = LEAVE_API_URL;
   // ★ 이미지 갤러리(2026-09-18): cloud-functions/drive-gallery 배포 후 아래 URL이
   //   실제 배포 URL과 다르면 반드시 교체할 것(아직 미배포 상태의 플레이스홀더 — 함수명
-  //   규칙상 이 URL이 되겠지만 GCP 콘솔에서 실제 배포된 URL로 확인 필요).
+  //   규칙상 이 URL이 되겠지만 GCP 콘솔에서 실제 배포된 URL로 확인 필요). 인증키는 새로
+  //   안 만들고 아래 _INTERNAL_API_KEY(다른 함수들도 공유하는 Secret Manager의
+  //   INTERNAL_API_KEY)를 그대로 재사용 — 선언 순서상 아래에서 값을 채운다.
   var GALLERY_API_URL = 'https://drive-gallery-697700684649.asia-northeast3.run.app';
-  var GALLERY_API_KEY = '20bdf7e21a7bae6b7f418d21542f9c22bbae4e3614f521d0';
+  var GALLERY_API_KEY = null;
   var GALLERY_ROOT_FOLDER_ID = '1o1_RerdhS31TcI-UYBdXmSXMQGR6TCEk'; // 바람시리즈 최상위 폴더(공유 드라이브)
   window.GALLERY_API_URL = GALLERY_API_URL;
-  window.GALLERY_API_KEY = GALLERY_API_KEY;
   window.GALLERY_ROOT_FOLDER_ID = GALLERY_ROOT_FOLDER_ID;
   // ★ 코드에 저장된 최신 기본값을 별도로 보존 (하위호환용 참조)
   window._DEFAULT_RESERVE_URL = RESERVE_URL;
@@ -3659,6 +3660,8 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   //    이 키를 검사하므로 고객의 공개 예약 흐름에는 영향이 없다.
   // ════════════════════════════════════════════════════════════
   var _INTERNAL_API_KEY = '71e2619e71f3ec1b4087d4f4d5e1b6a52a540e8a598c953c';
+  GALLERY_API_KEY = _INTERNAL_API_KEY; // 다른 사내 백엔드와 같은 공유 비밀(Secret Manager: INTERNAL_API_KEY) 재사용
+  window.GALLERY_API_KEY = GALLERY_API_KEY;
   var _INTERNAL_BACKENDS = [RESERVE_URL, ERP_URL, SMS_URL, BOOKING_URL, SMS_CF_URL, GMAIL_CF_URL];
   window.SMS_CF_URL = SMS_CF_URL;
   (function() {
