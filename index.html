@@ -1752,15 +1752,44 @@ window.fetchEmployeesFS = async function() {
     attachDrag();
   }
 
-  // 모바일에서 화면이 좁아 이미지가 작게 보이는 문제 보완용 — 실제 브라우저 전체화면 API 대신
-  // .gal-wrap을 position:fixed로 뷰포트 전체에 덮어써서 폴더트리를 숨기고 이미지 뷰만 꽉 채운다.
-  // (iOS Safari는 Fullscreen API 지원이 불안정해 CSS 방식이 더 안정적)
+  // 실제 브라우저 Fullscreen API로 전체화면 전환(주소창/탭까지 가림)을 우선 시도한다.
+  // 이 API 미지원 환경(iOS Safari 등, Element.requestFullscreen 없음)에서는 gal-fs 클래스로
+  // .gal-wrap을 position:fixed 덮어써서 폴더트리를 숨기고 이미지 뷰만 꽉 채우는 방식으로 대체된다.
   window._galToggleFullscreen = function() {
     const wrap = document.querySelector('.gal-wrap');
     if (!wrap) return;
-    const isFs = wrap.classList.toggle('gal-fs');
-    document.body.style.overflow = isFs ? 'hidden' : '';
+    const isFs = wrap.classList.contains('gal-fs');
+    if (isFs) {
+      const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
+      if ((document.fullscreenElement || document.webkitFullscreenElement) && exitFn) {
+        const p = exitFn.call(document);
+        if (p && p.catch) p.catch(() => {});
+      }
+      wrap.classList.remove('gal-fs');
+      document.body.style.overflow = '';
+    } else {
+      wrap.classList.add('gal-fs');
+      document.body.style.overflow = 'hidden';
+      const reqFn = wrap.requestFullscreen || wrap.webkitRequestFullscreen || wrap.mozRequestFullScreen || wrap.msRequestFullscreen;
+      if (reqFn) {
+        const p = reqFn.call(wrap);
+        if (p && p.catch) p.catch(() => {});
+      }
+    }
   };
+
+  // Esc나 브라우저 UI로 실제 전체화면만 빠져나간 경우에도 오버레이 레이아웃(gal-fs)을 함께 해제.
+  function galSyncFsClass() {
+    const wrap = document.querySelector('.gal-wrap');
+    if (!wrap) return;
+    const isRealFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (!isRealFs && wrap.classList.contains('gal-fs')) {
+      wrap.classList.remove('gal-fs');
+      document.body.style.overflow = '';
+    }
+  }
+  document.addEventListener('fullscreenchange', galSyncFsClass);
+  document.addEventListener('webkitfullscreenchange', galSyncFsClass);
 
   window._galNav = function(dir) {
     if (!state.current || !state.current.images.length) return;
