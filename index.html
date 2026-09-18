@@ -6595,6 +6595,31 @@ function csDateInputValue(val) {
     if (ok && cb) cb();
   };
 
+  // ── 공용 입력창 (window.prompt() 대체) ──
+  // ★ window.prompt()가 이 앱(Electron)에서 지원되지 않아(위 공용 확인창과 같은 문제) 이름/
+  //   금액 등을 입력받던 곳들이 전부 안 뜨는 문제가 있었다 — showAppConfirm과 같은 패턴으로
+  //   콜백 기반 모달로 대체. onOk(입력값) 또는 취소 시 onOk(null)로 호출된다.
+  let _appPromptCb = null;
+  window.showAppPrompt = function(msg, defaultVal, onOk) {
+    const modal = document.getElementById('appPromptModal');
+    const input = document.getElementById('appPromptInput');
+    if (!modal || !input) { if (onOk) onOk(defaultVal || null); return; } // 혹시 모달이 없으면 기존처럼 그냥 진행
+    document.getElementById('appPromptMsg').textContent = msg;
+    input.value = defaultVal || '';
+    _appPromptCb = onOk;
+    modal.style.display = 'flex';
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  };
+  window._appPromptResolve = function(ok) {
+    const modal = document.getElementById('appPromptModal');
+    const input = document.getElementById('appPromptInput');
+    const val = input ? input.value : '';
+    if (modal) modal.style.display = 'none';
+    const cb = _appPromptCb;
+    _appPromptCb = null;
+    if (cb) cb(ok ? val : null);
+  };
+
   // ── 저장 (신규 등록 + 기존 수정 겸용) ──
   // ★ 이 폼은 "저장" 버튼 외에도 성함/업체명/연락처/현장주소/제품 5개 입력창의 Enter 키로도
   //   같은 함수가 호출된다. 재진입 방지 없이는 짧은 시간에 두 번 트리거되면 신규 등록이
@@ -11033,8 +11058,9 @@ function csDateInputValue(val) {
             const tabEl = nameEl.closest('.memo-tab');
             const page = _memoPages.find(p => p.id === tabEl.dataset.id);
             if (!page) return;
-            const next = prompt('탭 이름 변경', page.name);
-            if (next && next.trim()) { page.name = next.trim(); renderMemoTabs(); }
+            window.showAppPrompt('탭 이름 변경', page.name, (next) => {
+              if (next && next.trim()) { page.name = next.trim(); renderMemoTabs(); }
+            });
           });
         }
 
@@ -14114,24 +14140,32 @@ window.saveInvoiceToVault = async function() {
     const updates = { updatedAt: window.FB.serverTimestamp(), companyName: snap.billTo || '(업체명 미입력)', stage: targetStage };
     if (targetStage === 'settled') {
         const grand = typeof window._invLastGrandTotal === 'number' ? window._invLastGrandTotal : 0;
-        const raw = prompt('정산금액을 입력하세요 (취소하면 저장하지 않습니다, 비워두면 미정산으로 표시됩니다)', '');
-        if (raw === null) return;
-        const settlementAmount = raw.trim() ? (parseInt(raw.replace(/[^0-9]/g, ''), 10) || 0) : null;
-        stageData.settlementAmount = settlementAmount;
-        stageData.quoteRemainingAmount = grand;
-        updates.settlementAmount = settlementAmount;
-        updates.hasUnsettled = settlementAmount == null;
-        updates.unsettledAmount = settlementAmount == null ? grand : 0;
-        // 정산금액을 입력하면 그 현장은 완료된 것으로 간주 — "완료현장" 체크와 동일한 필드.
-        // 미정산(빈칸) 처리한 경우엔 아직 진행중이므로 completed를 건드리지 않는다.
-        if (settlementAmount != null) updates.completed = true;
+        // window.prompt()가 앱(Electron)에서 안 떠서 자체 입력창(showAppPrompt)으로 대체 —
+        // 콜백 기반이라 나머지 저장 로직은 _ivFinishSaveToStage로 분리해 콜백 안에서 호출한다.
+        window.showAppPrompt('정산금액을 입력하세요 (취소하면 저장하지 않습니다, 비워두면 미정산으로 표시됩니다)', '', async (raw) => {
+            if (raw === null) return;
+            const settlementAmount = raw.trim() ? (parseInt(raw.replace(/[^0-9]/g, ''), 10) || 0) : null;
+            stageData.settlementAmount = settlementAmount;
+            stageData.quoteRemainingAmount = grand;
+            updates.settlementAmount = settlementAmount;
+            updates.hasUnsettled = settlementAmount == null;
+            updates.unsettledAmount = settlementAmount == null ? grand : 0;
+            // 정산금액을 입력하면 그 현장은 완료된 것으로 간주 — "완료현장" 체크와 동일한 필드.
+            // 미정산(빈칸) 처리한 경우엔 아직 진행중이므로 completed를 건드리지 않는다.
+            if (settlementAmount != null) updates.completed = true;
+            await _ivFinishSaveToStage(binding, targetStage, stageData, updates);
+        });
+        return;
     }
+    await _ivFinishSaveToStage(binding, targetStage, stageData, updates);
+};
+async function _ivFinishSaveToStage(binding, targetStage, stageData, updates) {
     updates['stages.' + targetStage] = stageData;
     await window.FB.updateDoc(_ivDoc('salesQuotes', binding.id), updates);
     binding.reachedStages = Array.from(new Set([...(binding.reachedStages || []), targetStage]));
     _ivRenderStageIndicator();
     showToast('저장되었습니다 (' + IV_STAGE_LABELS[targetStage] + ')');
-};
+}
 
 // ---------------- 불러오기 흐름 ----------------
 window.loadInvoiceFromVaultQuote = async function(quote) {
@@ -14229,16 +14263,17 @@ window._ivSelectNode = async function(year, employeeId, folderId) {
     window._ivTree.expandedEmployees[employeeId] = true;
     _ivRenderVaultBody();
 };
-window._ivCreateFolderInline = async function() {
-    const name = prompt('새 폴더 이름을 입력하세요');
-    if (!name || !name.trim()) return;
-    await window.fbEnsureAuth();
-    const ownerId = window._ivBrowse.employeeId;
-    const parentId = window._ivBrowse.folderId || null; // 지금 보고 있는 폴더 안에 생성(중첩 지원)
-    await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId, name: name.trim(), parentId, createdAt: window.FB.serverTimestamp() });
-    window._ivFoldersCacheByEmp[ownerId] = await _ivFetchFolders(ownerId);
-    if (parentId) window._ivTree.expandedFolders[parentId] = true;
-    _ivRenderVaultBody();
+window._ivCreateFolderInline = function() {
+    window.showAppPrompt('새 폴더 이름을 입력하세요', '', async (name) => {
+        if (!name || !name.trim()) return;
+        await window.fbEnsureAuth();
+        const ownerId = window._ivBrowse.employeeId;
+        const parentId = window._ivBrowse.folderId || null; // 지금 보고 있는 폴더 안에 생성(중첩 지원)
+        await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId, name: name.trim(), parentId, createdAt: window.FB.serverTimestamp() });
+        window._ivFoldersCacheByEmp[ownerId] = await _ivFetchFolders(ownerId);
+        if (parentId) window._ivTree.expandedFolders[parentId] = true;
+        _ivRenderVaultBody();
+    });
 };
 window._ivToggleShare = async function(id, shared) {
     await window.fbEnsureAuth();
@@ -14285,17 +14320,18 @@ window._ivBrowseOpenQuote = async function(id) {
     if (!q) return;
     await window.loadInvoiceFromVaultQuote(q);
 };
-window._ivRenameFolder = async function(id) {
+window._ivRenameFolder = function(id) {
     const flags = window._ivVaultState.flags;
     const cur = (window._ivFoldersCacheByEmp[flags.id] || []).find(f => f.id === id);
-    const name = prompt('폴더 이름을 입력하세요', cur ? cur.name : '');
-    if (name == null) return;
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    await window.fbEnsureAuth();
-    await window.FB.updateDoc(_ivDoc('salesQuoteFolders', id), { name: trimmed });
-    window._ivFoldersCacheByEmp[flags.id] = await _ivFetchFolders(flags.id);
-    _ivRenderVaultBody();
+    window.showAppPrompt('폴더 이름을 입력하세요', cur ? cur.name : '', async (name) => {
+        if (name == null) return;
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        await window.fbEnsureAuth();
+        await window.FB.updateDoc(_ivDoc('salesQuoteFolders', id), { name: trimmed });
+        window._ivFoldersCacheByEmp[flags.id] = await _ivFetchFolders(flags.id);
+        _ivRenderVaultBody();
+    });
 };
 // 폴더 안에 폴더가 계속 중첩될 수 있어서, 삭제 대상 폴더의 모든 하위 폴더까지 함께
 // 찾아서 지우고, 그 안의(하위 폴더 포함) 견적서는 데이터 유실 없이 삭제된 폴더의
@@ -19135,6 +19171,22 @@ window.submitFindPw = async function() {
     <div style="display:flex;gap:8px;">
       <button onclick="_appConfirmResolve(false)" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">아니요</button>
       <button onclick="_appConfirmResolve(true)" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">예</button>
+    </div>
+  </div>
+</div>
+
+<!-- ★ 공용 입력창 — window.prompt()가 이 앱(Electron)에서 지원되지 않는 문제(위 공용 확인창과
+     동일한 원인)를 우회한다. showAppPrompt(메시지, 기본값, 확인시콜백) 형태로 사용,
+     콜백은 확인 시 입력값(문자열), 취소 시 null로 호출된다. -->
+<div id="appPromptModal" style="display:none;position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:360px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <p id="appPromptMsg" style="margin:0 0 12px;font-size:13.5px;line-height:1.6;color:#222;white-space:pre-line;"></p>
+    <input type="text" id="appPromptInput"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();_appPromptResolve(true);}"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:16px;">
+    <div style="display:flex;gap:8px;">
+      <button onclick="_appPromptResolve(false)" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">취소</button>
+      <button onclick="_appPromptResolve(true)" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">확인</button>
     </div>
   </div>
 </div>
