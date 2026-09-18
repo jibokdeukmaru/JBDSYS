@@ -3371,6 +3371,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     <div class="inv-preview-label">
       <span>견적서 미리보기</span>
     </div>
+    <div id="_invDebugInfo" style="font-size:11px;color:#e11;font-weight:700;margin-bottom:6px;"></div>
     <div style="overflow-x:auto;">
       <div id="invoiceDoc">
         <div class="inv-corner-accent"></div>
@@ -13060,6 +13061,9 @@ function updateInvoiceScale() {
     const cap = isMob ? 1 : 0.8;
     const scale = Math.max(0.15, Math.min(cap, containerW / 930));
     document.documentElement.style.setProperty('--inv-scale', scale.toFixed(4));
+    // TEMP 진단용 — 원인 파악 후 제거
+    const _dbg = document.getElementById('_invDebugInfo');
+    if (_dbg) _dbg.textContent = `[진단] isMob=${isMob} screen.width=${window.screen && window.screen.width} innerWidth=${window.innerWidth} containerW=${containerW} scale=${scale.toFixed(3)} wrapCW=${wrap.clientWidth}`;
     const scaledH = Math.round(rawH * scale);
     wrap.style.height = scaledH + 'px';
     wrap.style.overflow = 'hidden';
