@@ -1696,8 +1696,10 @@ window.fetchEmployeesFS = async function() {
         ${hasKnownChildren ? `<span class="gal-tree-arrow${isOpen ? ' open' : ''}" onclick="event.stopPropagation();window._galToggleNode('${id}')">▶</span>` : `<span class="gal-tree-arrow" style="visibility:hidden;">▶</span>`}
         <span>${galEsc(name)}</span>
       </div>`;
-    if (isOpen && cache) {
-      html += `<div class="gal-tree-children">` + cache.folders.map(f => renderNode(f.id, f.name, depth + 1)).join('') + `</div>`;
+    if (isOpen) {
+      html += `<div class="gal-tree-children">` + (cache
+        ? cache.folders.map(f => renderNode(f.id, f.name, depth + 1)).join('')
+        : `<div style="padding:6px 8px 6px ${20 + depth * 14}px;font-size:12px;color:#999;">불러오는 중...</div>`) + `</div>`;
     }
     html += `</div>`;
     return html;
@@ -1709,15 +1711,21 @@ window.fetchEmployeesFS = async function() {
     el.innerHTML = renderNode(state.rootId, state.rootName, 0);
   }
 
+  // 클릭 즉시(네트워크 응답을 기다리지 않고) 화살표/트리를 펼치고, 데이터는 이어서 채운다.
+  // 이미 펼쳐진 폴더를 클릭하면 접힌다(토글).
   window._galToggleNode = async function(id) {
     const willOpen = !state.treeExpanded[id];
     state.treeExpanded[id] = willOpen;
-    if (willOpen) await fetchFolder(id);
     renderTree();
+    if (willOpen && !state.foldersCache[id]) {
+      await fetchFolder(id);
+      renderTree();
+    }
   };
 
   window._galSelectFolder = async function(id) {
-    state.treeExpanded[id] = true;
+    state.treeExpanded[id] = !state.treeExpanded[id];
+    renderTree();
     const folder = await fetchFolder(id);
     renderTree();
     if (folder.images.length > 0) {

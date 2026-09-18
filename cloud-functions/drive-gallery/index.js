@@ -27,10 +27,17 @@ function driveClient() {
 const IMAGE_MIME_PREFIX = 'image/';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
+// 같은 함수 인스턴스가 재사용되는 동안(콜드스타트가 아닌 요청) 이미 루트 하위로 확인된
+// 폴더 id를 기억해두는 캐시. Drive API files.get() 왕복이 건당 수백ms라, 트리를 깊이
+// 내려갈수록 아래 isWithinRoot의 부모 체인 순차 조회가 그대로 클릭 반응 지연으로 이어지던
+// 게 "트리가 느리다"는 체감의 주 원인이었다 — 한 번 확인된 폴더는 API 호출 없이 즉시 통과.
+const verifiedWithinRoot = new Set([ROOT_FOLDER_ID]);
+
 // folderId(또는 fileId)가 ROOT_FOLDER_ID 자신이거나 그 하위(임의 깊이)에 있는지, 부모 체인을
 // 따라 올라가며 확인한다. 깊이 제한(20단계)은 무한루프 방지용 안전장치.
 async function isWithinRoot(drive, id) {
-  if (id === ROOT_FOLDER_ID) return true;
+  if (verifiedWithinRoot.has(id)) return true;
+  const chain = [id];
   let current = id;
   for (let i = 0; i < 20; i++) {
     let meta;
@@ -40,9 +47,14 @@ async function isWithinRoot(drive, id) {
       return false;
     }
     const parents = meta.data.parents || [];
-    if (parents.includes(ROOT_FOLDER_ID)) return true;
+    const parent = parents[0];
+    if (parents.includes(ROOT_FOLDER_ID) || (parent && verifiedWithinRoot.has(parent))) {
+      chain.forEach(c => verifiedWithinRoot.add(c));
+      return true;
+    }
     if (!parents.length) return false;
-    current = parents[0];
+    current = parent;
+    chain.push(current);
   }
   return false;
 }
@@ -60,6 +72,10 @@ async function listFolder(drive, folderId) {
   const files = res.data.files || [];
   const folders = files.filter(f => f.mimeType === FOLDER_MIME).map(f => ({ id: f.id, name: f.name }));
   const images = files.filter(f => f.mimeType && f.mimeType.startsWith(IMAGE_MIME_PREFIX)).map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType }));
+  // folderId는 호출 시점에 이미 루트 하위로 확인된 상태이므로, 그 직속 하위 폴더들도
+  // 전부 루트 하위임이 자동으로 보장된다 — 다음에 이 하위 폴더를 클릭할 때 isWithinRoot가
+  // 부모 체인을 다시 훑지 않고 캐시로 즉시 통과하도록 미리 등록해둔다.
+  folders.forEach(f => verifiedWithinRoot.add(f.id));
   return { folders, images };
 }
 
@@ -92,9 +108,15 @@ functions.http('driveGallery', async (req, res) => {
       }
       const { folders, images } = await listFolder(drive, folderId);
       // 트리 좌측 최상단 루트 라벨은 프론트에서 이름을 알 방법이 없어서(자신을 가리키는
-      // 폴더ID만 상수로 갖고 있음), 요청한 폴더 자신의 이름도 함께 내려준다.
-      const selfMeta = await drive.files.get({ fileId: folderId, fields: 'name', supportsAllDrives: true });
-      return res.json({ status: 'ok', folderName: selfMeta.data.name, folders, images });
+      // 폴더ID만 상수로 갖고 있음), 루트 폴더 자신의 이름을 함께 내려준다. 프론트는 이
+      // 필드를 루트 요청일 때만 실제로 사용하므로, 비루트 폴더에서는 매 클릭마다 이름 조회
+      // API를 추가로 태우지 않는다.
+      let folderName;
+      if (folderId === ROOT_FOLDER_ID) {
+        const selfMeta = await drive.files.get({ fileId: folderId, fields: 'name', supportsAllDrives: true });
+        folderName = selfMeta.data.name;
+      }
+      return res.json({ status: 'ok', folderName, folders, images });
     }
 
     if (action === 'image') {
