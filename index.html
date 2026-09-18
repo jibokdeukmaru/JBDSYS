@@ -13723,7 +13723,12 @@ window._ivStageChipClick = async function(stage) {
     if (!b || b.type !== 'staged') return;
     if (stage === b.stage) return;
     if (!(b.reachedStages || []).includes(stage)) {
-        showToast(IV_STAGE_LABELS[stage] + ' 단계에는 아직 저장된 데이터가 없습니다');
+        // 아직 저장된 데이터가 없는 단계 — 지금 폼 내용(수량 등)은 그대로 둔 채 저장 대상만
+        // 이 단계로 옮긴다. 실측후부터는 이전 단계 수량이 그대로 남아있어야(초기화 금지)
+        // 실측 결과만 고쳐 넣을 수 있으므로, 여기서 폼을 비우거나 다시 불러오지 않는다.
+        b.stage = stage;
+        _ivRenderStageIndicator();
+        showToast(IV_STAGE_LABELS[stage] + ' 단계로 전환됨 — 이제 저장하면 이 단계에 저장됩니다');
         return;
     }
     await window.fbEnsureAuth();
@@ -13827,44 +13832,6 @@ async function _ivOpenFolderPickModal(ownerId) {
     return _ivOpenFlowModal(html);
 }
 
-async function _ivOpenStageSaveModal(binding) {
-    let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">어느 단계로 저장할까요?</div>`;
-    html += IV_STAGE_ORDER.map(s => {
-        const active = s === binding.stage;
-        return `<button type="button" style="width:100%;text-align:left;margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${active ? 'var(--brand)' : '#ddd'};background:${active ? 'var(--cream-2)' : '#fff'};color:#333;font-weight:${active ? '700' : '400'};cursor:pointer;" onclick="_ivFlowPickStage('${s}')">${IV_STAGE_LABELS[s]}</button>`;
-    }).join('');
-    html += `<div id="ivSettleAmountWrap" style="display:none;margin:6px 0 14px;">
-        <div style="font-size:12px;color:#666;margin-bottom:4px;">정산금액 (비워두면 미정산으로 표시됩니다)</div>
-        <input type="text" id="ivSettleAmountInput" inputmode="numeric" placeholder="예: 5,000,000" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;">
-      </div>`;
-    html += `<button type="button" id="ivFlowConfirmBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;" disabled>확인</button>`;
-    html += `<button type="button" class="secondary" style="width:100%;margin-top:8px;" onclick="_ivFlowPick(null)">취소</button>`;
-
-    let selectedStage = binding.stage;
-    window._ivFlowPickStage = function(s) {
-        selectedStage = s;
-        const settleWrap = document.getElementById('ivSettleAmountWrap');
-        if (settleWrap) settleWrap.style.display = s === 'settled' ? 'block' : 'none';
-        const btn = document.getElementById('ivFlowConfirmBtn');
-        if (btn) btn.disabled = false;
-    };
-
-    const resultPromise = _ivOpenFlowModal(html);
-    setTimeout(() => {
-        const confirmBtn = document.getElementById('ivFlowConfirmBtn');
-        if (confirmBtn) confirmBtn.onclick = function() {
-            if (!selectedStage) return;
-            let settlementAmount = null;
-            if (selectedStage === 'settled') {
-                const raw = (document.getElementById('ivSettleAmountInput')?.value || '').replace(/[^0-9]/g, '');
-                settlementAmount = raw ? parseInt(raw, 10) : null;
-            }
-            _ivCloseFlowModal({ stage: selectedStage, settlementAmount });
-        };
-    }, 0);
-    return resultPromise;
-}
-
 // 4단계(실측전/실측후/중도금납입/정산서)는 서로 독립된 저장칸이다 — 순서/진행 개념 없이
 // 저장된 데이터가 있는 단계 중 아무거나 골라서 그대로 불러온다.
 async function _ivOpenStageLoadModal(quote, existingStages) {
@@ -13929,29 +13896,29 @@ window.saveInvoiceToVault = async function() {
         return;
     }
 
-    const target = await _ivOpenStageSaveModal(binding);
-    if (!target) return;
+    // 어느 단계로 저장할지 다시 묻지 않는다 — 최상단 단계 표시(칩)에서 지금 선택돼 있는
+    // 단계(binding.stage)에 그대로 저장한다. 다른 단계에 저장하고 싶으면 저장 전에 그
+    // 칩을 클릭해서 옮겨두면 된다.
+    const targetStage = binding.stage;
     const snap = _ivCollectSnapshot();
     const stageData = { data: snap, savedAt: window.FB.serverTimestamp() };
-    const updates = { updatedAt: window.FB.serverTimestamp(), companyName: snap.billTo || '(업체명 미입력)' };
-    if (target.stage === 'settled') {
+    const updates = { updatedAt: window.FB.serverTimestamp(), companyName: snap.billTo || '(업체명 미입력)', stage: targetStage };
+    if (targetStage === 'settled') {
         const grand = typeof window._invLastGrandTotal === 'number' ? window._invLastGrandTotal : 0;
-        stageData.settlementAmount = target.settlementAmount != null ? target.settlementAmount : null;
+        const raw = prompt('정산금액을 입력하세요 (취소하면 저장하지 않습니다, 비워두면 미정산으로 표시됩니다)', '');
+        if (raw === null) return;
+        const settlementAmount = raw.trim() ? (parseInt(raw.replace(/[^0-9]/g, ''), 10) || 0) : null;
+        stageData.settlementAmount = settlementAmount;
         stageData.quoteRemainingAmount = grand;
-        updates.settlementAmount = stageData.settlementAmount;
-        updates.hasUnsettled = stageData.settlementAmount == null;
-        updates.unsettledAmount = stageData.settlementAmount == null ? grand : 0;
+        updates.settlementAmount = settlementAmount;
+        updates.hasUnsettled = settlementAmount == null;
+        updates.unsettledAmount = settlementAmount == null ? grand : 0;
     }
-    updates['stages.' + target.stage] = stageData;
-    // 4단계는 순서/진행 개념 없는 독립된 저장칸이다 — 방금 고른 단계를 그대로 stage에 반영
-    // (예전엔 "이전 단계보다 뒤인가"를 비교했는데, 예전 단계를 "그대로 불러와" 다시 저장하면
-    // 그 비교가 틀어져 목록에 엉뚱한 단계가 "현재"로 표시되는 버그가 있었다).
-    updates.stage = target.stage;
+    updates['stages.' + targetStage] = stageData;
     await window.FB.updateDoc(_ivDoc('salesQuotes', binding.id), updates);
-    binding.stage = target.stage;
-    binding.reachedStages = Array.from(new Set([...(binding.reachedStages || []), target.stage]));
+    binding.reachedStages = Array.from(new Set([...(binding.reachedStages || []), targetStage]));
     _ivRenderStageIndicator();
-    showToast('저장되었습니다 (' + IV_STAGE_LABELS[target.stage] + ')');
+    showToast('저장되었습니다 (' + IV_STAGE_LABELS[targetStage] + ')');
 };
 
 // ---------------- 불러오기 흐름 ----------------
