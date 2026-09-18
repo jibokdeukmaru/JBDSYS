@@ -64,6 +64,15 @@ async function listFolder(drive, folderId) {
 }
 
 functions.http('driveGallery', async (req, res) => {
+  // ★ ERP 페이지(sys.jibokdeukmaru.com)에서 fetch()로 호출하므로 다른 함수들(auth-api,
+  //   leave-api, gmail-api)과 동일하게 CORS 헤더가 필요하다 — 이게 없으면 브라우저 URL
+  //   직접 접속(=top-level navigation)은 되는데 fetch()만 조용히 막혀서 "됐다가 안 되는"
+  //   것처럼 보인다.
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+
   const key = (req.query && req.query._appKey) || (req.body && req.body._appKey);
   if (key !== INTERNAL_KEY) {
     return res.status(403).json({ status: 'error', message: '인증 실패' });
