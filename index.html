@@ -13060,11 +13060,17 @@ function updateInvoiceScale() {
     const cap = isMob ? 1 : 0.8;
     const scale = Math.max(0.15, Math.min(cap, containerW / 930));
     document.documentElement.style.setProperty('--inv-scale', scale.toFixed(4));
-    // 계산한 배율을 CSS 변수 경유가 아니라 요소에 직접(인라인) 강제 적용한다 — 실기기(폴드8
-    // 펼친 화면 등, PC로 분류되는 화면)에서 --inv-scale 계산값(예: 0.654)은 맞는데도 실제
-    // 화면엔 반영이 안 돼 우측이 잘리던 사례가 확인됨(진단 로그로 확인). 인라인 스타일은
-    // !important가 없는 외부 CSS 규칙보다 항상 우선 적용되므로 캐스케이드 문제를 원천 차단한다.
+    // 계산한 배율을 CSS 변수 경유가 아니라 요소에 직접(인라인) 강제 적용한다 — !important가
+    // 없는 외부 CSS 규칙보다 인라인 스타일이 항상 우선 적용되므로 캐스케이드 문제를 원천 차단한다.
     // (768px 이하 실제 좁은 화면의 모바일 !important 규칙은 그대로 이 인라인 값을 덮어써서 유지된다.)
+    // ★ 진짜 원인: #invoiceDoc은 margin:0 auto로 가운데 정렬되는데, 이건 컨테이너가 930px보다
+    //   넓을 때만 성립한다. 컨테이너가 930px보다 좁으면(폴드8 펼친 화면 등) auto 마진이
+    //   0으로 풀리면서 문서가 왼쪽부터 930px를 그대로 차지하고, 거기서 origin:center로
+    //   축소하면 "축소 전 930px 기준 중심"을 기준으로 줄어들어 결과물이 오른쪽으로 밀려
+    //   컨테이너 밖으로 삐져나간다(우측만 잘리는 증상과 일치). origin을 top left로 바꾸고
+    //   마진을 0으로 고정해서, 축소 결과가 항상 컨테이너 왼쪽부터 정확히 채워지게 한다.
+    doc.style.margin = '0';
+    doc.style.transformOrigin = 'top left';
     doc.style.transform = `scale(${scale})`;
     // 실제로 적용된 배율 기준 실측 높이로 wrap을 맞춘다 — scale*rawH로 "추정"하면 위 문제처럼
     // 실제 적용 배율과 어긋날 때 미리보기 하단에 빈 여백이 남거나 내용이 잘리므로 항상 실측한다.
