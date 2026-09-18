@@ -13800,7 +13800,7 @@ async function _ivOpenStageSaveModal(binding) {
     let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">어느 단계로 저장할까요?</div>`;
     html += IV_STAGE_ORDER.map(s => {
         const active = s === binding.stage;
-        return `<button type="button" style="width:100%;text-align:left;margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${active ? 'var(--brand)' : '#ddd'};background:${active ? 'var(--cream-2)' : '#fff'};cursor:pointer;" onclick="_ivFlowPickStage('${s}')">${IV_STAGE_LABELS[s]}</button>`;
+        return `<button type="button" style="width:100%;text-align:left;margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${active ? 'var(--brand)' : '#ddd'};background:${active ? 'var(--cream-2)' : '#fff'};color:#333;font-weight:${active ? '700' : '400'};cursor:pointer;" onclick="_ivFlowPickStage('${s}')">${IV_STAGE_LABELS[s]}</button>`;
     }).join('');
     html += `<div id="ivSettleAmountWrap" style="display:none;margin:6px 0 14px;">
         <div style="font-size:12px;color:#666;margin-bottom:4px;">정산금액 (비워두면 미정산으로 표시됩니다)</div>
@@ -14105,7 +14105,7 @@ async function _ivRenderVaultBody() {
         <select id="ivBrowseEmp" onchange="_ivBrowseSetEmployee(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:140px;">${empOpts}</select>
         <div style="display:flex;flex:1;min-width:140px;">
           <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
-          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;cursor:pointer;">🔍</button>
+          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;">🔍</button>
         </div>
       </div>`;
 
@@ -14170,7 +14170,7 @@ async function _ivRenderSearchResults(body, flags, employees, kw) {
         <select id="ivBrowseYear" onchange="_ivBrowseSetYear(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">${_ivYearOptsHtml(br)}</select>
         <div style="display:flex;flex:1;min-width:140px;">
           <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
-          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;cursor:pointer;">🔍</button>
+          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;">🔍</button>
         </div>
         <button type="button" class="secondary" onclick="_ivBrowseSetSearch('')">검색 지우기</button>
       </div>
