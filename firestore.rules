@@ -33,6 +33,21 @@ service cloud.firestore {
       return isEmployee() && request.auth.token.role == 'admin';
     }
 
+    // ── 영업 견적서 저장소(비밀공간) 접근권한 ──
+    // 커스텀 토큰 클레임이 아니라 employees 문서를 매번 get()으로 직접 확인한다 — 클레임에
+    // 박아두면 8시간 캐시된 로그인 세션 동안 관리자가 권한을 바꿔도 반영이 안 되는 문제가
+    // 있었다(2026-09-16 stale-session 사고, employees.quoteVaultAccess/quoteVaultViewAll
+    // 필드와 동일한 이유). 관리자(role=='admin')는 자동으로 접근권한을 갖지 않는다 — 영업부
+    // 직원 + 대표이사 계정에 수동으로 켜준 quoteVaultAccess 플래그로만 판단한다.
+    function quoteVaultAccess() {
+      return isEmployee() &&
+        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.quoteVaultAccess == true;
+    }
+    function quoteVaultViewAll() {
+      return isEmployee() &&
+        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.quoteVaultViewAll == true;
+    }
+
     // ── 직원 정보 (비밀번호 해시는 애초에 이 컬렉션에 동기화하지 않음 — reserve-script 참고) ──
     match /employees/{id} {
       allow read: if isEmployee();
@@ -110,6 +125,32 @@ service cloud.firestore {
     match /leaves/{id} {
       allow read: if isEmployee();
       allow write: if false;
+    }
+
+    // ── 영업 견적서 저장소(비밀공간) — Sales 및 대표이사만, quoteVaultAccess 플래그로만 판단 ──
+    // salesQuotes: 견적서 1건(실측전/실측후/중도금납입/정산서 4단계 또는 A/S·자재 단일저장).
+    //   조회: 접근권한자 중 본인 작성분 + sharedWithDept로 공유된 것 + 대표(quoteVaultViewAll)는 전체.
+    //   생성: 접근권한자 본인 명의로만. 수정/삭제: 작성자 본인 또는 대표(quoteVaultViewAll)만.
+    match /salesQuotes/{id} {
+      allow read: if quoteVaultAccess() && (
+        resource.data.authorId == request.auth.uid ||
+        resource.data.sharedWithDept == true ||
+        quoteVaultViewAll()
+      );
+      allow create: if quoteVaultAccess() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if quoteVaultAccess() && (
+        resource.data.authorId == request.auth.uid || quoteVaultViewAll()
+      );
+    }
+    // salesQuoteFolders: 직원별 자유폴더(연도/이름 상위 구조는 계산된 뷰라 문서로 안 만듦).
+    //   조회는 접근권한자 전체 허용(다른 직원 폴더 경로를 찾아갈 수 있어야 하므로) — 폴더 이름
+    //   자체엔 민감정보가 없고, 그 안의 견적서 열람은 위 salesQuotes 규칙이 따로 막는다.
+    match /salesQuoteFolders/{id} {
+      allow read: if quoteVaultAccess();
+      allow create: if quoteVaultAccess() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if quoteVaultAccess() && (
+        resource.data.ownerId == request.auth.uid || quoteVaultViewAll()
+      );
     }
 
     // ── 그 외 전부 명시적으로 나열되지 않은 컬렉션은 기본 차단 ──

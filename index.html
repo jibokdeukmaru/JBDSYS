@@ -268,6 +268,7 @@ window.fetchEmployeesFS = async function() {
         approverIds: e.approverIds, birthday: e.birthday, cardUrl: e.cardUrl, homeTab: e.homeTab,
         team: e.team, stockBetaEditor: e.stockBetaEditor, compatEditor: e.compatEditor, scheduleEditor: e.scheduleEditor,
         leaveManagerEditor: e.leaveManagerEditor,
+        quoteVaultAccess: e.quoteVaultAccess, quoteVaultViewAll: e.quoteVaultViewAll,
       });
     });
     return { status: 'ok', rows };
@@ -2851,7 +2852,40 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     transform-origin: top left !important;
   }
 }
+.iv-vault-btn { width:34px; height:34px; padding:0; border:1px solid #ddd; border-radius:10px; background:#fff; color:#555; cursor:pointer; align-items:center; justify-content:center; flex-shrink:0; }
+.iv-vault-btn:hover { background:#f5f5f5; }
+.iv-stage-chip { padding:4px 10px; border-radius:999px; font-size:11.5px; font-weight:700; }
 </style>
+
+<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;">
+  <div id="ivStageIndicator" style="display:none; align-items:center; gap:6px; flex-wrap:wrap;"></div>
+  <div style="flex:1;"></div>
+  <button type="button" id="ivVaultLockBtn" class="iv-vault-btn" onclick="openQuoteVault()" title="영업 견적서 저장소" style="display:none;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+  </button>
+</div>
+
+<!-- 영업 견적서 저장소(비밀공간) 메인 모달 -->
+<div id="quoteVaultModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:16px;width:min(760px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;flex-wrap:wrap;gap:8px;">
+      <div style="font-size:15px;font-weight:800;">🔒 영업 견적서 저장소</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button type="button" class="secondary" onclick="_ivBrowseSetView('browse')">찾아보기</button>
+        <button type="button" class="secondary" onclick="_ivBrowseSetView('unsettled')">미정산금액</button>
+        <button type="button" onclick="closeQuoteVault()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">✕</button>
+      </div>
+    </div>
+    <div id="quoteVaultBody" style="overflow-y:auto;padding:18px 20px;flex:1;"></div>
+  </div>
+</div>
+
+<!-- 저장/불러오기 흐름용 범용 모달(폴더 선택, 단계 선택 등) -->
+<div id="ivFlowModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:6000;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:14px;width:min(420px,92vw);max-height:85vh;overflow-y:auto;padding:20px;">
+    <div id="ivFlowModalBody"></div>
+  </div>
+</div>
 
 <div class="inv-wrap">
   <!-- 입력 폼 -->
@@ -2992,6 +3026,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     </div>
 
     <div class="inv-actions">
+      <button type="button" id="invVaultSaveBtn" onclick="saveInvoiceToVault()" style="display:none;">🔒 견적서 저장</button>
       <button type="button" id="invPreviewBtn">미리보기 갱신</button>
       <button type="button" id="invPrintBtn" class="secondary"><span class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex-shrink:0;"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg></span><span class="btn-text"> 인쇄</span></button>
       <button type="button" id="invSaveImgBtn" class="secondary"><span class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex-shrink:0;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></span><span class="btn-text"> 이미지저장</span></button>
@@ -8094,6 +8129,14 @@ function csDateInputValue(val) {
           <input type="checkbox" id="empModalLeaveManagerEditor" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
           연차관리 탭 접근권한
         </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="empModalQuoteVaultAccess" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+          견적서 저장소 접근권한(Sales)
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#333;cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="empModalQuoteVaultViewAll" style="width:14px;height:14px;flex-shrink:0;accent-color:var(--brand);">
+          견적서 저장소 전체열람(대표)
+        </label>
       </div>
       <!-- 월/토 격주 근무조 (휴가신청 달력에 표시됨) -->
       <div>
@@ -9403,7 +9446,7 @@ function csDateInputValue(val) {
                     <div id="emp-card-${ri}" class="emp-card"
                       data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
                       data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
-                      data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}">
+                      data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                         <div>
                           <span class="emp-card-name" style="font-size:15px;font-weight:800;color:#222;">${r.name||''}</span>
@@ -9436,7 +9479,7 @@ function csDateInputValue(val) {
                 return `<tr id="emp-row-${ri}" onclick="selectEmp(${ri},\'${r.id}\')" style="cursor:pointer;"
                     data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
                     data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
-                    data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}">
+                    data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
                     <td><strong>${r.name||''}</strong></td>
                     <td style="color:#aaa;font-size:12px;">${r.id||''}</td>
                     <td>${r.dept||''}</td>
@@ -9585,6 +9628,8 @@ function csDateInputValue(val) {
           document.getElementById('empModalCompatEditor').checked = src.dataset.compateditor === 'true';
           document.getElementById('empModalScheduleEditor').checked = src.dataset.scheduleeditor === 'true';
           document.getElementById('empModalLeaveManagerEditor').checked = src.dataset.leavemanagereditor === 'true';
+          document.getElementById('empModalQuoteVaultAccess').checked = src.dataset.quotevaultaccess === 'true';
+          document.getElementById('empModalQuoteVaultViewAll').checked = src.dataset.quotevaultviewall === 'true';
           document.getElementById('empModalTeam').value = src.dataset.team || '';
           _empModalUsedLeave = parseFloat(src.dataset.annualleave || '0') || 0;
           _empModalLeaveAdjust = parseFloat(src.dataset.leaveadjust || '0') || 0;
@@ -9602,6 +9647,8 @@ function csDateInputValue(val) {
         document.getElementById('empModalCompatEditor').checked = false;
         document.getElementById('empModalScheduleEditor').checked = false;
         document.getElementById('empModalLeaveManagerEditor').checked = false;
+        document.getElementById('empModalQuoteVaultAccess').checked = false;
+        document.getElementById('empModalQuoteVaultViewAll').checked = false;
         document.getElementById('empModalTeam').value = '';
         _empModalUsedLeave = 0;
         _empModalLeaveAdjust = 0;
@@ -9629,6 +9676,8 @@ function csDateInputValue(val) {
       const compatEditor = document.getElementById('empModalCompatEditor').checked;
       const scheduleEditor = document.getElementById('empModalScheduleEditor').checked;
       const leaveManagerEditor = document.getElementById('empModalLeaveManagerEditor').checked;
+      const quoteVaultAccess = document.getElementById('empModalQuoteVaultAccess').checked;
+      const quoteVaultViewAll = document.getElementById('empModalQuoteVaultViewAll').checked;
       const team      = document.getElementById('empModalTeam').value;
       const msg = document.getElementById('empModalMsg');
 
@@ -9640,14 +9689,14 @@ function csDateInputValue(val) {
         // ★ 사용연차/조정연차 입력칸은 "연차관리" 탭으로 옮겼지만, 여기서 다른 필드만
         //   고쳐 저장해도 그 두 값이 0으로 덮어써지지 않도록 모달 열 때 담아둔 현재값
         //   (_empModalUsedLeave/_empModalLeaveAdjust)을 그대로 다시 실어 보낸다.
-        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, team };
+        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team };
 
         const action = _empModalMode === 'add' ? 'addEmployee' : 'updateEmployeeInfo';
         // ★ stockBetaEditor/compatEditor/scheduleEditor가 예전(직원정보 저장 속도 개선,
         //   클라이언트측 중복 Firestore 쓰기 제거) 리팩터링 때 이 params에서 빠진 채로
         //   남아있었다 — 체크박스는 토글되는데 실제로는 저장이 안 되고 있었던 버그. 연차관리
         //   탭 권한(leaveManagerEditor) 추가하는 김에 같이 넣어서 고침.
-        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, team });
+        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team });
         const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
         const data = await res.json();
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
@@ -11149,6 +11198,7 @@ function setTab(tabId, fromPopstate) {
   }
   if (tabId === 'stockBetaTab' && typeof window._loadStockBetaFrame === 'function') window._loadStockBetaFrame();
   if (tabId === 'scheduleTab' && typeof window._loadScheduleFrame === 'function') window._loadScheduleFrame();
+  if (tabId === 'invoiceTab' && typeof window._ivRefreshVaultLock === 'function') window._ivRefreshVaultLock();
   if (tabId === 'noticeTab' && typeof loadNotices === 'function') loadNotices();
   if (tabId === 'myInfoTab' && typeof loadHomeDashboard === 'function') loadHomeDashboard();
   if (tabId === 'myInfoTab' && typeof applyUiDensity === 'function') {
@@ -12468,6 +12518,9 @@ function resetInvoiceForm() {
     if (allItems) allItems.innerHTML = '';
     addInvoiceItem();
 
+    // 저장소에서 불러온 견적서와의 연결(및 상단 단계 표시)도 초기화와 함께 끊는다.
+    if (typeof window._ivClearBinding === 'function') window._ivClearBinding();
+
     if (typeof showToast === 'function') showToast('견적서가 초기화되었습니다');
 }
 
@@ -13053,6 +13106,8 @@ function renderInvoice() {
     if (interimAmt > 0) makeTotal(interimDate ? `중도금 (${interimDate})` : '중도금', -interimAmt);
     if (useAdjust && adjust !== 0) makeTotal('단수정리', adjust);
     makeTotal('GRAND TOTAL', grand, 'grand');
+    // 견적서 저장소(정산서 단계 저장 시 미정산금액 계산용) — 계약금/중도금 차감 후 최종금액.
+    window._invLastGrandTotal = grand;
 
     // REMARKS 단위 표시 업데이트 - 모든 제품 박스의 단위 확인 (직접입력 모드 포함)
     const allUnits = [...document.querySelectorAll('[data-inv-item]')].map(box => {
@@ -13455,6 +13510,660 @@ async function saveInvoicePdf() {
         if (e && e.name === 'AbortError') return;
         showToast('PDF 저장 실패: ' + e.message);
     }
+}
+
+// ============================================================
+//  영업 견적서 저장소 (비밀공간) — Sales/대표이사 전용
+//  employees.quoteVaultAccess(접근) / quoteVaultViewAll(대표: 전체열람+미정산 전체조회)
+//  플래그는 매번 Firestore에서 새로 읽어 판단한다(로그인 캐시 8시간 지연 문제 재발 방지,
+//  [[jbdsys-stale-session-permission-bug]]와 동일한 이유) — window._freshCanEditFlags 재사용.
+// ============================================================
+const IV_STAGE_LABELS = { preSurvey:'실측전', postSurvey:'실측후', interimPaid:'중도금납입', settled:'정산서' };
+const IV_STAGE_ORDER = ['preSurvey','postSurvey','interimPaid','settled'];
+
+window._ivVaultState = { binding: null, flags: null };
+window._ivBrowseCache = {};
+
+function _ivCol(name) { return window.FB.collection(window.FB.db, name); }
+function _ivDoc(name, id) { return window.FB.doc(window.FB.db, name, id); }
+
+async function _ivMyFreshFlags() {
+    const u = window._currentUser;
+    if (!u || !u.id) return { access:false, viewAll:false, id:null, name:'', title:'' };
+    const fresh = (typeof window._freshCanEditFlags === 'function') ? await window._freshCanEditFlags(u.id) : u;
+    return {
+        access: !!(fresh && fresh.quoteVaultAccess),
+        viewAll: !!(fresh && fresh.quoteVaultViewAll),
+        id: u.id,
+        name: (fresh && fresh.name) || u.name || '',
+        title: (fresh && fresh.title) || u.title || '',
+    };
+}
+
+// 탭 진입 시 자물쇠 아이콘/저장 버튼 노출 여부만 갱신(가벼운 조회) — 실제 쓰기 동작
+// 직전에는 saveInvoiceToVault/openQuoteVault가 각각 다시 한번 fresh하게 확인한다.
+window._ivRefreshVaultLock = async function() {
+    try {
+        await window.fbEnsureAuth();
+        const flags = await _ivMyFreshFlags();
+        window._ivVaultState.flags = flags;
+        const btn = document.getElementById('ivVaultLockBtn');
+        const saveBtn = document.getElementById('invVaultSaveBtn');
+        if (btn) btn.style.display = flags.access ? 'inline-flex' : 'none';
+        if (saveBtn) saveBtn.style.display = flags.access ? '' : 'none';
+        if (!flags.access) window._ivClearBinding();
+    } catch(e) { /* 조용히 무시 — 권한 없으면 그냥 숨김 상태 유지 */ }
+};
+
+// ---------------- 폼 스냅샷 저장/복원 ----------------
+function _ivCollectSnapshot() {
+    const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const chk = id => { const el = document.getElementById(id); return el ? !!el.checked : false; };
+    const items = [];
+    document.querySelectorAll('#invAllItems > div').forEach(wrap => {
+        if (wrap.classList.contains('inv-divider-wrap')) {
+            items.push({ type: 'divider', text: wrap.querySelector('.inv-divider-text')?.value || '' });
+            return;
+        }
+        if (!wrap.classList.contains('inv-extra-item-wrap')) return;
+        const isManual = !!wrap.querySelector('.inv-manual-toggle')?.checked;
+        if (isManual) {
+            items.push({
+                type: 'item', manual: true,
+                name: wrap.querySelector('.inv-manual-name')?.value || '',
+                size: wrap.querySelector('.inv-manual-size')?.value || '',
+                unit: wrap.querySelector('.inv-manual-unit')?.value || '',
+                qty: wrap.querySelector('.inv-manual-qty')?.value || '',
+                price: wrap.querySelector('.inv-manual-price')?.value || '',
+            });
+        } else {
+            items.push({
+                type: 'item', manual: false,
+                product: wrap.querySelector('.inv-product-select')?.value || '',
+                unit: wrap.querySelector('.inv-unit-select')?.value || '',
+                qty: wrap.querySelector('.inv-qty-input')?.value || '',
+                party: wrap.querySelector('.inv-party-select')?.value || '',
+                loss: wrap.querySelector('.inv-loss-input')?.value || '',
+                splitCost: !!wrap.querySelector('.inv-split-cost-toggle')?.checked,
+            });
+        }
+    });
+    return {
+        category: val('invCategory'), billTo: val('invBillTo'), workDate: val('invWorkDate'),
+        site: val('invSite'), manager: val('invManager'), date: val('invDate'),
+        draft: chk('invDraftCheck'), final: chk('invFinalCheck'),
+        titleEdit: chk('invTitleEditCheck'), titleEditText: val('invTitleEditText'),
+        titleFontSize: val('invTitleFontSize'), titleLetterSpacing: val('invTitleLetterSpacing'),
+        mergeLabor: chk('invMergeLaborCheck'), boxCalc: chk('invBoxCalcCheck'),
+        remarksEdit: chk('invRemarksEditCheck'), remarksHtml: document.getElementById('invRemarksEditor')?.innerHTML || '',
+        separate: chk('invSeparateCheck'),
+        adjust: chk('invAdjustCheck'), adjustUnit1000: chk('invAdjustUnit1000'), adjustUnit10000: chk('invAdjustUnit10000'),
+        misc: val('invMisc'),
+        depositDate: val('invDepositDate'), depositAmount: val('invDepositAmount'),
+        interimDate: val('invInterimDate'), interimAmount: val('invInterimAmount'),
+        items,
+    };
+}
+
+function _ivApplySnapshot(snap) {
+    if (!snap) return;
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); };
+    const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+    setVal('invCategory', snap.category || '일반');
+    setVal('invBillTo', snap.billTo);
+    setVal('invWorkDate', snap.workDate);
+    setVal('invSite', snap.site);
+    setVal('invManager', snap.manager);
+    setVal('invDate', snap.date);
+    setChk('invDraftCheck', snap.draft);
+    setChk('invFinalCheck', snap.final);
+    setChk('invTitleEditCheck', snap.titleEdit);
+    setVal('invTitleEditText', snap.titleEditText);
+    setVal('invTitleFontSize', snap.titleFontSize || '14');
+    setVal('invTitleLetterSpacing', snap.titleLetterSpacing != null && snap.titleLetterSpacing !== '' ? snap.titleLetterSpacing : '-0.2');
+    setChk('invMergeLaborCheck', snap.mergeLabor);
+    setChk('invBoxCalcCheck', snap.boxCalc);
+    setChk('invRemarksEditCheck', snap.remarksEdit);
+    const remarksEditor = document.getElementById('invRemarksEditor');
+    if (remarksEditor) remarksEditor.innerHTML = snap.remarksHtml || '';
+    setChk('invSeparateCheck', snap.separate);
+    setChk('invAdjustCheck', snap.adjust !== false);
+    setChk('invAdjustUnit1000', snap.adjustUnit1000 !== false);
+    setChk('invAdjustUnit10000', !!snap.adjustUnit10000);
+    setVal('invMisc', snap.misc);
+    setVal('invDepositDate', snap.depositDate);
+    setVal('invDepositAmount', snap.depositAmount);
+    setVal('invInterimDate', snap.interimDate);
+    setVal('invInterimAmount', snap.interimAmount);
+
+    const allItems = document.getElementById('invAllItems');
+    if (allItems) allItems.innerHTML = '';
+    (snap.items || []).forEach(it => {
+        if (it.type === 'divider') {
+            const div = createDividerItem();
+            allItems.appendChild(div);
+            const txt = div.querySelector('.inv-divider-text');
+            if (txt) txt.value = it.text || '';
+            return;
+        }
+        const index = nextInvoiceItemIndex();
+        const wrap = createInvoiceItem(index);
+        allItems.appendChild(wrap);
+        fillInvoiceSelects();
+        bindInvoiceFieldEvents(wrap);
+        const toggle = wrap.querySelector('.inv-manual-toggle');
+        if (it.manual) {
+            toggle.checked = true;
+            wrap.querySelector('.inv-auto-fields').style.display = 'none';
+            wrap.querySelector('.inv-manual-fields').style.display = '';
+            const setField = (sel, v) => { const el = wrap.querySelector(sel); if (el) el.value = v || ''; };
+            setField('.inv-manual-name', it.name);
+            setField('.inv-manual-size', it.size);
+            setField('.inv-manual-unit', it.unit);
+            setField('.inv-manual-qty', it.qty);
+            setField('.inv-manual-price', it.price);
+        } else {
+            const prodSel = wrap.querySelector('.inv-product-select');
+            if (prodSel) prodSel.value = it.product || '';
+            const unitSel = wrap.querySelector('.inv-unit-select');
+            if (unitSel) unitSel.value = it.unit || 'M2';
+            const qtyEl = wrap.querySelector('.inv-qty-input');
+            if (qtyEl) qtyEl.value = it.qty != null ? it.qty : '';
+            const partySel = wrap.querySelector('.inv-party-select');
+            if (partySel) partySel.value = it.party || 'consumer';
+            const lossEl = wrap.querySelector('.inv-loss-input');
+            if (lossEl) lossEl.value = it.loss != null ? it.loss : '';
+            const splitEl = wrap.querySelector('.inv-split-cost-toggle');
+            if (splitEl) splitEl.checked = !!it.splitCost;
+        }
+    });
+    if (!(snap.items || []).length) addInvoiceItem();
+    renumberInvoiceItems();
+    toggleInvDividerBtn();
+    renderInvoice();
+}
+
+// ---------------- 저장소 연결 바인딩 & 상단 단계 표시 ----------------
+window._ivClearBinding = function() {
+    window._ivVaultState.binding = null;
+    const ind = document.getElementById('ivStageIndicator');
+    if (ind) { ind.style.display = 'none'; ind.innerHTML = ''; }
+};
+
+function _ivRenderStageIndicator() {
+    const ind = document.getElementById('ivStageIndicator');
+    if (!ind) return;
+    const b = window._ivVaultState.binding;
+    if (!b || b.type !== 'staged') { ind.style.display = 'none'; ind.innerHTML = ''; return; }
+    ind.style.display = 'flex';
+    ind.innerHTML = IV_STAGE_ORDER.map((s, i) => {
+        const reached = (b.reachedStages || []).includes(s);
+        const current = b.stage === s;
+        const bg = current ? 'var(--brand)' : (reached ? '#eee' : '#f7f7f7');
+        const color = current ? '#fff' : (reached ? '#555' : '#bbb');
+        const arrow = i > 0 ? '<span style="color:#ccc;">→</span>' : '';
+        return arrow + `<span class="iv-stage-chip" style="background:${bg};color:${color};">${IV_STAGE_LABELS[s]}</span>`;
+    }).join('');
+}
+
+// ---------------- 폴더 조회 ----------------
+async function _ivFetchFolders(ownerId) {
+    await window.fbEnsureAuth();
+    const snap = await window.FB.getDocs(window.FB.query(_ivCol('salesQuoteFolders'), window.FB.where('ownerId', '==', ownerId)));
+    const rows = [];
+    snap.forEach(d => rows.push(Object.assign({ id: d.id }, d.data())));
+    rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'));
+    return rows;
+}
+
+async function _ivFetchVaultEmployees() {
+    const data = await window.fetchEmployeesFS();
+    if (data.status !== 'ok') return [];
+    return (data.rows || []).filter(r => r.quoteVaultAccess || r.quoteVaultViewAll);
+}
+
+async function _ivFetchQuotesFor(targetId) {
+    await window.fbEnsureAuth();
+    const flags = window._ivVaultState.flags || await _ivMyFreshFlags();
+    const isSelf = targetId === flags.id;
+    let snap;
+    if (isSelf || flags.viewAll) {
+        snap = await window.FB.getDocs(window.FB.query(_ivCol('salesQuotes'), window.FB.where('authorId', '==', targetId)));
+    } else {
+        snap = await window.FB.getDocs(window.FB.query(_ivCol('salesQuotes'), window.FB.where('authorId', '==', targetId), window.FB.where('sharedWithDept', '==', true)));
+    }
+    const rows = [];
+    snap.forEach(d => rows.push(Object.assign({ id: d.id }, d.data())));
+    return rows;
+}
+
+// ---------------- 범용 흐름 모달(폴더선택/단계선택) ----------------
+function _ivOpenFlowModal(bodyHtml) {
+    return new Promise(resolve => {
+        window._ivFlowResolve = resolve;
+        const body = document.getElementById('ivFlowModalBody');
+        if (body) body.innerHTML = bodyHtml;
+        const modal = document.getElementById('ivFlowModal');
+        if (modal) modal.style.display = 'flex';
+    });
+}
+function _ivCloseFlowModal(result) {
+    const modal = document.getElementById('ivFlowModal');
+    if (modal) modal.style.display = 'none';
+    const resolve = window._ivFlowResolve;
+    window._ivFlowResolve = null;
+    if (resolve) resolve(result);
+}
+window._ivFlowPick = (v) => _ivCloseFlowModal(v);
+
+async function _ivOpenFolderPickModal(ownerId) {
+    const folders = await _ivFetchFolders(ownerId);
+    let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">저장 위치 선택</div>`;
+    html += `<select id="ivFolderSelect" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;box-sizing:border-box;">
+        <option value="">-- 최상위(폴더 없음) --</option>
+        ${folders.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+      </select>`;
+    html += `<div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input type="text" id="ivNewFolderName" placeholder="새 폴더 이름" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;">
+        <button type="button" class="secondary" onclick="_ivFlowCreateFolder()">폴더 생성</button>
+      </div>`;
+    html += `<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:16px;cursor:pointer;">
+        <input type="checkbox" id="ivShareCheck"> 영업부 전체 열람 허용 (공유)
+      </label>`;
+    html += `<button type="button" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;" onclick="_ivFlowConfirmFolder()">등록</button>`;
+    html += `<button type="button" class="secondary" style="width:100%;margin-top:8px;" onclick="_ivFlowPick(null)">취소</button>`;
+
+    window._ivFlowCreateFolder = async function() {
+        const nameInput = document.getElementById('ivNewFolderName');
+        const name = (nameInput?.value || '').trim();
+        if (!name) return;
+        await window.fbEnsureAuth();
+        const ref = await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId, name, parentId: null, createdAt: window.FB.serverTimestamp() });
+        const sel = document.getElementById('ivFolderSelect');
+        if (sel) {
+            const opt = document.createElement('option');
+            opt.value = ref.id; opt.textContent = name;
+            sel.appendChild(opt);
+            sel.value = ref.id;
+        }
+        if (nameInput) nameInput.value = '';
+    };
+    window._ivFlowConfirmFolder = function() {
+        const folderId = document.getElementById('ivFolderSelect')?.value || null;
+        const shared = !!document.getElementById('ivShareCheck')?.checked;
+        _ivCloseFlowModal({ folderId: folderId || null, shared });
+    };
+    return _ivOpenFlowModal(html);
+}
+
+async function _ivOpenStageSaveModal(binding) {
+    let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">어느 단계로 저장할까요?</div>`;
+    html += IV_STAGE_ORDER.map(s => {
+        const active = s === binding.stage;
+        return `<button type="button" style="width:100%;text-align:left;margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${active ? 'var(--brand)' : '#ddd'};background:${active ? 'var(--cream-2)' : '#fff'};cursor:pointer;" onclick="_ivFlowPickStage('${s}')">${IV_STAGE_LABELS[s]}</button>`;
+    }).join('');
+    html += `<div id="ivSettleAmountWrap" style="display:none;margin:6px 0 14px;">
+        <div style="font-size:12px;color:#666;margin-bottom:4px;">정산금액 (비워두면 미정산으로 표시됩니다)</div>
+        <input type="text" id="ivSettleAmountInput" inputmode="numeric" placeholder="예: 5,000,000" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;">
+      </div>`;
+    html += `<button type="button" id="ivFlowConfirmBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;" disabled>확인</button>`;
+    html += `<button type="button" class="secondary" style="width:100%;margin-top:8px;" onclick="_ivFlowPick(null)">취소</button>`;
+
+    let selectedStage = binding.stage;
+    window._ivFlowPickStage = function(s) {
+        selectedStage = s;
+        const settleWrap = document.getElementById('ivSettleAmountWrap');
+        if (settleWrap) settleWrap.style.display = s === 'settled' ? 'block' : 'none';
+        const btn = document.getElementById('ivFlowConfirmBtn');
+        if (btn) btn.disabled = false;
+    };
+
+    const resultPromise = _ivOpenFlowModal(html);
+    setTimeout(() => {
+        const confirmBtn = document.getElementById('ivFlowConfirmBtn');
+        if (confirmBtn) confirmBtn.onclick = function() {
+            if (!selectedStage) return;
+            let settlementAmount = null;
+            if (selectedStage === 'settled') {
+                const raw = (document.getElementById('ivSettleAmountInput')?.value || '').replace(/[^0-9]/g, '');
+                settlementAmount = raw ? parseInt(raw, 10) : null;
+            }
+            _ivCloseFlowModal({ stage: selectedStage, settlementAmount });
+        };
+    }, 0);
+    return resultPromise;
+}
+
+async function _ivOpenStageLoadModal(quote, existingStages) {
+    const furthest = existingStages[existingStages.length - 1];
+    const furthestIdx = IV_STAGE_ORDER.indexOf(furthest);
+    const nextStage = furthestIdx < IV_STAGE_ORDER.length - 1 ? IV_STAGE_ORDER[furthestIdx + 1] : null;
+    let html = `<div style="font-size:15px;font-weight:800;margin-bottom:4px;">불러오기</div>`;
+    html += `<div style="font-size:12px;color:#888;margin-bottom:12px;">${quote.companyName || ''} — 어느 시점 데이터를 불러올까요?</div>`;
+    html += existingStages.map(s => `
+        <button type="button" class="secondary" style="width:100%;text-align:left;margin-bottom:8px;padding:10px 14px;cursor:pointer;" onclick="_ivFlowPick({mode:'asis',stage:'${s}'})">
+          ${IV_STAGE_LABELS[s]} 그대로 불러오기
+        </button>`).join('');
+    if (nextStage) {
+        html += `<button type="button" style="width:100%;text-align:left;margin-bottom:8px;padding:10px 14px;background:var(--brand);color:#fff;border:none;border-radius:8px;cursor:pointer;" onclick="_ivFlowPick({mode:'advance',fromStage:'${furthest}',toStage:'${nextStage}'})">
+          ${IV_STAGE_LABELS[nextStage]}(으)로 진행 — 수량 초기화 후 재입력
+        </button>`;
+    }
+    html += `<button type="button" class="secondary" style="width:100%;margin-top:4px;" onclick="_ivFlowPick(null)">취소</button>`;
+    return _ivOpenFlowModal(html);
+}
+
+// ---------------- 저장 흐름 ----------------
+window.saveInvoiceToVault = async function() {
+    await window.fbEnsureAuth();
+    const flags = await _ivMyFreshFlags();
+    window._ivVaultState.flags = flags;
+    if (!flags.access) { showToast('저장소 접근 권한이 없습니다'); return; }
+
+    const category = document.getElementById('invCategory')?.value || '일반';
+    const isStaged = category === '일반';
+    const binding = window._ivVaultState.binding;
+
+    if (!binding) {
+        if (!confirm('이 견적서를 저장소(데이터베이스)에 등록하시겠습니까?')) return;
+        const folderChoice = await _ivOpenFolderPickModal(flags.id);
+        if (!folderChoice) return;
+        const snap = _ivCollectSnapshot();
+        const companyName = snap.billTo || '(업체명 미입력)';
+        const now = new Date();
+        const base = {
+            authorId: flags.id, authorName: flags.name, authorTitle: flags.title,
+            category, type: isStaged ? 'staged' : 'simple',
+            companyName, folderId: folderChoice.folderId || null,
+            year: now.getFullYear(), sharedWithDept: !!folderChoice.shared,
+            createdAt: window.FB.serverTimestamp(), updatedAt: window.FB.serverTimestamp(),
+        };
+        if (isStaged) {
+            base.stage = 'preSurvey';
+            base.stages = { preSurvey: { data: snap, savedAt: window.FB.serverTimestamp() }, postSurvey: null, interimPaid: null, settled: null };
+            base.hasUnsettled = false; base.unsettledAmount = 0; base.settlementAmount = null;
+        } else {
+            base.simpleData = snap;
+        }
+        const ref = await window.FB.addDoc(_ivCol('salesQuotes'), base);
+        window._ivVaultState.binding = isStaged
+            ? { id: ref.id, type: 'staged', stage: 'preSurvey', reachedStages: ['preSurvey'] }
+            : { id: ref.id, type: 'simple' };
+        _ivRenderStageIndicator();
+        showToast('견적서가 저장소에 등록되었습니다');
+        return;
+    }
+
+    if (binding.type === 'simple') {
+        const snap = _ivCollectSnapshot();
+        await window.FB.updateDoc(_ivDoc('salesQuotes', binding.id), {
+            simpleData: snap, companyName: snap.billTo || '(업체명 미입력)', updatedAt: window.FB.serverTimestamp(),
+        });
+        showToast('저장되었습니다');
+        return;
+    }
+
+    const target = await _ivOpenStageSaveModal(binding);
+    if (!target) return;
+    const snap = _ivCollectSnapshot();
+    const stageData = { data: snap, savedAt: window.FB.serverTimestamp() };
+    const updates = { updatedAt: window.FB.serverTimestamp(), companyName: snap.billTo || '(업체명 미입력)' };
+    if (target.stage === 'settled') {
+        const grand = typeof window._invLastGrandTotal === 'number' ? window._invLastGrandTotal : 0;
+        stageData.settlementAmount = target.settlementAmount != null ? target.settlementAmount : null;
+        stageData.quoteRemainingAmount = grand;
+        updates.settlementAmount = stageData.settlementAmount;
+        updates.hasUnsettled = stageData.settlementAmount == null;
+        updates.unsettledAmount = stageData.settlementAmount == null ? grand : 0;
+    }
+    updates['stages.' + target.stage] = stageData;
+    const curIdx = IV_STAGE_ORDER.indexOf(binding.stage);
+    const targetIdx = IV_STAGE_ORDER.indexOf(target.stage);
+    if (targetIdx > curIdx) updates.stage = target.stage;
+    await window.FB.updateDoc(_ivDoc('salesQuotes', binding.id), updates);
+    binding.stage = updates.stage || binding.stage;
+    binding.reachedStages = Array.from(new Set([...(binding.reachedStages || []), target.stage]));
+    _ivRenderStageIndicator();
+    showToast('저장되었습니다 (' + IV_STAGE_LABELS[target.stage] + ')');
+};
+
+// ---------------- 불러오기 흐름 ----------------
+window.loadInvoiceFromVaultQuote = async function(quote) {
+    if (quote.type === 'simple') {
+        _ivApplySnapshot(quote.simpleData);
+        window._ivVaultState.binding = { id: quote.id, type: 'simple' };
+        _ivRenderStageIndicator();
+        closeQuoteVault();
+        showToast('불러왔습니다');
+        return;
+    }
+    const existingStages = IV_STAGE_ORDER.filter(s => quote.stages && quote.stages[s]);
+    if (!existingStages.length) { showToast('저장된 단계 데이터가 없습니다'); return; }
+    const choice = await _ivOpenStageLoadModal(quote, existingStages);
+    if (!choice) return;
+    let snap, resultStage;
+    if (choice.mode === 'asis') {
+        snap = quote.stages[choice.stage].data;
+        resultStage = choice.stage;
+    } else {
+        const baseSnap = JSON.parse(JSON.stringify(quote.stages[choice.fromStage].data));
+        baseSnap.items = (baseSnap.items || []).map(it => {
+            if (it.type === 'divider') return it;
+            return Object.assign({}, it, { qty: '' });
+        });
+        snap = baseSnap;
+        resultStage = choice.toStage;
+    }
+    _ivApplySnapshot(snap);
+    window._ivVaultState.binding = { id: quote.id, type: 'staged', stage: resultStage, reachedStages: existingStages };
+    _ivRenderStageIndicator();
+    closeQuoteVault();
+    showToast('불러왔습니다 (' + IV_STAGE_LABELS[resultStage] + ')');
+};
+
+// ---------------- 저장소 찾아보기 모달 ----------------
+window.openQuoteVault = async function() {
+    await window.fbEnsureAuth();
+    const flags = await _ivMyFreshFlags();
+    window._ivVaultState.flags = flags;
+    if (!flags.access) { showToast('저장소 접근 권한이 없습니다'); return; }
+    window._ivBrowse = { year: new Date().getFullYear(), employeeId: flags.id, folderId: null, view: 'browse', search: '' };
+    const modal = document.getElementById('quoteVaultModal');
+    if (modal) modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    await _ivRenderVaultBody();
+};
+window.closeQuoteVault = function() {
+    const modal = document.getElementById('quoteVaultModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.removeProperty('overflow');
+};
+window._ivBrowseSetView = function(v) { window._ivBrowse.view = v; _ivRenderVaultBody(); };
+window._ivBrowseSetYear = function(v) { window._ivBrowse.year = v === 'all' ? 'all' : parseInt(v, 10); window._ivBrowse.folderId = null; _ivRenderVaultBody(); };
+window._ivBrowseSetEmployee = function(v) { window._ivBrowse.employeeId = v; window._ivBrowse.folderId = null; _ivRenderVaultBody(); };
+window._ivBrowseSetSearch = function(v) { window._ivBrowse.search = v; _ivRenderVaultBody(); };
+window._ivBrowseSetFolder = function(id) { window._ivBrowse.folderId = id; _ivRenderVaultBody(); };
+window._ivCreateFolderInline = async function() {
+    const name = prompt('새 폴더 이름을 입력하세요');
+    if (!name || !name.trim()) return;
+    await window.fbEnsureAuth();
+    await window.FB.addDoc(_ivCol('salesQuoteFolders'), { ownerId: window._ivBrowse.employeeId, name: name.trim(), parentId: null, createdAt: window.FB.serverTimestamp() });
+    _ivRenderVaultBody();
+};
+window._ivToggleShare = async function(id, shared) {
+    await window.fbEnsureAuth();
+    await window.FB.updateDoc(_ivDoc('salesQuotes', id), { sharedWithDept: shared, updatedAt: window.FB.serverTimestamp() });
+    _ivRenderVaultBody();
+};
+window._ivDeleteQuote = async function(id) {
+    if (!confirm('이 견적서를 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+    await window.fbEnsureAuth();
+    await window.FB.deleteDoc(_ivDoc('salesQuotes', id));
+    if (window._ivVaultState.binding && window._ivVaultState.binding.id === id) window._ivClearBinding();
+    _ivRenderVaultBody();
+};
+window._ivBrowseOpenQuote = async function(id) {
+    const q = window._ivBrowseCache[id];
+    if (!q) return;
+    await window.loadInvoiceFromVaultQuote(q);
+};
+
+function _ivRenderQuoteRow(q, flags, locationLabel) {
+    const canManage = q.authorId === flags.id || flags.viewAll;
+    const stageStrip = q.type === 'staged'
+        ? IV_STAGE_ORDER.map(s => {
+            const has = q.stages && q.stages[s];
+            const cur = q.stage === s;
+            return `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:${has ? (cur ? 'var(--brand)' : '#eee') : '#f7f7f7'};color:${has ? (cur ? '#fff' : '#555') : '#ccc'};">${IV_STAGE_LABELS[s]}</span>`;
+          }).join(' ')
+        : `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#eee;color:#555;">${q.category || ''}</span>`;
+    const subtitle = locationLabel
+        ? `${q.authorName || ''} · 📁 ${locationLabel} · ${stageStrip}`
+        : `${q.authorName || ''} · ${stageStrip}`;
+    return `
+      <div style="border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="cursor:pointer;flex:1;min-width:160px;" onclick="_ivBrowseOpenQuote('${q.id}')">
+          <div style="font-weight:700;font-size:13px;">${q.companyName || '(업체명 미입력)'}</div>
+          <div style="font-size:11px;color:#999;margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">${subtitle}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${q.sharedWithDept ? '<span title="영업부 공유됨" style="font-size:11px;color:#1a7a45;font-weight:700;">공유중</span>' : ''}
+          ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();_ivToggleShare('${q.id}',${!q.sharedWithDept})">${q.sharedWithDept ? '공유해제' : '공유'}</button>` : ''}
+          ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;color:#e74c3c;" onclick="event.stopPropagation();_ivDeleteQuote('${q.id}')">삭제</button>` : ''}
+        </div>
+      </div>`;
+}
+
+function _ivYearOptsHtml(br) {
+    const curYear = new Date().getFullYear();
+    return [curYear, curYear - 1, curYear - 2]
+        .map(y => `<option value="${y}" ${br.year === y ? 'selected' : ''}>${y}년</option>`).join('')
+        + `<option value="all" ${br.year === 'all' ? 'selected' : ''}>전체연도</option>`;
+}
+
+async function _ivRenderVaultBody() {
+    const body = document.getElementById('quoteVaultBody');
+    if (!body) return;
+    body.innerHTML = '<div style="text-align:center;color:#aaa;padding:30px 0;">불러오는 중...</div>';
+    const flags = window._ivVaultState.flags;
+    const br = window._ivBrowse;
+
+    if (br.view === 'unsettled') { return _ivRenderUnsettledView(body, flags); }
+
+    const employees = await _ivFetchVaultEmployees();
+    const kw = (br.search || '').trim();
+
+    // 검색어가 있으면 폴더 경로와 무관하게 저장소 전체(내가 볼 수 있는 모든 직원)를
+    // 가로질러 회사명으로 찾는다 — 어느 직원/어느 폴더에 있는지 몰라도 찾을 수 있어야 함.
+    if (kw) { return _ivRenderSearchResults(body, flags, employees, kw); }
+
+    const folders = await _ivFetchFolders(br.employeeId);
+    let quotes = await _ivFetchQuotesFor(br.employeeId);
+    window._ivBrowseCache = {};
+    quotes.forEach(q => { window._ivBrowseCache[q.id] = q; });
+    if (br.year !== 'all') quotes = quotes.filter(q => q.year === br.year);
+    const inFolder = quotes.filter(q => (q.folderId || null) === (br.folderId || null));
+
+    const empOpts = employees.map(e => `<option value="${e.id}" ${br.employeeId === e.id ? 'selected' : ''}>${e.name || ''} ${e.title || ''}</option>`).join('');
+
+    let html = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <select id="ivBrowseYear" onchange="_ivBrowseSetYear(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">${_ivYearOptsHtml(br)}</select>
+        <select id="ivBrowseEmp" onchange="_ivBrowseSetEmployee(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:140px;">${empOpts}</select>
+        <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" oninput="_ivBrowseSetSearch(this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:140px;">
+      </div>`;
+
+    if (br.folderId) {
+        const f = folders.find(x => x.id === br.folderId);
+        html += `<div style="margin-bottom:10px;"><button type="button" class="secondary" onclick="_ivBrowseSetFolder(null)">← 상위로</button> <strong style="margin-left:8px;">📁 ${f ? f.name : ''}</strong></div>`;
+    } else {
+        html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+          ${folders.map(f => `<button type="button" class="secondary" onclick="_ivBrowseSetFolder('${f.id}')">📁 ${f.name}</button>`).join('')}
+          ${br.employeeId === flags.id ? `<button type="button" class="secondary" onclick="_ivCreateFolderInline()">+ 새 폴더</button>` : ''}
+        </div>`;
+    }
+
+    html += !inFolder.length
+        ? `<div style="text-align:center;color:#aaa;padding:30px 0;">견적서가 없습니다</div>`
+        : inFolder.map(q => _ivRenderQuoteRow(q, flags)).join('');
+
+    body.innerHTML = html;
+}
+
+// 검색어가 있을 때: 폴더 경로/선택된 직원과 무관하게, 내가 볼 수 있는 모든 직원의
+// 견적서를 가로질러(직원마다 별도 조회 후 병합) 업체명으로 찾는다.
+async function _ivRenderSearchResults(body, flags, employees, kw) {
+    const br = window._ivBrowse;
+    const results = [];
+    window._ivBrowseCache = {};
+    for (const emp of employees) {
+        const quotes = await _ivFetchQuotesFor(emp.id);
+        quotes.forEach(q => {
+            window._ivBrowseCache[q.id] = q;
+            if ((q.companyName || '').includes(kw) && (br.year === 'all' || q.year === br.year)) {
+                results.push(q);
+            }
+        });
+    }
+    // 검색결과에 나온 폴더 이름 표시용 — 작성자별 폴더 목록을 필요한 만큼만 조회해 캐시
+    const foldersByOwner = {};
+    for (const q of results) {
+        if (q.folderId && !(q.authorId in foldersByOwner)) {
+            foldersByOwner[q.authorId] = await _ivFetchFolders(q.authorId);
+        }
+    }
+    const folderName = (q) => {
+        if (!q.folderId) return '최상위';
+        const list = foldersByOwner[q.authorId] || [];
+        const f = list.find(x => x.id === q.folderId);
+        return f ? f.name : '최상위';
+    };
+
+    let html = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <select id="ivBrowseYear" onchange="_ivBrowseSetYear(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">${_ivYearOptsHtml(br)}</select>
+        <input type="text" id="ivBrowseSearch" placeholder="업체명 검색(저장소 전체)" value="${br.search || ''}" oninput="_ivBrowseSetSearch(this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:140px;">
+        <button type="button" class="secondary" onclick="_ivBrowseSetSearch('')">검색 지우기</button>
+      </div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;">"${kw}" 검색결과 ${results.length}건 (저장소 전체, 내가 열람 가능한 범위)</div>`;
+
+    html += results.length
+        ? results.map(q => _ivRenderQuoteRow(q, flags, folderName(q))).join('')
+        : `<div style="text-align:center;color:#aaa;padding:30px 0;">검색 결과가 없습니다</div>`;
+
+    body.innerHTML = html;
+}
+
+async function _ivRenderUnsettledView(body, flags) {
+    await window.fbEnsureAuth();
+    const mySnap = await window.FB.getDocs(window.FB.query(_ivCol('salesQuotes'), window.FB.where('authorId', '==', flags.id), window.FB.where('hasUnsettled', '==', true)));
+    const mine = [];
+    mySnap.forEach(d => mine.push(Object.assign({ id: d.id }, d.data())));
+    const myTotal = mine.reduce((s, q) => s + (q.unsettledAmount || 0), 0);
+    let html = `<div style="font-size:14px;font-weight:800;margin-bottom:10px;">내 미정산금액: ${myTotal.toLocaleString('ko-KR')}원</div>`;
+    html += mine.length
+        ? mine.map(q => `<div style="border:1px solid #eee;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;"><span>${q.companyName || ''}</span><span style="font-weight:700;">${(q.unsettledAmount || 0).toLocaleString('ko-KR')}원</span></div>`).join('')
+        : '<div style="color:#aaa;padding:10px 0;">미정산 견적서가 없습니다</div>';
+
+    if (flags.viewAll) {
+        const allSnap = await window.FB.getDocs(window.FB.query(_ivCol('salesQuotes'), window.FB.where('hasUnsettled', '==', true)));
+        const byEmp = {};
+        allSnap.forEach(d => {
+            const q = d.data();
+            const key = q.authorId;
+            if (!byEmp[key]) byEmp[key] = { name: q.authorName || key, total: 0, items: [] };
+            byEmp[key].total += (q.unsettledAmount || 0);
+            byEmp[key].items.push(Object.assign({ id: d.id }, q));
+        });
+        html += `<div style="font-size:14px;font-weight:800;margin:18px 0 10px;">직원별 미정산금액 (대표 전용)</div>`;
+        const empRows = Object.values(byEmp);
+        html += empRows.length ? empRows.map(e => `
+            <div style="border:1px solid #eee;border-radius:10px;padding:10px 14px;margin-bottom:6px;">
+              <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>${e.name}</span><span>${e.total.toLocaleString('ko-KR')}원</span></div>
+              ${e.items.map(it => `<div style="font-size:11px;color:#888;margin-top:4px;">· ${it.companyName || ''} — ${(it.unsettledAmount || 0).toLocaleString('ko-KR')}원</div>`).join('')}
+            </div>`).join('') : '<div style="color:#aaa;">미정산 견적서가 없습니다</div>';
+    }
+    body.innerHTML = html;
 }
 
 // ==================== 연락처 기능 ====================
