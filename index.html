@@ -14037,6 +14037,29 @@ window._ivToggleShare = async function(id, shared) {
     await window.FB.updateDoc(_ivDoc('salesQuotes', id), { sharedWithDept: shared, updatedAt: window.FB.serverTimestamp() });
     _ivRenderVaultBody();
 };
+// 이미 저장된 견적서를 다른 폴더로 옮긴다 — 작성자 본인 폴더트리 안에서만 이동 가능
+// (폴더는 직원별 소유라, 다른 직원 폴더로는 옮길 수 없음).
+async function _ivOpenMoveModal(q) {
+    const folders = await _ivFetchFolders(q.authorId);
+    let html = `<div style="font-size:15px;font-weight:800;margin-bottom:12px;">폴더로 이동 — ${q.companyName || '(업체명 미입력)'}</div>`;
+    html += `<select id="ivMoveFolderSelect" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;margin-bottom:14px;box-sizing:border-box;">
+        <option value="" ${!q.folderId ? 'selected' : ''}>-- 최상위(폴더 없음) --</option>
+        ${folders.map(f => `<option value="${f.id}" ${q.folderId === f.id ? 'selected' : ''}>${f.name}</option>`).join('')}
+      </select>`;
+    html += `<button type="button" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;" onclick="_ivFlowPick(document.getElementById('ivMoveFolderSelect').value)">이동</button>`;
+    html += `<button type="button" class="secondary" style="width:100%;margin-top:8px;" onclick="_ivFlowPick(null)">취소</button>`;
+    return _ivOpenFlowModal(html);
+}
+window._ivMoveQuote = async function(id) {
+    const q = window._ivBrowseCache[id];
+    if (!q) return;
+    const choice = await _ivOpenMoveModal(q);
+    if (choice === null) return;
+    await window.fbEnsureAuth();
+    await window.FB.updateDoc(_ivDoc('salesQuotes', id), { folderId: choice || null, updatedAt: window.FB.serverTimestamp() });
+    showToast('이동했습니다');
+    _ivRenderVaultBody();
+};
 window._ivDeleteQuote = async function(id) {
     if (!confirm('이 견적서를 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
     await window.fbEnsureAuth();
@@ -14104,6 +14127,7 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
           ${q.sharedWithDept ? '<span title="영업부 공유됨" style="font-size:11px;color:#1a7a45;font-weight:700;">공유중</span>' : ''}
+          ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();_ivMoveQuote('${q.id}')">이동</button>` : ''}
           ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();_ivToggleShare('${q.id}',${!q.sharedWithDept})">${q.sharedWithDept ? '공유해제' : '공유'}</button>` : ''}
           ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;color:#e74c3c;" onclick="event.stopPropagation();_ivDeleteQuote('${q.id}')">삭제</button>` : ''}
         </div>
