@@ -1758,6 +1758,7 @@ window.fetchEmployeesFS = async function() {
       <button type="button" class="gal-close-btn" onclick="window._galToggleFullscreen()" title="닫기">×</button>
     `;
     attachDrag();
+    attachPinchZoom();
   }
 
   // 실제 브라우저 Fullscreen API로 전체화면 전환(주소창/탭까지 가림)을 우선 시도한다.
@@ -1806,13 +1807,15 @@ window.fetchEmployeesFS = async function() {
     renderGallery();
   };
 
-  // 마우스/터치 좌우 드래그로 이미지 넘기기.
+  // 마우스/터치 좌우 드래그로 이미지 넘기기. 핀치줌으로 확대된 상태(zoom.scale>1)에서는
+  // 1손가락 드래그가 attachPinchZoom 쪽의 팬(이동) 동작으로 넘어가야 하므로 스와이프 넘기기를
+  // 비활성화한다.
   function attachDrag() {
     const wrap = document.getElementById('galImgWrap');
     if (!wrap) return;
     let startX = null, dragging = false;
     const THRESHOLD = 60;
-    function down(x) { startX = x; dragging = true; wrap.classList.add('dragging'); }
+    function down(x) { if (zoom.scale > 1) return; startX = x; dragging = true; wrap.classList.add('dragging'); }
     function up(x) {
       if (!dragging) return;
       dragging = false;
@@ -1825,8 +1828,79 @@ window.fetchEmployeesFS = async function() {
     }
     wrap.addEventListener('mousedown', e => { e.preventDefault(); down(e.clientX); });
     window.addEventListener('mouseup', e => { if (dragging) up(e.clientX); });
-    wrap.addEventListener('touchstart', e => down(e.touches[0].clientX), { passive: true });
-    wrap.addEventListener('touchend', e => up(e.changedTouches[0].clientX), { passive: true });
+    wrap.addEventListener('touchstart', e => { if (e.touches.length === 1) down(e.touches[0].clientX); }, { passive: true });
+    wrap.addEventListener('touchend', e => { if (dragging && e.touches.length === 0) up(e.changedTouches[0].clientX); }, { passive: true });
+  }
+
+  // 핀치줌: 두 손가락 거리 변화로 이미지를 확대/축소(1~4배)한다. 확대된 상태에서는 1손가락
+  // 드래그로 이미지를 이동(팬)할 수 있고, 더블탭으로 2배 확대 ↔ 원래 크기를 토글한다.
+  // CSS의 touch-action:pan-y가 브라우저 기본 핀치줌 제스처는 막아두었으므로, 여기서 직접
+  // transform:scale()+translate()로 구현한다.
+  let zoom = { scale: 1, tx: 0, ty: 0 };
+
+  function applyZoom(img) {
+    img.style.transform = `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale})`;
+  }
+
+  function attachPinchZoom() {
+    const wrap = document.getElementById('galImgWrap');
+    const img = document.getElementById('galImg');
+    if (!wrap || !img) return;
+    zoom = { scale: 1, tx: 0, ty: 0 };
+    applyZoom(img);
+
+    const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const mid = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
+    let startDist = 0, startScale = 1, lastMid = null, panStart = null;
+
+    wrap.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        startDist = dist(e.touches[0], e.touches[1]);
+        startScale = zoom.scale;
+        lastMid = mid(e.touches[0], e.touches[1]);
+      } else if (e.touches.length === 1 && zoom.scale > 1) {
+        panStart = { x: e.touches[0].clientX - zoom.tx, y: e.touches[0].clientY - zoom.ty };
+      }
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', e => {
+      if (e.touches.length === 2 && lastMid) {
+        e.preventDefault();
+        const newDist = dist(e.touches[0], e.touches[1]);
+        const newMid = mid(e.touches[0], e.touches[1]);
+        zoom.scale = Math.min(4, Math.max(1, startScale * (newDist / startDist)));
+        zoom.tx += newMid.x - lastMid.x;
+        zoom.ty += newMid.y - lastMid.y;
+        lastMid = newMid;
+        applyZoom(img);
+      } else if (e.touches.length === 1 && panStart) {
+        e.preventDefault();
+        zoom.tx = e.touches[0].clientX - panStart.x;
+        zoom.ty = e.touches[0].clientY - panStart.y;
+        applyZoom(img);
+      }
+    }, { passive: false });
+
+    function endTouch(e) {
+      if (e.touches.length < 2) lastMid = null;
+      if (e.touches.length === 0) {
+        panStart = null;
+        if (zoom.scale <= 1) { zoom = { scale: 1, tx: 0, ty: 0 }; applyZoom(img); }
+      }
+    }
+    wrap.addEventListener('touchend', endTouch, { passive: true });
+    wrap.addEventListener('touchcancel', endTouch, { passive: true });
+
+    let lastTapTime = 0;
+    wrap.addEventListener('touchend', e => {
+      if (e.touches.length > 0) return;
+      const now = Date.now();
+      if (now - lastTapTime < 300) {
+        zoom = zoom.scale > 1 ? { scale: 1, tx: 0, ty: 0 } : { scale: 2, tx: 0, ty: 0 };
+        applyZoom(img);
+      }
+      lastTapTime = now;
+    }, { passive: true });
   }
 
   // 갤러리 탭이 열려있는 동안 키보드 좌우 화살표로도 넘길 수 있게.
