@@ -1725,6 +1725,9 @@ window.fetchEmployeesFS = async function() {
 
   window._galSelectFolder = async function(id) {
     state.treeExpanded[id] = !state.treeExpanded[id];
+    // 활성(선택됨) 표시를 로딩 완료까지 기다리지 않고 클릭 즉시 새 폴더로 옮긴다 —
+    // 안 그러면 이미지를 불러오는 동안 활성 표시가 이전 폴더에 머물러 있는 것처럼 보인다.
+    state.current = { folderId: id, images: [], index: 0 };
     renderTree();
     const folder = await fetchFolder(id);
     renderTree();
@@ -1828,7 +1831,18 @@ window.fetchEmployeesFS = async function() {
     }
     wrap.addEventListener('mousedown', e => { e.preventDefault(); down(e.clientX); });
     window.addEventListener('mouseup', e => { if (dragging) up(e.clientX); });
-    wrap.addEventListener('touchstart', e => { if (e.touches.length === 1) down(e.touches[0].clientX); }, { passive: true });
+    wrap.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        down(e.touches[0].clientX);
+      } else if (dragging) {
+        // 1손가락 드래그 도중 2번째 손가락이 닿아 핀치로 전환된 경우 — 남아있는 드래그
+        // 상태를 취소한다. 안 그러면 핀치 종료 후 마지막 손가락을 뗄 때, 시작점과 동떨어진
+        // 좌표로 dx가 커져 의도치 않게 다음/이전 이미지로 넘어가버린다.
+        dragging = false;
+        startX = null;
+        wrap.classList.remove('dragging');
+      }
+    }, { passive: true });
     wrap.addEventListener('touchend', e => { if (dragging && e.touches.length === 0) up(e.changedTouches[0].clientX); }, { passive: true });
   }
 
