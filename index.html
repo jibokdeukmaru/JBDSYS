@@ -2999,7 +2999,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 /* ---- 견적서 미리보기 ---- */
 .inv-preview-wrap { background:#fff; border:1px solid #e0e0e0; border-radius:18px; padding:20px; overflow-x:auto; }
 /* PC 미리보기 전체 크기를 80%로 축소 (모바일/인쇄는 각자 별도 배율을 쓰므로 영향 없음) */
-.inv-preview-wrap #invoiceDoc { transform: scale(0.8); transform-origin: top center; }
+.inv-preview-wrap #invoiceDoc { transform: scale(var(--inv-scale, 0.8)); transform-origin: top center; }
 .inv-preview-label { font-size:11px; color:#888; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
 
 /* A4 견적서 본체 */
@@ -13045,21 +13045,21 @@ document.addEventListener('DOMContentLoaded', initUiDensity);
 //   어느 쪽이든 transform:scale()은 레이아웃 높이를 줄여주지 않으므로, 감싸는 박스 높이를
 //   실제 축소된 높이에 맞춰 직접 세팅해줘야 스케일 전 원본 높이만큼 빈 여백이 남지 않는다.
 function updateInvoiceScale() {
+    // screen.width 기준의 모바일/PC 이분법만으로는 폴드8 펼친 화면처럼 PC로 판정되면서도
+    // 실제 미리보기 영역 폭은 넉넉치 않은 기기를 놓친다 — PC/모바일 모두 실제 컨테이너 폭에
+    // 맞춰 배율을 계산해서, 문서가 시각적으로 컨테이너 폭을 절대 넘지 않게 한다(잘림 방지).
+    // PC는 화면이 넉넉해도 최대 80%까지만 축소해 미리보기가 과하게 커지지 않게 한다.
     const isMob = (window.screen && window.screen.width) ? window.screen.width <= 768 : window.innerWidth <= 768;
     // overflow-x:auto 인 div를 정확히 targeting
     const wrap = document.querySelector('#invoiceTab .inv-preview-wrap > div[style]');
     if (!wrap) return;
     const doc = document.getElementById('invoiceDoc');
     const rawH = doc ? doc.scrollHeight : 1312;
-    let scale;
-    if (isMob) {
-        // 패딩 제외한 실제 너비
-        const containerW = wrap.clientWidth || (window.innerWidth - 44);
-        scale = Math.max(0.15, Math.min(1, containerW / 930));
-        document.documentElement.style.setProperty('--inv-scale', scale.toFixed(4));
-    } else {
-        scale = 0.8; // PC 미리보기 고정 축소 비율 (CSS의 .inv-preview-wrap #invoiceDoc transform:scale(0.8)과 일치)
-    }
+    // 패딩 제외한 실제 너비
+    const containerW = wrap.clientWidth || (window.innerWidth - 44);
+    const cap = isMob ? 1 : 0.8;
+    const scale = Math.max(0.15, Math.min(cap, containerW / 930));
+    document.documentElement.style.setProperty('--inv-scale', scale.toFixed(4));
     const scaledH = Math.round(rawH * scale);
     wrap.style.height = scaledH + 'px';
     wrap.style.overflow = 'hidden';
