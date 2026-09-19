@@ -361,7 +361,7 @@ async function sendEmailFromERP(p) {
   const fromInput = (p.from || '').trim();
   const ALLOWED_SHARED = ['info@jibokdeukmaru.com', 'sales@jibokdeukmaru.com', 'rnd@jibokdeukmaru.com'];
   const fromAddr = (fromInput && (fromInput === senderEmail || ALLOWED_SHARED.indexOf(fromInput) !== -1)) ? fromInput : senderEmail;
-  if (!fromAddr) return { status: 'error', message: '발신자 정보가 없습니다.' };
+  if (!fromAddr || !senderEmail) return { status: 'error', message: '발신자 정보가 없습니다.' };
 
   const senderName = (p.senderName || '').trim();
   const senderTitle = (p.senderTitle || '').trim();
@@ -424,7 +424,13 @@ async function sendEmailFromERP(p) {
   const raw = headerLines.join('\r\n') + '\r\n\r\n' + parts.join('\r\n\r\n') + '\r\n--' + boundary + '--';
   const rawEncoded = Buffer.from(raw).toString('base64url');
 
-  const gmail = gmailClientFor(fromAddr);
+  // ★ info@/sales@/rnd@는 실제 로그인 가능한 Gmail 사용자 계정이 아니라 구글 그룹이라,
+  //   서비스계정이 그 주소 자체로 도메인 위임(impersonate)을 시도하면 "unauthorized_client"
+  //   에러가 난다(그룹은 도메인 위임 대상이 될 수 없음 — 실제 사용자 계정만 가능).
+  //   대신 항상 "실제로 로그인한 직원 본인" 메일함으로 위임해서 보내고, From 헤더만 공유주소로
+  //   지정한다. 해당 그룹에 "회원이 그룹으로 게시(전송)하도록 허용"이 켜져 있어야 Gmail이 이
+  //   From을 그대로 인정한다(꺼져있으면 Gmail이 본인 주소로 되돌리거나 거부할 수 있음).
+  const gmail = gmailClientFor(senderEmail);
   try {
     await gmail.users.messages.send({ userId: 'me', requestBody: { raw: rawEncoded } });
     return { status: 'ok' };

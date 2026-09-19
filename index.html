@@ -17118,8 +17118,9 @@ if ('serviceWorker' in navigator) {
     document.body.style.removeProperty('overflow');
   };
 
+  // allowedDepts가 없으면(info@) 부서 제한 없이 전직원 사용 가능 — sales@/rnd@는 각 팀만.
   const COMPANY_EMAILS = [
-    { address: 'info@jibokdeukmaru.com', label: '대표 (info)', allowedDepts: ['R&D', '영업', '회계'] },
+    { address: 'info@jibokdeukmaru.com', label: '대표 (info)' },
     { address: 'sales@jibokdeukmaru.com', label: '영업 (sales)', allowedDepts: ['영업'] },
     { address: 'rnd@jibokdeukmaru.com', label: 'R&D', allowedDepts: ['R&D'] },
   ];
@@ -17189,7 +17190,7 @@ if ('serviceWorker' in navigator) {
       const isHead = !!user.isHead;
       const userDept = user.dept || '';
       COMPANY_EMAILS.forEach(m => {
-        if (!isHead && !(m.allowedDepts || []).includes(userDept)) return;
+        if (!isHead && m.allowedDepts && !m.allowedDepts.includes(userDept)) return;
         const opt = document.createElement('option');
         opt.value = m.address;
         opt.textContent = m.address + ' (' + m.label + ')';
