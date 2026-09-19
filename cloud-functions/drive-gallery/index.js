@@ -125,12 +125,22 @@ functions.http('driveGallery', async (req, res) => {
       if (!(await isWithinRoot(drive, fileId))) {
         return res.status(403).json({ status: 'error', message: '허용되지 않은 파일입니다' });
       }
-      const meta = await drive.files.get({ fileId, fields: 'mimeType,name', supportsAllDrives: true });
+      // 프론트는 폴더 목록 조회(listFolder) 때 이미 mimeType을 받아둔 상태라 그대로 넘겨준다 —
+      // 예전엔 사진 한 장 볼 때마다 이 메타데이터를 Drive API로 한 번 더 조회해서(스트리밍
+      // 요청과 별개로 왕복 1회 추가) 로딩이 그만큼 느려졌다. 안 넘어온 경우(구버전 캐시 등)만
+      // 하위호환으로 예전처럼 조회한다.
+      // 클라이언트가 주는 값은 신뢰하지 않고 image/* 형태일 때만 사용한다(응답 헤더 스푸핑 방지) —
+      // 이상한 값이 오면 그냥 무시하고 예전처럼 서버가 직접 조회한다.
+      let contentType = /^image\/[\w.+-]+$/i.test(req.query.mimeType || '') ? req.query.mimeType : null;
+      if (!contentType) {
+        const meta = await drive.files.get({ fileId, fields: 'mimeType', supportsAllDrives: true });
+        contentType = meta.data.mimeType || 'application/octet-stream';
+      }
       const stream = await drive.files.get(
         { fileId, alt: 'media', supportsAllDrives: true },
         { responseType: 'stream' }
       );
-      res.setHeader('Content-Type', meta.data.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Type', contentType);
       // 이미지 자체는 자주 안 바뀌니 브라우저 캐시를 적극적으로 태운다(같은 이미지를 드래그로
       // 왔다갔다 다시 볼 때 매번 재다운로드하지 않도록).
       res.setHeader('Cache-Control', 'private, max-age=86400');

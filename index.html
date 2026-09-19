@@ -1662,8 +1662,12 @@ window.fetchEmployeesFS = async function() {
 
   function galEsc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 
-  function imageUrl(fileId) {
-    return `${window.GALLERY_API_URL}?action=image&fileId=${encodeURIComponent(fileId)}&_appKey=${encodeURIComponent(window.GALLERY_API_KEY)}`;
+  // mimeType은 폴더 목록 조회 때 이미 받아둔 값을 그대로 넘긴다 — 서버가 이미지마다 매번
+  // Drive API로 메타데이터(mimeType)를 한 번 더 조회하던 왕복을 없애서 로딩을 앞당긴다.
+  function imageUrl(fileId, mimeType) {
+    const params = new URLSearchParams({ action: 'image', fileId, _appKey: window.GALLERY_API_KEY });
+    if (mimeType) params.set('mimeType', mimeType);
+    return `${window.GALLERY_API_URL}?${params}`;
   }
 
   async function fetchFolder(folderId) {
@@ -1741,6 +1745,19 @@ window.fetchEmployeesFS = async function() {
     }
   };
 
+  // 다음/이전 사진을 미리 백그라운드로 받아둬서, 넘기는 순간 네트워크를 기다리지 않고
+  // 바로 보이게 한다(서버가 응답에 Cache-Control: max-age=86400을 주므로 브라우저가
+  // 캐시해뒀다가 실제 넘길 때 그대로 재사용).
+  function prefetchAdjacent() {
+    if (!state.current) return;
+    const { images, index } = state.current;
+    if (images.length < 2) return;
+    [1, -1].forEach(dir => {
+      const im = images[(index + dir + images.length) % images.length];
+      if (im) new Image().src = imageUrl(im.id, im.mimeType);
+    });
+  }
+
   function renderGallery() {
     const view = document.getElementById('galView');
     if (!view || !state.current) return;
@@ -1750,7 +1767,7 @@ window.fetchEmployeesFS = async function() {
     view.innerHTML = `
       <div class="gal-title-bar">${galEsc(img.name)}</div>
       <div class="gal-img-wrap" id="galImgWrap">
-        <img class="gal-img" id="galImg" src="${imageUrl(img.id)}" draggable="false">
+        <img class="gal-img" id="galImg" src="${imageUrl(img.id, img.mimeType)}" draggable="false">
       </div>
       ${images.length > 1 ? `
         <button type="button" class="gal-nav-btn gal-nav-prev" onclick="window._galNav(-1)">‹</button>
@@ -1760,6 +1777,7 @@ window.fetchEmployeesFS = async function() {
       <button type="button" class="gal-fs-btn" onclick="window._galToggleFullscreen()" title="전체화면">⛶</button>
       <button type="button" class="gal-close-btn" onclick="window._galToggleFullscreen()" title="닫기">×</button>
     `;
+    prefetchAdjacent();
     attachDrag();
     attachPinchZoom();
   }
