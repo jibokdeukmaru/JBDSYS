@@ -544,11 +544,17 @@ window.fetchEmployeesFS = async function() {
 .notice ul { margin:2px 0 0 14px; padding:0; }
   .right-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:12px; }
   .quote-date { color:#777777; font-size:12px; line-height:1.4; white-space:nowrap; text-align:right; margin-left:auto; padding-top:2px; }
-  .right-controls { display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center; margin-bottom:10px; }
+  /* ★ 예전엔 grid-template-columns:1fr auto auto라서, 폴드처럼 화면폭은 넓어도(PC로 분류)
+     좌측 표가 공간을 많이 먹어 .right-controls 실제 폭이 좁아지면 1fr 트랙(체크박스 줄)이
+     내용 최소폭 밑으로 눌려 글자가 한 글자씩 세로로 줄바꿈되던 문제가 있었다(견적서 탭
+     폴드8 잘림과 같은 종류의 "PC 판정 + 실제로는 좁음" 문제). flex-wrap은 칸을 억지로
+     눌러 찌그러뜨리는 대신 통째로 다음 줄로 넘기므로 이 문제가 구조적으로 불가능해진다.
+     check-row에 flex-basis:100%를 줘서 항상 체크박스 줄 → 드롭다운 줄, 2줄로 고정한다. */
+  .right-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
   .plain-select.no-capture { border:none; box-shadow:none; background:transparent; width:auto; min-width:0; padding:0 24px 0 0; font-weight:700; }
   .plain-select.no-capture:focus { outline:none; }
-  .check-row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
-  .check-chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#444; }
+  .check-row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; flex:1 0 100%; }
+  .check-chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#444; white-space:nowrap; }
   .right-actions-bottom { display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; margin-top:12px; }
  .quick-copy-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; align-items:stretch; margin-bottom:12px; }
   .quick-copy-label { grid-column:1 / -1; color:#777; font-size:12px; margin-bottom:2px; }
@@ -672,6 +678,8 @@ window.fetchEmployeesFS = async function() {
 .gal-title-bar { position:absolute; top:0; left:0; right:0; padding:10px 16px; background:linear-gradient(rgba(0,0,0,.5),transparent); color:#fff; font-size:13px; font-weight:700; z-index:2; }
 .gal-fs-btn { display:flex; position:absolute; bottom:14px; right:12px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.15); border:none; color:#fff; font-size:18px; cursor:pointer; align-items:center; justify-content:center; z-index:3; }
 .gal-fs-btn:hover { background:rgba(255,255,255,.3); }
+.gal-dl-btn { display:flex; position:absolute; bottom:14px; right:60px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.15); border:none; color:#fff; font-size:16px; cursor:pointer; align-items:center; justify-content:center; z-index:3; }
+.gal-dl-btn:hover { background:rgba(255,255,255,.3); }
 .gal-close-btn { display:none; position:absolute; top:12px; right:12px; width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,.35); border:none; color:#fff; font-size:20px; line-height:1; cursor:pointer; align-items:center; justify-content:center; z-index:4; }
 .gal-close-btn:hover { background:rgba(0,0,0,.5); }
 .gal-wrap.gal-fs { position:fixed; inset:0; z-index:99998; width:100vw; height:100vh; height:100dvh; border:none; border-radius:0; }
@@ -843,9 +851,14 @@ window.fetchEmployeesFS = async function() {
         white-space: nowrap !important;
     }
     /* 10. 오른쪽 컨트롤(체크박스/셀렉트) 모바일에서 세로 정렬·터치 확대 */
+    /* ★ 이전엔 grid-template-columns였는데, base .right-controls를 flex로 통일하면서
+       (폴드8 등 "PC로 분류되지만 실제로는 좁은" 화면에서 체크박스 글자가 세로로 한 글자씩
+       줄바꿈되던 문제 수정 — 견적서 탭 폴드8 잘림과 같은 종류의 원인) 여기도 flex로 맞춘다.
+       check-row는 base에서 flex-basis:100%라 항상 자기 줄을 통째로 차지하고, 셀렉트 둘은
+       flex:1로 남은 폭을 균등하게 나눠 가져 같은 줄에 나란히 배치된다. */
     #pricingTab .right-controls {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
         gap: calc(var(--ui-scale) * 8px) !important;
         width: 100% !important;
         max-width: 100% !important;
@@ -853,7 +866,7 @@ window.fetchEmployeesFS = async function() {
     /* 셀렉트가 자기 칸 안에 갇히도록(긴 텍스트가 칸을 넘겨 옆 칸을 밀어내는 현상 방지) */
     #pricingTab .right-controls .plain-select {
         min-width: 0 !important;
-        width: 100% !important;
+        flex: 1 1 0 !important;
         max-width: 100% !important;
         height: max(calc(var(--ui-scale) * 40px), 34px) !important;
         font-size: calc(var(--ui-scale) * 14px) !important;
@@ -864,7 +877,6 @@ window.fetchEmployeesFS = async function() {
         box-sizing: border-box !important;
     }
     #pricingTab .check-row {
-        grid-column: 1 / -1 !important;
         width: 100% !important;
         gap: calc(var(--ui-scale) * 10px) !important;
     }
@@ -1774,6 +1786,7 @@ window.fetchEmployeesFS = async function() {
         <button type="button" class="gal-nav-btn gal-nav-next" onclick="window._galNav(1)">›</button>
         <div class="gal-counter">${index + 1} / ${images.length}</div>
       ` : ''}
+      <button type="button" class="gal-dl-btn" onclick="window._galDownload()" title="다운로드"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       <button type="button" class="gal-fs-btn" onclick="window._galToggleFullscreen()" title="전체화면">⛶</button>
       <button type="button" class="gal-close-btn" onclick="window._galToggleFullscreen()" title="닫기">×</button>
     `;
@@ -1826,6 +1839,38 @@ window.fetchEmployeesFS = async function() {
     const n = state.current.images.length;
     state.current.index = (state.current.index + dir + n) % n;
     renderGallery();
+  };
+
+  // 지금 보고 있는 사진 다운로드. <a download>는 다른 도메인(Cloud Run) 리소스에는
+  // 브라우저가 무시하고 그냥 열어버리는 경우가 많아서(같은 origin이 아니면 download 속성이
+  // 신뢰 안 됨), blob으로 직접 받아 로컬 object URL을 만들어 그걸 다운로드시킨다.
+  window._galDownload = async function() {
+    if (!state.current || !state.current.images.length) return;
+    const img = state.current.images[state.current.index];
+    if (!img) return;
+    try {
+      const res = await fetch(imageUrl(img.id, img.mimeType));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const url = URL.createObjectURL(blob);
+      if (isIOS) {
+        // iOS Safari는 <a download>를 무시하고 그냥 열기만 함 — 새 탭에서 열어 길게 눌러
+        // 저장하게 안내(견적서 탭 saveInvoiceImage()와 동일한 처리 방식).
+        window.open(url, '_blank');
+        showToast('이미지를 길게 눌러 저장하세요');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = img.name || 'image';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      }
+    } catch (e) {
+      showToast('다운로드 실패: ' + e.message);
+    }
   };
 
   // 마우스/터치 좌우 드래그로 이미지 넘기기. 핀치줌으로 확대된 상태(zoom.scale>1)에서는
