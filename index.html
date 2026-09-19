@@ -3066,7 +3066,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 .inv-actions button { min-height:40px; font-size:13px; }
 
 /* ---- 견적서 미리보기 ---- */
-.inv-preview-wrap { background:#fff; border:1px solid #e0e0e0; border-radius:18px; padding:20px; overflow-x:auto; }
+.inv-preview-wrap { position:relative; background:#fff; border:1px solid #e0e0e0; border-radius:18px; padding:20px; overflow-x:auto; }
 /* PC 미리보기 전체 크기를 80%로 축소 (모바일/인쇄는 각자 별도 배율을 쓰므로 영향 없음) */
 .inv-preview-wrap #invoiceDoc { transform: scale(var(--inv-scale, 0.8)); transform-origin: top center; }
 .inv-preview-label { font-size:11px; color:#888; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
@@ -3260,10 +3260,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;">
   <div id="ivStageIndicator" style="display:none; align-items:center; gap:6px; flex-wrap:wrap;"></div>
-  <div style="flex:1;"></div>
-  <button type="button" id="ivVaultLockBtn" class="iv-vault-btn" onclick="_ivCheckPinThenOpen()" title="영업 견적서 저장소" style="display:none;">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-  </button>
 </div>
 
 <!-- 영업 견적서 저장소(비밀공간) 메인 모달 -->
@@ -3437,6 +3433,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
   <!-- 미리보기 -->
   <div class="inv-preview-wrap">
+    <button type="button" id="ivVaultLockBtn" class="iv-vault-btn" onclick="_ivCheckPinThenOpen()" title="영업 견적서 저장소" style="display:none;position:absolute;top:14px;right:14px;z-index:2;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    </button>
     <div class="inv-preview-label">
       <span>견적서 미리보기</span>
     </div>
@@ -13159,9 +13158,13 @@ function updateInvoiceScale() {
     //   넓을 때만 성립한다. 컨테이너가 930px보다 좁으면(폴드8 펼친 화면 등) auto 마진이
     //   0으로 풀리면서 문서가 왼쪽부터 930px를 그대로 차지하고, 거기서 origin:center로
     //   축소하면 "축소 전 930px 기준 중심"을 기준으로 줄어들어 결과물이 오른쪽으로 밀려
-    //   컨테이너 밖으로 삐져나간다(우측만 잘리는 증상과 일치). origin을 top left로 바꾸고
-    //   마진을 0으로 고정해서, 축소 결과가 항상 컨테이너 왼쪽부터 정확히 채워지게 한다.
+    //   컨테이너 밖으로 삐져나간다(우측만 잘리는 증상과 일치). origin을 top left로 고정해서
+    //   축소 결과가 컨테이너 폭을 절대 넘지 않게 하되, margin-left를 직접 계산해서 넣어
+    //   남는 공간이 있을 땐(PC 등 넉넉한 화면) 수동으로 가운데 정렬한다 — margin:auto는 여기서
+    //   못 쓴다(컨테이너보다 넓을 때 0으로 풀리는 바로 그 동작이 잘림의 원인이었으므로).
+    const leftoverW = Math.max(0, containerW - 930 * scale);
     doc.style.margin = '0';
+    doc.style.marginLeft = (leftoverW / 2) + 'px';
     doc.style.transformOrigin = 'top left';
     doc.style.transform = `scale(${scale})`;
     // 실제로 적용된 배율 기준 실측 높이로 wrap을 맞춘다 — scale*rawH로 "추정"하면 위 문제처럼
@@ -19453,9 +19456,14 @@ window.submitFindPw = async function() {
 <div id="ivPinModal" style="display:none;position:fixed;inset:0;z-index:40000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:90%;max-width:320px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#222;">🔒 비밀번호 입력</h3>
-    <input type="password" id="ivPinInput" placeholder="4자리 비밀번호" maxlength="4" inputmode="numeric"
+    <!-- type=password로 두면 브라우저가 "비밀번호를 저장하시겠습니까?" 팝업을 띄우는데, 이건
+         저장/자동완성이 필요한 로그인 계정이 아니라 그냥 4자리 PIN이라 안 뜨는 게 맞다.
+         type=text + -webkit-text-security로 점(•) 표시만 흉내내면 브라우저의 비밀번호
+         관리자 감지 대상에서 아예 빠진다. -->
+    <input type="text" id="ivPinInput" placeholder="4자리 비밀번호" maxlength="4" inputmode="numeric"
+      name="iv_pin_noauto" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
       onkeydown="if(event.key==='Enter'){event.preventDefault();_ivSubmitPin();}"
-      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:4px;text-align:center;">
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:4px;text-align:center;-webkit-text-security:disc;text-security:disc;">
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button onclick="_ivClosePinModal()" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">취소</button>
       <button onclick="_ivSubmitPin()" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">확인</button>
