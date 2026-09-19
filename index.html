@@ -14728,8 +14728,16 @@ function _ivRenderFolderNode(f, folders, quotesForEmp, y, empId, br, depth) {
 // 윈도우 탐색기 스타일 좌측 경로 트리 — 연도(26년부터) → 직원(펼치면 조회) → 폴더(중첩 가능,
 // 펼치면 조회)/최상위파일. treeQuotesByEmp: 펼쳐진 직원별로 미리 조회해둔 견적서 목록
 // (폴더 미지정 파일을 트리에 노출하고 드래그로 폴더에 옮길 수 있게 하기 위함).
+// 관리자 직원목록/전사게시판 등 다른 화면과 동일한 직급 순서 기준 — 팀 없이(대표이사부터
+// 사원까지) 높은 직급이 트리 위쪽에 오도록 정렬한다(목록에 없는 직급은 맨 뒤로).
+const IV_TITLE_ORDER = ['대표이사','CEO','부회장','회장','사장','부사장','전무','상무','이사','본부장','실장','부장','차장','과장','팀장','대리','주임','사원','인턴'];
+function _ivTitleRank(title) {
+    const idx = IV_TITLE_ORDER.findIndex(o => String(title || '').includes(o));
+    return idx === -1 ? 99 : idx;
+}
 function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
     window._ivTreeQuotesById = {};
+    const sortedEmployees = [...employees].sort((a, b) => _ivTitleRank(a.title) - _ivTitleRank(b.title));
     const curYear = new Date().getFullYear();
     const years = [];
     for (let y = curYear; y >= IV_MIN_YEAR; y--) years.push(y);
@@ -14741,7 +14749,7 @@ function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
           <span class="iv-tree-label" onclick="_ivToggleYearNode(${y})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${y}년</span>
         </div>`;
         if (!yExpanded) return;
-        employees.forEach(e => {
+        sortedEmployees.forEach(e => {
             const empExpanded = !!window._ivTree.expandedEmployees[e.id];
             const empActive = br.year === y && br.employeeId === e.id && !br.folderId;
             html += `<div class="iv-tree-row" style="padding-left:16px;" ondragover="event.preventDefault();" ondragenter="this.style.background='#eef7f0'" ondragleave="this.style.background=''" ondrop="_ivTreeDropOnFolder(event,null,'${e.id}')">
