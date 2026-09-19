@@ -8451,6 +8451,16 @@ function csDateInputValue(val) {
           style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;box-sizing:border-box;">
       </div>
       <div>
+        <label style="font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px;">재직상태</label>
+        <select id="empModalStatus"
+          style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;box-sizing:border-box;background:#fff;">
+          <option value="">재직 중</option>
+          <option value="parental">육아휴직</option>
+          <option value="leave">휴직</option>
+        </select>
+        <div style="font-size:11px;color:#999;margin-top:4px;">퇴사 처리는 아래 "퇴직 처리" 버튼을 이용해주세요.</div>
+      </div>
+      <div>
         <label style="font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px;">사내 이메일</label>
         <input id="empModalEmail" type="email"
           style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">
@@ -8557,6 +8567,7 @@ function csDateInputValue(val) {
   .admin-status-badge.재직 { background:#d1f0e0; color:#1a7a45; }
   .admin-status-badge.퇴직 { background:#fde8e8; color:#c0392b; }
   .admin-status-badge.휴직 { background:#fdf1d0; color:#a87900; }
+  .admin-status-badge.육아휴직 { background:#f3e8fb; color:#8e44ad; }
   /* PC에서는 좌우로 넓게 — 카드 두 개를 한 줄에 배치. 모바일은 그대로 세로로 쌓임 */
   .admin-row-2col { margin-bottom:20px; }
   @media (min-width:900px) {
@@ -9801,12 +9812,22 @@ function csDateInputValue(val) {
               return String(allowedTabs).split(',').map(s=>s.trim()).filter(Boolean);
             }
 
+            // 재직상태 뱃지: 퇴사일(leaveDate)이 있으면 항상 "퇴사"가 최우선(퇴직 처리 버튼이
+            // leaveDate와 empStatus='resigned'를 함께 쓰지만, 예전 데이터는 leaveDate만
+            // 있고 empStatus가 비어있을 수 있어 leaveDate를 우선 판정 기준으로 둔다).
+            const EMP_STATUS_MAP = {
+              parental: { label: '육아휴직', color: '#8e44ad', bg: '#f3e8fb', cls: '육아휴직' },
+              leave:    { label: '휴직',     color: '#a87900', bg: '#fdf1d0', cls: '휴직' },
+            };
+            function empStatusInfo(r) {
+              if (r.leaveDate) return { label: '퇴직', color: '#e74c3c', bg: '#fdecea', cls: '퇴직' };
+              return EMP_STATUS_MAP[r.empStatus] || { label: '재직 중', color: '#1a7a45', bg: '#d1f0e0', cls: '재직' };
+            }
+
             if (isMobile) {
               // 모바일: 카드형 렌더링
               tbody.innerHTML = sorted.map((r, ri) => {
-                const status = r.leaveDate ? '퇴직' : '재직 중';
-                const statusColor = r.leaveDate ? '#e74c3c' : '#1a7a45';
-                const statusBg = r.leaveDate ? '#fdecea' : '#d1f0e0';
+                const st = empStatusInfo(r);
                 const allowed = resolveAllowed(r.allowedTabs);
                 const roleLabel = (r.role||'staff').toUpperCase();
                 return `<tr><td colspan="8" style="padding:0;border:none;">
@@ -9815,13 +9836,13 @@ function csDateInputValue(val) {
                     <div id="emp-card-${ri}" class="emp-card"
                       data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
                       data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
-                      data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
+                      data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-empstatus="${r.empStatus||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                         <div>
                           <span class="emp-card-name" style="font-size:15px;font-weight:800;color:#222;">${r.name||''}</span>
                           <span style="font-size:12px;color:#888;margin-left:6px;">${r.dept||''} · ${r.title||''}</span>
                         </div>
-                        <span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${statusBg};color:${statusColor};">${status}</span>
+                        <span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${st.bg};color:${st.color};">${st.label}</span>
                       </div>
                       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         <button onclick="event.stopPropagation();openTabPermModal(\'${r.id}\',${ri})"
@@ -9842,19 +9863,18 @@ function csDateInputValue(val) {
             } else {
               // PC: 테이블 방식 (이름 첫째, 직급 정렬)
               tbody.innerHTML = sorted.map((r, ri) => {
-                const status = r.leaveDate ? '퇴직' : '재직 중';
-                const statusClass = r.leaveDate ? '퇴직' : '재직';
+                const st = empStatusInfo(r);
                 const allowed = resolveAllowed(r.allowedTabs);
                 return `<tr id="emp-row-${ri}" onclick="selectEmp(${ri},\'${r.id}\')" style="cursor:pointer;"
                     data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
                     data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
-                    data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
+                    data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-empstatus="${r.empStatus||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
                     <td><strong>${r.name||''}</strong></td>
                     <td style="color:#aaa;font-size:12px;">${r.id||''}</td>
                     <td>${r.dept||''}</td>
                     <td>${r.title||''}</td>
                     <td>${r.joinDate||''}</td>
-                    <td><span class="admin-status-badge ${statusClass}">${status}</span></td>
+                    <td><span class="admin-status-badge ${st.cls}">${st.label}</span></td>
                     <td>
                       <button onclick="event.stopPropagation();openTabPermModal(\'${r.id}\',${ri})"
                         style="padding:5px 12px;background:var(--cream-2);color:var(--brand);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">
@@ -10000,6 +10020,7 @@ function csDateInputValue(val) {
           document.getElementById('empModalQuoteVaultAccess').checked = src.dataset.quotevaultaccess === 'true';
           document.getElementById('empModalQuoteVaultViewAll').checked = src.dataset.quotevaultviewall === 'true';
           document.getElementById('empModalTeam').value = src.dataset.team || '';
+          document.getElementById('empModalStatus').value = src.dataset.empstatus || '';
           _empModalUsedLeave = parseFloat(src.dataset.annualleave || '0') || 0;
           _empModalLeaveAdjust = parseFloat(src.dataset.leaveadjust || '0') || 0;
         }
@@ -10019,6 +10040,7 @@ function csDateInputValue(val) {
         document.getElementById('empModalQuoteVaultAccess').checked = false;
         document.getElementById('empModalQuoteVaultViewAll').checked = false;
         document.getElementById('empModalTeam').value = '';
+        document.getElementById('empModalStatus').value = '';
         _empModalUsedLeave = 0;
         _empModalLeaveAdjust = 0;
       }
@@ -10048,6 +10070,7 @@ function csDateInputValue(val) {
       const quoteVaultAccess = document.getElementById('empModalQuoteVaultAccess').checked;
       const quoteVaultViewAll = document.getElementById('empModalQuoteVaultViewAll').checked;
       const team      = document.getElementById('empModalTeam').value;
+      const empStatus = document.getElementById('empModalStatus').value;
       const msg = document.getElementById('empModalMsg');
 
       if (!name) { msg.style.color='#e74c3c'; msg.textContent='이름을 입력해주세요.'; return; }
@@ -10058,14 +10081,14 @@ function csDateInputValue(val) {
         // ★ 사용연차/조정연차 입력칸은 "연차관리" 탭으로 옮겼지만, 여기서 다른 필드만
         //   고쳐 저장해도 그 두 값이 0으로 덮어써지지 않도록 모달 열 때 담아둔 현재값
         //   (_empModalUsedLeave/_empModalLeaveAdjust)을 그대로 다시 실어 보낸다.
-        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team };
+        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team, empStatus };
 
         const action = _empModalMode === 'add' ? 'addEmployee' : 'updateEmployeeInfo';
         // ★ stockBetaEditor/compatEditor/scheduleEditor가 예전(직원정보 저장 속도 개선,
         //   클라이언트측 중복 Firestore 쓰기 제거) 리팩터링 때 이 params에서 빠진 채로
         //   남아있었다 — 체크박스는 토글되는데 실제로는 저장이 안 되고 있었던 버그. 연차관리
         //   탭 권한(leaveManagerEditor) 추가하는 김에 같이 넣어서 고침.
-        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team });
+        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team, empStatus });
         const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
         const data = await res.json();
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
