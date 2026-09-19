@@ -1815,7 +1815,10 @@ window.fetchEmployeesFS = async function() {
       document.body.style.overflow = 'hidden';
       const reqFn = wrap.requestFullscreen || wrap.webkitRequestFullscreen || wrap.mozRequestFullScreen || wrap.msRequestFullscreen;
       if (reqFn) {
-        const p = reqFn.call(wrap);
+        // navigationUI:'hide' — 크로미움 계열(삼성인터넷/크롬)에서 브라우저 주소창뿐 아니라
+        // 하단 내비게이션 바(뒤로/홈/최근 제스처 바 포함)까지 최대한 가려달라고 명시적으로
+        // 요청하는 표준 옵션. 미지원 브라우저는 그냥 이 인자를 무시하므로 안전하다.
+        const p = reqFn.call(wrap, { navigationUI: 'hide' });
         if (p && p.catch) p.catch(() => {});
       }
     }
