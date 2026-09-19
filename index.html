@@ -3266,7 +3266,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 <div id="quoteVaultModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
   <div style="background:#fff;border-radius:16px;width:min(760px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;flex-wrap:wrap;gap:8px;">
-      <div style="font-size:15px;font-weight:800;">🔒 영업 견적서 저장소</div>
+      <div style="font-size:15px;font-weight:800;display:flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>영업 견적서 저장소</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <button type="button" class="secondary" onclick="_ivBrowseSetView('browse')">찾아보기</button>
         <button type="button" class="secondary" onclick="_ivBrowseSetView('unsettled')">미정산금액</button>
@@ -3423,7 +3423,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     </div>
 
     <div class="inv-actions">
-      <button type="button" id="invVaultSaveBtn" onclick="saveInvoiceToVault()" style="display:none;">🔒 견적서 저장</button>
+      <button type="button" id="invVaultSaveBtn" onclick="saveInvoiceToVault()" style="display:none;"><span class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span class="btn-text"> 견적서 저장</span></button>
       <button type="button" id="invPreviewBtn">미리보기 갱신</button>
       <button type="button" id="invPrintBtn" class="secondary"><span class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex-shrink:0;"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg></span><span class="btn-text"> 인쇄</span></button>
       <button type="button" id="invSaveImgBtn" class="secondary"><span class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex-shrink:0;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></span><span class="btn-text"> 이미지저장</span></button>
@@ -14636,12 +14636,12 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
         : `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#eee;color:#555;">${q.category || ''}</span>`;
     const displayTitle = q.fileName || q.companyName || '(파일명 미입력)';
     const subtitle = locationLabel
-        ? `${q.companyName || ''} · ${q.authorName || ''} · 📁 ${locationLabel} · ${stageStrip}`
+        ? `${q.companyName || ''} · ${q.authorName || ''} · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${locationLabel} · ${stageStrip}`
         : `${q.companyName || ''} · ${q.authorName || ''} · ${stageStrip}`;
     return `
       <div draggable="true" ondragstart="_ivTreeDragStart(event,'${q.id}')" style="border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:${q.completed ? '#f2f9f4' : '#fff'};cursor:grab;">
         <div style="cursor:pointer;flex:1;min-width:160px;" onclick="_ivBrowseOpenQuote('${q.id}')">
-          <div style="font-weight:700;font-size:13px;">📄 ${displayTitle}${q.completed ? '<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#1a7a45;color:#fff;margin-left:6px;font-weight:700;">완료</span>' : ''}</div>
+          <div style="font-weight:700;font-size:13px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> ${displayTitle}${q.completed ? '<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#1a7a45;color:#fff;margin-left:6px;font-weight:700;">완료</span>' : ''}</div>
           <div style="font-size:11px;color:#999;margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">${subtitle}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
@@ -14669,7 +14669,7 @@ function _ivSearchBarHtml(br) {
     return `<div style="display:flex;gap:8px;margin-bottom:14px;">
         <div style="display:flex;flex:1;">
           <input type="text" id="ivBrowseSearch" placeholder="파일명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
-          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;">🔍</button>
+          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;display:flex;align-items:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         </div>
         ${br.search ? `<button type="button" class="secondary" onclick="_ivBrowseSetSearch('')">검색 지우기</button>` : ''}
       </div>`;
@@ -14711,14 +14711,14 @@ function _ivRenderFolderNode(f, folders, quotesForEmp, y, empId, br, depth) {
     const pad = 32 + depth * 16;
     let html = `<div class="iv-tree-row" style="padding-left:${pad}px;" ondragover="event.preventDefault();" ondragenter="this.style.background='#eef7f0'" ondragleave="this.style.background=''" ondrop="_ivTreeDropOnFolder(event,'${f.id}','${empId}')">
       <span class="iv-tree-toggle" onclick="_ivToggleFolderNode('${f.id}')">${hasChildren ? (expanded ? '▾' : '▸') : ''}</span>
-      <span class="iv-tree-label${fActive ? ' active' : ''}" onclick="_ivSelectNode(${y},'${empId}','${f.id}')" ondblclick="event.stopPropagation();_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경">📁 ${f.name}</span>
+      <span class="iv-tree-label${fActive ? ' active' : ''}" onclick="_ivSelectNode(${y},'${empId}','${f.id}')" ondblclick="event.stopPropagation();_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${f.name}</span>
     </div>`;
     if (expanded) {
         children.forEach(c => { html += _ivRenderFolderNode(c, folders, quotesForEmp, y, empId, br, depth + 1); });
         filesHere.forEach(q => {
             window._ivTreeQuotesById[q.id] = q;
             html += `<div class="iv-tree-row" style="padding-left:${pad + 16}px;">
-              <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동">📄 ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
+              <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
             </div>`;
         });
     }
@@ -14738,7 +14738,7 @@ function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
         const yExpanded = !!window._ivTree.expandedYears[y];
         html += `<div class="iv-tree-row">
           <span class="iv-tree-toggle" onclick="_ivToggleYearNode(${y})">${yExpanded ? '▾' : '▸'}</span>
-          <span class="iv-tree-label" onclick="_ivToggleYearNode(${y})">📅 ${y}년</span>
+          <span class="iv-tree-label" onclick="_ivToggleYearNode(${y})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${y}년</span>
         </div>`;
         if (!yExpanded) return;
         employees.forEach(e => {
@@ -14746,7 +14746,7 @@ function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
             const empActive = br.year === y && br.employeeId === e.id && !br.folderId;
             html += `<div class="iv-tree-row" style="padding-left:16px;" ondragover="event.preventDefault();" ondragenter="this.style.background='#eef7f0'" ondragleave="this.style.background=''" ondrop="_ivTreeDropOnFolder(event,null,'${e.id}')">
               <span class="iv-tree-toggle" onclick="_ivToggleEmpNode('${e.id}')">${empExpanded ? '▾' : '▸'}</span>
-              <span class="iv-tree-label${empActive ? ' active' : ''}" onclick="_ivSelectNode(${y},'${e.id}',null)">👤 ${e.name || ''} ${e.title || ''}</span>
+              <span class="iv-tree-label${empActive ? ' active' : ''}" onclick="_ivSelectNode(${y},'${e.id}',null)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${e.name || ''} ${e.title || ''}</span>
             </div>`;
             if (!empExpanded) return;
             const folders = window._ivFoldersCacheByEmp[e.id] || [];
@@ -14760,7 +14760,7 @@ function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
                 topFolders.forEach(f => { html += _ivRenderFolderNode(f, folders, quotesForEmp, y, e.id, br, 0); });
                 rootQuotes.forEach(q => {
                     html += `<div class="iv-tree-row" style="padding-left:32px;">
-                      <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동">📄 ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
+                      <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
                     </div>`;
                 });
             }
@@ -14819,8 +14819,8 @@ async function _ivRenderVaultBody() {
     // 거슬러 올라가며 구성 — 브레드크럼의 각 폴더명도 더블클릭하면 이름변경 가능.
     const folderChain = [];
     for (let f = curFolder; f; f = f.parentId ? folders.find(x => x.id === f.parentId) : null) folderChain.unshift(f);
-    const pathLabel = `📅 ${br.year}년 / 👤 ${empLabel}` + folderChain.map(f =>
-        ` / <span style="cursor:pointer;text-decoration:underline dotted;" ondblclick="_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경">📁 ${f.name}</span>`
+    const pathLabel = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${br.year}년 / <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${empLabel}` + folderChain.map(f =>
+        ` / <span style="cursor:pointer;text-decoration:underline dotted;" ondblclick="_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${f.name}</span>`
     ).join('');
 
     let rightHtml = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
@@ -14839,7 +14839,7 @@ async function _ivRenderVaultBody() {
              ondragover="event.preventDefault();" ondragenter="this.style.background='#eef7f0'" ondragleave="this.style.background='#fafafa'"
              ondrop="_ivTreeDropOnFolder(event,'${f.id}','${br.employeeId}')" onclick="_ivSelectNode(${br.year},'${br.employeeId}','${f.id}')"
              ondblclick="event.stopPropagation();_ivRenameFolder('${f.id}')" title="더블클릭하면 이름변경">
-          <span style="font-size:16px;">📁</span><span style="font-weight:700;font-size:13px;">${f.name}</span>
+          <span style="display:inline-flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span><span style="font-weight:700;font-size:13px;">${f.name}</span>
         </div>`).join('');
     rightHtml += !inFolder.length
         ? (subFolders.length ? '' : `<div style="text-align:center;color:#aaa;padding:30px 0;">견적서가 없습니다</div>`)
@@ -14886,7 +14886,7 @@ async function _ivRenderSearchResults(body, flags, employees, kw) {
         <select id="ivBrowseYear" onchange="_ivBrowseSetYear(this.value)" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">${_ivYearOptsHtml(br)}</select>
         <div style="display:flex;flex:1;min-width:140px;">
           <input type="text" id="ivBrowseSearch" placeholder="파일명 검색(저장소 전체)" value="${br.search || ''}" onkeydown="if(event.key==='Enter'){_ivBrowseSetSearch(this.value);}" style="padding:6px 10px;border:1px solid #ddd;border-right:none;border-radius:8px 0 0 8px;flex:1;min-width:0;">
-          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;">🔍</button>
+          <button type="button" onclick="_ivBrowseSetSearch(document.getElementById('ivBrowseSearch').value)" title="검색" style="padding:6px 10px;border:1px solid #ddd;border-radius:0 8px 8px 0;background:#fff;color:#333;cursor:pointer;display:flex;align-items:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         </div>
         <button type="button" class="secondary" onclick="_ivBrowseSetSearch('')">검색 지우기</button>
       </div>
@@ -19455,7 +19455,7 @@ window.submitFindPw = async function() {
      뜨던 문제를 동일한 커스텀 모달 패턴으로 대체. -->
 <div id="ivPinModal" style="display:none;position:fixed;inset:0;z-index:40000;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:90%;max-width:320px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
-    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#222;">🔒 비밀번호 입력</h3>
+    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#222;display:flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>비밀번호 입력</h3>
     <!-- type=password로 두면 브라우저가 "비밀번호를 저장하시겠습니까?" 팝업을 띄우는데, 이건
          저장/자동완성이 필요한 로그인 계정이 아니라 그냥 4자리 PIN이라 안 뜨는 게 맞다.
          type=text + -webkit-text-security로 점(•) 표시만 흉내내면 브라우저의 비밀번호
