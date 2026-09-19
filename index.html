@@ -1819,7 +1819,10 @@ window.fetchEmployeesFS = async function() {
         // 하단 내비게이션 바(뒤로/홈/최근 제스처 바 포함)까지 최대한 가려달라고 명시적으로
         // 요청하는 표준 옵션. 미지원 브라우저는 그냥 이 인자를 무시하므로 안전하다.
         const p = reqFn.call(wrap, { navigationUI: 'hide' });
-        if (p && p.catch) p.catch(() => {});
+        // TEMP 진단용 — 폴드8에서 왜 실패하는지 실제 사유 확인 후 제거
+        if (p && p.catch) p.catch(err => { if (typeof showToast === 'function') showToast('[진단] 전체화면 실패: ' + (err && err.message || err)); });
+      } else if (typeof showToast === 'function') {
+        showToast('[진단] 이 브라우저는 전체화면 API 자체를 지원 안 함');
       }
     }
   };
