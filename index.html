@@ -2383,11 +2383,14 @@ function _splitLotInfo(lotInfo){
 }
 
 // [재고현황] 탭 기준 최신 스냅샷을 BETA가 쓰는 DB{sheetName:{products:[{code,lots:[]}]}} 형태로 변환
-async function _buildStockBetaLiveBase(){
+async function _buildStockBetaLiveBase(timeoutMs){
   // ★ fetchSheetJsonBatch 자체 캐시(90초)는 그대로 두되, BETA를 열 때는 사용자가 명시적으로
   //   최신 데이터를 보려는 것이므로 forceRefresh로 캐시를 건너뛰고 항상 최신 시트를 읽는다.
+  // ★ (2026-09-22) STOCK/RESERVE 강제새로고침 조회가 지금 비정상적으로 느려서(직접 측정
+  //   40~79초) 기본 20초로는 매번 타임아웃난다 — 화면(iframe) 쪽은 원래 동작을 안 건드리려고
+  //   기본값은 그대로 20000 유지하고, 관리자 진단 도구만 더 긴 타임아웃을 넘겨서 쓴다.
   const ssId = sheetSpreadsheetId(SHEET_CONFIG.STOCK);
-  const sheets = await fetchSheetJsonBatch([SHEET_CONFIG.STOCK, SHEET_CONFIG.RESERVE], ssId, 20000, true);
+  const sheets = await fetchSheetJsonBatch([SHEET_CONFIG.STOCK, SHEET_CONFIG.RESERVE], ssId, timeoutMs || 20000, true);
   const stockRows = sheets[SHEET_CONFIG.STOCK] || [];
   const reserveRows = sheets[SHEET_CONFIG.RESERVE] || [];
   const processedRows = _buildStockProcessedRows(stockRows);
@@ -2528,9 +2531,9 @@ async function _stockBetaResolveSheetNameForBackfill(code){
 
 window.diagnoseStockBetaMigration = async function(){
   const prog = $('stockBetaMigrateProgress');
-  if (prog) { prog.style.color = '#888'; prog.textContent = '시트/월 목록 조회 중...'; }
+  if (prog) { prog.style.color = '#888'; prog.textContent = '시트 조회 중... (지금 시트 응답이 느려서 최대 100초까지 기다립니다)'; }
   try {
-    const skeleton = await _buildStockBetaLiveBase();
+    const skeleton = await _buildStockBetaLiveBase(100000);
     const entries = _stockBetaSkeletonEntries(skeleton);
     const months = await _stockBetaTargetMonths();
     const lines = [`시트 기준 품번/차수: 총 ${entries.length}건, 대상 월: ${months.join(', ')}`];
@@ -2553,9 +2556,9 @@ window.backfillStockBetaMigration = async function(){
   const prog = $('stockBetaMigrateProgress');
   if (!confirm('시트에만 있고 Firestore엔 없는 품번/차수를, 시트의 기준재고 값 그대로 Firestore 문서로 채워넣습니다(예약현황은 옮기지 않음). 계속할까요?')) return;
   try {
-    if (prog) { prog.style.color = '#888'; prog.textContent = '시트/월 목록 조회 중...'; }
+    if (prog) { prog.style.color = '#888'; prog.textContent = '시트 조회 중... (지금 시트 응답이 느려서 최대 100초까지 기다립니다)'; }
     await window.fbEnsureAuth();
-    const skeleton = await _buildStockBetaLiveBase();
+    const skeleton = await _buildStockBetaLiveBase(100000);
     const entries = _stockBetaSkeletonEntries(skeleton);
     const months = await _stockBetaTargetMonths();
     const missingByMonth = {};
