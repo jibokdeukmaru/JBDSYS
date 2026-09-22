@@ -6791,15 +6791,38 @@ function csDateInputValue(val) {
     const r = (window._revisitMatchesGlobal || _revisitMatches)[idx];
     if (!r) return;
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val||''; };
+    // ★ 날짜/시간/상태/방문여부/전달사항/견적서요청/재방문예정 체크는 "이번 방문" 고유값이라
+    //   일부러 안 가져온다 — 나머지(연락처·주소·공간정보·시공정보·요청사항 등)는 전부 과거
+    //   기록 그대로 채워서, 재방문 고객 접수 때 매번 처음부터 다시 입력할 필요가 없게 한다.
     set('cfName', r.name);
     set('cfPhone', r.phone);
     set('cfCompany', r.company);
     set('cfAddress', r.address);
     set('cfSize', String(r.size||'').replace(/[^0-9.]/g,''));
+    set('cfVisitCount', String(r.visitCount||'').replace(/[^0-9]/g,''));
     set('cfWorkDate', csDateInputValue(r.workDate));
+    set('cfWorkTiming', sanitizeDateVal(r.workTiming || ''));
+    set('cfWorkPeriod', sanitizeDateVal(r.workPeriod || ''));
     set('cfProducts', r.products);
     if (document.getElementById('cfSpaceType')) document.getElementById('cfSpaceType').value = r.spaceType||'';
     if (document.getElementById('cfVisitorType')) document.getElementById('cfVisitorType').value = r.visitorType||'';
+    if (document.getElementById('cfPriceInfo')) document.getElementById('cfPriceInfo').value = r.priceInfo||'';
+
+    // 엘리베이터
+    const elevVal = String(r.elevator||'있음').trim();
+    const elevRadio = document.querySelector(`input[name=cfElevator][value="${elevVal === '없음' ? '무' : '유'}"]`);
+    if (elevRadio) elevRadio.checked = true;
+
+    // 샘플/명함 요청사항 복원 (openConsultDetail과 동일 로직)
+    const sampleChecked = !!String(r.reqSample||'').trim();
+    const cardChecked = !!String(r.reqCard||'').trim();
+    if (document.getElementById('cfReqSample')) document.getElementById('cfReqSample').checked = sampleChecked;
+    if (document.getElementById('cfReqCard')) document.getElementById('cfReqCard').checked = cardChecked;
+    if (sampleChecked && document.getElementById('cfSampleBox')) document.getElementById('cfSampleBox').classList.add('show');
+    if (cardChecked && document.getElementById('cfCardBox')) document.getElementById('cfCardBox').classList.add('show');
+    if (document.getElementById('cfSampleList')) document.getElementById('cfSampleList').value = r.sampleList || '';
+    if (document.getElementById('cfCardStaff')) document.getElementById('cfCardStaff').value = r.cardStaff || '';
+
     document.getElementById('cfRevisitSearchBox').style.display = 'none';
     const _inp = document.getElementById('cfRevisitInput');
     if (_inp) _inp.value = '';
@@ -19263,6 +19286,29 @@ if ('serviceWorker' in navigator) {
     } catch (e) { console.warn('안드로이드 앱 버전 확인 실패:', e.message); }
   }
   setTimeout(checkForAndroidUpdate, 3000);
+})();
+</script>
+
+<!-- 안드로이드 앱(Capacitor) 전용 하드웨어 뒤로가기 버튼 연결 — 이 페이지는 이미 탭 전환/모달
+     열림마다 history.pushState + popstate 핸들러로 "뒤로가기 시 이전 단계로" 로직이 전부
+     갖춰져 있지만(위쪽 popstate 리스너 참고), 안드로이드 하드웨어 뒤로가기 버튼은 기본적으로
+     이 웹의 history API와 연결돼 있지 않아서 눌러도 그냥 앱이 최소화/종료돼버렸다. 여기서
+     Capacitor App 플러그인의 backButton 이벤트를 받아 history.back()으로 그대로 이어준다
+     — canGoBack이 false(더 돌아갈 히스토리가 없는 진짜 첫 화면)일 때만 앱을 최소화한다
+     (완전 종료 대신 홈으로 보내서, 다시 열 때 상태가 유지되게). 일반 웹/PC에서는
+     window.Capacitor가 없어 조용히 무시된다. -->
+<script>
+(function() {
+  if (!window.Capacitor || typeof window.Capacitor.isNativePlatform !== 'function' || !window.Capacitor.isNativePlatform()) return;
+  const AppPlugin = window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!AppPlugin || typeof AppPlugin.addListener !== 'function') return;
+  AppPlugin.addListener('backButton', ({ canGoBack }) => {
+    if (canGoBack) {
+      window.history.back();
+    } else {
+      AppPlugin.minimizeApp();
+    }
+  });
 })();
 </script>
 
