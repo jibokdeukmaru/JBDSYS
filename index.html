@@ -2383,14 +2383,11 @@ function _splitLotInfo(lotInfo){
 }
 
 // [재고현황] 탭 기준 최신 스냅샷을 BETA가 쓰는 DB{sheetName:{products:[{code,lots:[]}]}} 형태로 변환
-async function _buildStockBetaLiveBase(timeoutMs){
+async function _buildStockBetaLiveBase(){
   // ★ fetchSheetJsonBatch 자체 캐시(90초)는 그대로 두되, BETA를 열 때는 사용자가 명시적으로
   //   최신 데이터를 보려는 것이므로 forceRefresh로 캐시를 건너뛰고 항상 최신 시트를 읽는다.
-  // ★ (2026-09-22) STOCK/RESERVE 강제새로고침 조회가 지금 비정상적으로 느려서(직접 측정
-  //   40~79초) 기본 20초로는 매번 타임아웃난다 — 화면(iframe) 쪽은 원래 동작을 안 건드리려고
-  //   기본값은 그대로 20000 유지하고, 관리자 진단 도구만 더 긴 타임아웃을 넘겨서 쓴다.
   const ssId = sheetSpreadsheetId(SHEET_CONFIG.STOCK);
-  const sheets = await fetchSheetJsonBatch([SHEET_CONFIG.STOCK, SHEET_CONFIG.RESERVE], ssId, timeoutMs || 20000, true);
+  const sheets = await fetchSheetJsonBatch([SHEET_CONFIG.STOCK, SHEET_CONFIG.RESERVE], ssId, 20000, true);
   const stockRows = sheets[SHEET_CONFIG.STOCK] || [];
   const reserveRows = sheets[SHEET_CONFIG.RESERVE] || [];
   const processedRows = _buildStockProcessedRows(stockRows);
@@ -2483,155 +2480,6 @@ async function _stockBetaFetchAllLots(month){
   snap.forEach(d => list.push(d.data()));
   return list;
 }
-
-// ============================================================
-//  재고현황(예약/실시간) 구글시트 완전이관 — 관리자페이지 진단/빠진항목채우기/확정 도구
-//  (2026-09-22) 시트(STOCK/RESERVE)를 "기본 뼈대"로 매번 같이 읽던 걸 완전히 끊기 위한 준비.
-//  대상 월 = 지금까지 만들어진 월 목록(monthsList) + 이번 달(아직 목록에 없을 수도 있어서).
-// ============================================================
-// ★ sheetName(탭 소속)은 비교 키에서 뺀다 — _resolveStockBetaSheet가 참조하는
-//   _STOCK_BETA_CODE_TO_SHEET 매핑표가 8월 시안 데이터 그대로 '#' 포함 코드로 박혀있는데,
-//   실제 품번/시트명은 2026-09-04에 '#'을 이미 제거해서 지금은 하나도 안 맞는다(그래서
-//   거의 전부 "미분류(신규품번)"로 잘못 분류됨) — 매핑표를 고치는 대신, 진단은 애초에
-//   "그 품번+차수가 Firestore 어딘가에 존재하는가"만 보면 충분해서 sheetName은 아예 안 본다.
-function _stockBetaSkeletonEntries(skeleton){
-  const entries = [];
-  Object.keys(skeleton || {}).forEach(sheetName => {
-    (skeleton[sheetName].products || []).forEach(prod => {
-      (prod.lots || []).forEach(lot => {
-        entries.push({ sheetName, code: prod.code, cha: lot.cha || '-', lot });
-      });
-    });
-  });
-  return entries;
-}
-async function _stockBetaTargetMonths(){
-  const months = await _stockBetaGetMonthsList();
-  const cur = _stockBetaCurrentRealMonth();
-  if (!months.includes(cur)) months.push(cur);
-  return months;
-}
-// 월 하나에 대해 "시트엔 있는데 이 월 Firestore엔 없는" 품번/차수 목록을 반환 (품번+차수만 비교)
-async function _stockBetaMissingForMonth(skeletonEntries, month){
-  const fsLots = await _stockBetaFetchAllLots(month);
-  const existingKeys = new Set(fsLots.map(l => `${l.code}__${l.cha||'-'}`));
-  return skeletonEntries.filter(e => !existingKeys.has(`${e.code}__${e.cha}`));
-}
-// 진짜로 빠진 항목을 채울 때 쓸 정확한 sheetName을 찾는다 — 매핑표 대신, 같은 품번으로
-// 다른 달에 이미 저장된 실제 Firestore lot이 있으면 그 sheetName을 그대로 빌려쓴다
-// (그게 진짜 사용 중인 값이라 매핑표 추정보다 훨씬 믿을 만하다). 아예 없으면(생전 처음
-// 보는 품번) 어쩔 수 없이 기존 추정 로직으로 폴백.
-async function _stockBetaResolveSheetNameForBackfill(code){
-  await window.fbEnsureAuth();
-  const q = window.FB.query(window.FB.collection(window.FB.db, 'stockBetaLots'), window.FB.where('code', '==', code), window.FB.limit(1));
-  const snap = await window.FB.getDocs(q);
-  if (!snap.empty) return snap.docs[0].data().sheetName;
-  return _resolveStockBetaSheet(code);
-}
-
-window.diagnoseStockBetaMigration = async function(){
-  const prog = $('stockBetaMigrateProgress');
-  if (prog) { prog.style.color = '#888'; prog.textContent = '시트 조회 중... (지금 시트 응답이 느려서 최대 100초까지 기다립니다)'; }
-  try {
-    const skeleton = await _buildStockBetaLiveBase(100000);
-    const entries = _stockBetaSkeletonEntries(skeleton);
-    const months = await _stockBetaTargetMonths();
-    const lines = [`시트 기준 품번/차수: 총 ${entries.length}건, 대상 월: ${months.join(', ')}`];
-    let totalMissing = 0;
-    for (const month of months) {
-      const missing = await _stockBetaMissingForMonth(entries, month);
-      totalMissing += missing.length;
-      lines.push(`- ${month}: ${missing.length}건 빠짐` + (missing.length ? ` (예: ${missing.slice(0,5).map(m=>`${m.code}/${m.cha}`).join(', ')}${missing.length>5?' 외':''})` : ''));
-    }
-    lines.push(totalMissing === 0
-      ? '\n✔ 빠진 항목 없음 — 바로 "③ 완전이관 확정"을 눌러도 안전합니다.'
-      : `\n총 ${totalMissing}건이 빠져있습니다 — "② 빠진 항목 채우기"를 먼저 눌러주세요.`);
-    if (prog) { prog.style.color = totalMissing === 0 ? '#1a7a45' : '#a87900'; prog.textContent = lines.join('\n'); }
-  } catch(e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '진단 실패: ' + e.message; }
-  }
-};
-
-window.backfillStockBetaMigration = async function(){
-  const prog = $('stockBetaMigrateProgress');
-  if (!confirm('시트에만 있고 Firestore엔 없는 품번/차수를, 시트의 기준재고 값 그대로 Firestore 문서로 채워넣습니다(예약현황은 옮기지 않음). 계속할까요?')) return;
-  try {
-    if (prog) { prog.style.color = '#888'; prog.textContent = '시트 조회 중... (지금 시트 응답이 느려서 최대 100초까지 기다립니다)'; }
-    await window.fbEnsureAuth();
-    const skeleton = await _buildStockBetaLiveBase(100000);
-    const entries = _stockBetaSkeletonEntries(skeleton);
-    const months = await _stockBetaTargetMonths();
-    const missingByMonth = {};
-    const allCodes = new Set();
-    for (const month of months) {
-      const missing = await _stockBetaMissingForMonth(entries, month);
-      missingByMonth[month] = missing;
-      missing.forEach(m => allCodes.add(m.code));
-    }
-    // sheetName은 매핑표 추정 대신, 같은 품번의 실제 Firestore lot에서 빌려온다 — 코드별로
-    // 한 번만 조회해서 재사용(같은 품번이 여러 달/여러 차수에 걸쳐 나와도 중복 조회 안 함).
-    const sheetNameByCode = {};
-    for (const code of allCodes) {
-      sheetNameByCode[code] = await _stockBetaResolveSheetNameForBackfill(code);
-    }
-    const lines = [];
-    let totalFilled = 0;
-    for (const month of months) {
-      const missing = missingByMonth[month];
-      if (!missing.length) { lines.push(`- ${month}: 채울 항목 없음`); continue; }
-      for (let i = 0; i < missing.length; i += 400) {
-        const chunk = missing.slice(i, i + 400);
-        const batch = window.FB.writeBatch(window.FB.db);
-        chunk.forEach(m => {
-          const sheetName = sheetNameByCode[m.code];
-          const id = _stockBetaDocId(sheetName, m.code, m.cha, month);
-          batch.set(window.FB.doc(window.FB.db, 'stockBetaLots', id), {
-            sheetName, code: m.code, cha: m.cha, month,
-            inDate: m.lot.inDate || '', spec: m.lot.spec || '', heibei: m.lot.heibei || '',
-            box: m.lot.box || 0, py: m.lot.py || 0, ship: [], resv: [], _merged: false,
-            updatedAtMs: Date.now()
-          }, { merge: true });
-        });
-        await batch.commit();
-      }
-      totalFilled += missing.length;
-      lines.push(`- ${month}: ${missing.length}건 채움`);
-      // 이번 달이 아직 월 목록에 없었을 수 있으니(예: 이번 달 첫 진입) 채운 김에 등록해둔다.
-      await _stockBetaAddMonthToList(month);
-    }
-    lines.unshift(`총 ${totalFilled}건 채움`);
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = lines.join('\n') + '\n\n"① 진단 실행"으로 다시 확인해보세요.'; }
-  } catch(e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '채우기 실패: ' + e.message; }
-  }
-};
-
-window.confirmStockBetaMigration = async function(){
-  const prog = $('stockBetaMigrateProgress');
-  if (!confirm('정말 완전이관을 확정할까요?\n확정 후에는 재고현황 화면이 구글시트(STOCK/RESERVE)를 더 이상 보지 않습니다.\n(먼저 "① 진단"으로 빠진 항목이 0건인지 확인하셨나요?)')) return;
-  try {
-    await window.fbEnsureAuth();
-    await window.FB.setDoc(window.FB.doc(window.FB.db, 'stockBetaMeta', 'status'), { migrated: true, migratedAtMs: Date.now() }, { merge: true });
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = '✔ 완전이관 확정됨 — 이제 구글시트를 안 봅니다.'; }
-  } catch(e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '확정 실패: ' + e.message; }
-  }
-};
-
-// "③ 완전이관 확정"이 건드리는 필드(stockBetaMeta/status.migrated)만 정확히 되돌린다 —
-// 그 클릭 한 번이 실제로 쓴 값은 이 문서의 migrated/migratedAtMs 두 필드뿐이라, 다른 데이터는
-// 전혀 손대지 않고 원래(시트+파이어스토어 병행) 상태로 정확히 복원된다.
-window.undoStockBetaMigration = async function(){
-  const prog = $('stockBetaMigrateProgress');
-  if (!confirm('완전이관 확정을 취소할까요?\n다시 예전처럼(구글시트+Firestore 병행) 동작합니다.')) return;
-  try {
-    await window.fbEnsureAuth();
-    await window.FB.setDoc(window.FB.doc(window.FB.db, 'stockBetaMeta', 'status'), { migrated: false }, { merge: true });
-    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = '✔ 완전이관 취소됨 — 예전처럼 구글시트도 같이 봅니다.'; }
-  } catch(e) {
-    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '취소 실패: ' + e.message; }
-  }
-};
 
 // 완전이관 전(그 달이 아직 파이어스토어에 없을 때): [재고현황] 기준 데이터 + 그동안 BETA에서
 // 저장한 파이어스토어 수정분을 병합. 완전이관 후(그 달이 이미 파이어스토어에 있을 때):
@@ -9162,41 +9010,6 @@ function csDateInputValue(val) {
         </div>
       </div>
 
-      <!-- 제품(단가표) 구글시트 → Firestore 이전 -->
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-          제품(단가표) Firestore 이전 <span style="font-size:10.5px;background:#fdf1d0;color:#a87900;border-radius:4px;padding:2px 7px;font-weight:700;margin-left:4px;">1회성</span>
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          단가표/계산기/견적서 탭은 이제 구글시트(PRICE/TOOLTIP)가 아니라 아래 "제품관리" 카드의 Firestore 데이터를 읽습니다. 시트에만 있는 최신 내용을 Firestore로 옮기고 싶을 때 누르세요. 같은 품번은 시트 값으로 덮어쓰며, 여러 번 눌러도 안전합니다.
-        </div>
-        <button class="admin-btn primary" onclick="migrateProductsToFirestore()">시트 → Firestore 이전 실행</button>
-        <div id="productMigrateProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-      </div>
-
-      <!-- 재고현황(예약/실시간) 구글시트(STOCK/RESERVE) 완전이관 -->
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-          재고현황(예약/실시간) 구글시트 완전이관 <span style="font-size:10.5px;background:#fdf1d0;color:#a87900;border-radius:4px;padding:2px 7px;font-weight:700;margin-left:4px;">1회성</span>
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          재고현황 화면은 지금도 열 때마다 구글시트(STOCK/RESERVE)를 "기본 뼈대"로 같이 읽고 있습니다.
-          아래 순서대로 진행하면 이 시트를 완전히 안 보게 바꿀 수 있습니다.<br>
-          ① <b>진단</b>: 시트에는 있는데 Firestore엔 한 번도 안 만들어진 품번/차수가 있는지 월별로 확인합니다(있으면 이관 시 화면에서 사라질 항목).<br>
-          ② <b>빠진 항목 채우기</b>: 진단에서 빠진 게 있으면, 시트 값 그대로 Firestore 문서로 만들어 채웁니다(예약현황은 안 옮기고 기준재고만 채움 — 예약은 화면에서 다시 배정).<br>
-          ③ <b>완전이관 확정</b>: ①에서 빠진 게 0건일 때만 누르세요 — 이후로는 이 화면이 구글시트를 아예 안 봅니다.
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="admin-btn primary" onclick="diagnoseStockBetaMigration()">① 진단 실행</button>
-          <button class="admin-btn" onclick="backfillStockBetaMigration()">② 빠진 항목 채우기</button>
-          <button class="admin-btn" style="border-color:#c0392b;color:#c0392b;" onclick="confirmStockBetaMigration()">③ 완전이관 확정</button>
-          <button class="admin-btn" onclick="undoStockBetaMigration()">↩ 완전이관 되돌리기</button>
-        </div>
-        <div id="stockBetaMigrateProgress" style="font-size:12px;color:#888;margin-top:10px;white-space:pre-line;"></div>
-      </div>
-
       <!-- 솔라피 SMS -->
       <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
         <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
@@ -13003,51 +12816,6 @@ async function loadProducts() {
 }
 
 // ============================================================
-//  (1회성 이전 도구 전용) 구글시트 PRICE/TOOLTIP을 예전 방식 그대로 읽어오는 레거시 로더.
-//  관리자페이지 "제품 Firestore 이전" 버튼에서만 쓰인다 — 평소 화면 로드 경로(loadProducts)는
-//  더 이상 시트를 보지 않는다.
-//  컬럼 순서: 품번(0) 품명(1) 스펙(2) 박스면적(3) 박스당장수(4)
-//            소비자가PY(5) 자재소비자가PY(6) 소비자가m²(7) 소비자가BOX(8)
-//            업체가PY(9) 자재업체가PY(10) 업체가m²(11) 업체가BOX(12)
-// ============================================================
-async function _legacyLoadProductsFromSheet() {
-    const rows = await fetchSheetJson(SHEET_CONFIG.PRICE, 20000, true);
-    return rows
-        .filter(row => row && row.c && getCellVal(row.c[0]) && getCellVal(row.c[0]) !== '품번')
-        .map(row => ({
-            code:           getCellVal(row.c[0]),
-            name:           getCellVal(row.c[1]),
-            spec:           getCellVal(row.c[2]),
-            box_m2:         parseFloat(getCellVal(row.c[3]).replace(/[,\s₩원]/g, '')) || 0,
-            sheets_per_box: toNum(row.c[4]),
-            consumer: {
-                py:       toNum(row.c[5]),
-                material: toNum(row.c[6]),
-                sqm:      toNum(row.c[7]),
-                box:      toNum(row.c[8])
-            },
-            vendor: {
-                py:       toNum(row.c[9]),
-                material: toNum(row.c[10]),
-                sqm:      toNum(row.c[11]),
-                box:      toNum(row.c[12])
-            }
-        }));
-}
-// D열(4번째, 인덱스 3): 네츄럴 여부(Y/N) — 품번 대문자 기준 맵
-async function _legacyLoadNaturalMapFromSheet() {
-    const rows = await fetchSheetJson(SHEET_CONFIG.TOOLTIP, 20000, true);
-    const map = {};
-    (rows || []).forEach(row => {
-        if (!row || !row.c) return;
-        const code = getCellVal(row.c[0]);
-        if (!code || code === '품번') return;
-        map[code.toUpperCase()] = getCellVal(row.c[3]).toUpperCase() === 'Y';
-    });
-    return map;
-}
-
-// ============================================================
 //  관리자페이지 "제품관리" 카드 — Firestore products 컬렉션 CRUD
 // ============================================================
 let _adminProducts = [];
@@ -13235,46 +13003,6 @@ async function moveProductOrder(id, dir) {
         products = [];
     } catch (e) {
         alert('순서 변경 실패: ' + e.message);
-    }
-}
-
-// ── 1회성: 구글시트(PRICE+TOOLTIP) → Firestore products 이전 ──
-// 여러 번 눌러도 같은 품번은 upsert(merge)라 중복 생성되지 않는다.
-async function migrateProductsToFirestore() {
-    const prog = $('productMigrateProgress');
-    if (!confirm('현재 구글시트(PRICE/TOOLTIP)의 제품 데이터를 Firestore로 가져옵니다.\n이미 Firestore에 있는 같은 품번은 시트 값으로 덮어씁니다. 계속할까요?')) return;
-    try {
-        if (prog) { prog.style.color = '#888'; prog.textContent = '시트 데이터 조회 중...'; }
-        const [sheetProducts, naturalMap] = await Promise.all([
-            _legacyLoadProductsFromSheet(),
-            _legacyLoadNaturalMapFromSheet().catch(() => ({}))
-        ]);
-        if (!sheetProducts.length) { if (prog) { prog.style.color = '#c0392b'; prog.textContent = '시트에서 제품을 찾지 못했습니다.'; } return; }
-        await window.fbEnsureAuth();
-        if (prog) prog.textContent = `${sheetProducts.length}건 저장 중...`;
-        let saved = 0;
-        for (let i = 0; i < sheetProducts.length; i += 400) {
-            const chunk = sheetProducts.slice(i, i + 400);
-            const batch = window.FB.writeBatch(window.FB.db);
-            chunk.forEach((p, chunkIdx) => {
-                const id = _productDocId(p.code);
-                batch.set(window.FB.doc(window.FB.db, 'products', id), {
-                    code: p.code, name: p.name, spec: p.spec,
-                    box_m2: p.box_m2, sheets_per_box: p.sheets_per_box,
-                    consumer: p.consumer, vendor: p.vendor,
-                    natural: !!naturalMap[p.code.toUpperCase()],
-                    order: i + chunkIdx,
-                    updatedAtMs: Date.now()
-                }, { merge: true });
-            });
-            await batch.commit();
-            saved += chunk.length;
-        }
-        if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: ${saved}건 이전됨`; }
-        products = [];
-        await loadAdminProducts();
-    } catch (e) {
-        if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
     }
 }
 
