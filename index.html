@@ -3123,7 +3123,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
     <div class="inv-field">
       <div class="inv-label">분류</div>
-      <select id="invCategory" onchange="renderInvoice()">
+      <select id="invCategory" onchange="applyInvCategoryToItems();renderInvoice()">
         <option value="일반">일반</option>
         <option value="자재">자재</option>
         <option value="A/S">A/S</option>
@@ -12904,7 +12904,33 @@ function addInvoiceItem() {
     document.getElementById('invAllItems')?.appendChild(item);
     fillInvoiceSelects();
     bindInvoiceFieldEvents(item);
+    applyInvCategoryToItems();
     renderInvoice();
+}
+
+// ── [분류]가 "자재"면 제품별 가격기준 드롭다운을 자재만 옵션 2개로 좁히고(전체선택 시
+//   포함/자재만 4개), 자재만이 되는 순간 박스기준 헤베계산을 자동으로 켜준다. 견적서는
+//   최종 계산이 항상 박스기준 헤베계산(또는 평수환산 단위 선택)으로 이뤄져야 한다는
+//   운영 원칙에 맞추기 위함(2026-09-22).
+const IV_PARTY_OPTIONS_FULL = `<option value="consumer">소비자가</option><option value="vendor">업체가</option><option value="consumer_material">소비자가 (자재만)</option><option value="vendor_material">업체가 (자재만)</option>`;
+const IV_PARTY_OPTIONS_MATERIAL_ONLY = `<option value="consumer_material">소비자가 (자재만)</option><option value="vendor_material">업체가 (자재만)</option>`;
+function applyInvCategoryToItems() {
+    const isMaterialCat = document.getElementById('invCategory')?.value === '자재';
+    let anyMaterial = isMaterialCat;
+    document.querySelectorAll('#invAllItems .inv-party-select').forEach(sel => {
+        const prev = sel.value;
+        sel.innerHTML = isMaterialCat ? IV_PARTY_OPTIONS_MATERIAL_ONLY : IV_PARTY_OPTIONS_FULL;
+        if (isMaterialCat) {
+            sel.value = prev.endsWith('_material') ? prev : (prev === 'vendor' ? 'vendor_material' : 'consumer_material');
+        } else {
+            sel.value = prev;
+            if (prev.endsWith('_material')) anyMaterial = true;
+        }
+    });
+    if (anyMaterial) {
+        const boxCalc = document.getElementById('invBoxCalcCheck');
+        if (boxCalc && !boxCalc.checked) boxCalc.checked = true;
+    }
 }
 
 // ── "단분리" 체크 시에만 "+ 구분선 추가" 버튼 노출 ──
@@ -13308,9 +13334,21 @@ function initInvoiceTab() {
         document.getElementById('invAddItemBtn')?.addEventListener('click', addInvoiceItem);
         document.getElementById('invAddDividerBtn')?.addEventListener('click', addDividerItem);
 
+        // 가격기준을 사람이 직접 "자재만"으로 바꾼 경우(분류가 자재가 아니어도)도
+        // 박스기준 헤베계산을 자동으로 켠다 — applyInvCategoryToItems()는 [분류] 변경/
+        // 아이템 추가 시에만 도니까, 개별 드롭다운 수동 변경은 이벤트 위임으로 따로 잡는다.
+        document.getElementById('invAllItems')?.addEventListener('change', (e) => {
+            const sel = e.target;
+            if (!sel.classList || !sel.classList.contains('inv-party-select')) return;
+            if (!sel.value.endsWith('_material')) return;
+            const boxCalc = document.getElementById('invBoxCalcCheck');
+            if (boxCalc && !boxCalc.checked) { boxCalc.checked = true; renderInvoice(); }
+        });
+
         // 모바일 scale 계산 + resize 대응
         window.addEventListener('resize', updateInvoiceScale);
     }
+    applyInvCategoryToItems();
     renderInvoice();
     // 탭 진입마다 scale 재계산 (DOM 렌더 후)
     setTimeout(updateInvoiceScale, 80);
@@ -14180,6 +14218,7 @@ function _ivApplySnapshot(snap) {
     if (!(snap.items || []).length) addInvoiceItem();
     renumberInvoiceItems();
     toggleInvDividerBtn();
+    applyInvCategoryToItems();
     renderInvoice();
 }
 
