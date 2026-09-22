@@ -6290,6 +6290,10 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         e.preventDefault();
         e.stopPropagation();
       });
+      // 리사이저에서 시작된 드래그는 mouseup 후 브라우저가 자동으로 click을 발생시켜
+      // 부모 th의 정렬(onclick="toggleSort(...)")까지 같이 트리거되던 문제 방지.
+      // 리사이저 위에서 시작된 클릭은 드래그 여부와 무관하게 정렬 목적이 아니므로 항상 무시.
+      resizer.addEventListener('click', function(e) { e.stopPropagation(); });
     });
     function onMouseMove(e) {
       if (!currentTh) return;
