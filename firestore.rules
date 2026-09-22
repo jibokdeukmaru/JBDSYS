@@ -112,6 +112,9 @@ service cloud.firestore {
     match /stockBetaHistory/{id}     { allow read, write: if isEmployee(); }
     match /stockExtraLots/{id}       { allow read, write: if isEmployee(); }
 
+    // ── 명함스캐닝/연락처 — 직원 전용 ──
+    match /contacts/{id} { allow read, write: if isEmployee(); }
+
     // ── 사내게시판/위키/알림/문자로그 — 직원 전용 ──
     match /notices/{id}        { allow read, write: if isEmployee(); }
     match /noticeReplies/{id}  { allow read, write: if isEmployee(); }

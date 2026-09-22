@@ -7543,6 +7543,11 @@ function csDateInputValue(val) {
   function _noticeEscHtml(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+  // 예전 시트 기반 저장이 쓰던 'yyyy-MM-dd HH:mm:ss' 포맷을 그대로 유지(기존 데이터와 정렬/표시 방식 동일하게)
+  function _fmtNoticeDate(d) {
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
 
   async function _fetchNoticesFromFirestore() {
     await window._waitForFirebase();
@@ -7824,13 +7829,14 @@ function csDateInputValue(val) {
     if (!currentDetailNoticeId && currentDetailNoticeId !== 0) return;
     const author = currentAuthor();
     try {
-      const params = new URLSearchParams({ action:'saveNoticeReply', noticeId: currentDetailNoticeId, author, content });
-      const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-      const data = await res.json();
-      if (data.status !== 'ok') { alert('댓글 등록 실패: ' + (data.message||'')); return; }
+      await window.fbEnsureAuth();
+      const date = _fmtNoticeDate(new Date());
+      await window.FB.addDoc(window.FB.collection(window.FB.db, 'noticeReplies'), {
+        noticeId: String(currentDetailNoticeId), author, content, date
+      });
       input.value = '';
       // 낙관적 업데이트: 서버 재조회 없이 화면에 바로 반영
-      replies.push({ noticeId: currentDetailNoticeId, author, content, date: new Date().toLocaleString('ko-KR') });
+      replies.push({ noticeId: currentDetailNoticeId, author, content, date });
       renderNoticeReplies(currentDetailNoticeId);
       renderNotices(); // 목록의 댓글수 표시도 갱신
     } catch(e) { alert('댓글 등록 오류: ' + e.message); }
@@ -7891,16 +7897,13 @@ function csDateInputValue(val) {
     if (!n) return;
     if (!_canManageNotice(n)) { alert('본인이 작성한 글만 삭제할 수 있습니다.'); return; }
     if (!confirm('이 글을 삭제하시겠습니까? (댓글도 함께 삭제됩니다)')) return;
-    const isAdmin = !!(window._currentUser && window._currentUser.role === 'admin');
     try {
-      const res = await fetch(`${RESERVE_URL}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        redirect: 'follow',
-        body: JSON.stringify({ action:'deleteNotice', id: n.id, requester: currentAuthor(), isAdmin })
-      });
-      const data = await res.json();
-      if (data.status !== 'ok') { alert(data.message || '삭제 실패'); return; }
+      await window.fbEnsureAuth();
+      await window.FB.deleteDoc(window.FB.doc(window.FB.db, 'notices', n.id));
+      // 해당 글의 댓글도 함께 삭제
+      const q = window.FB.query(window.FB.collection(window.FB.db, 'noticeReplies'), window.FB.where('noticeId', '==', String(n.id)));
+      const snap = await window.FB.getDocs(q);
+      await Promise.all(snap.docs.map(d => window.FB.deleteDoc(d.ref)));
       closeNoticeDetailModal();
       loadNotices();
     } catch(e) { alert('오류: ' + e.message); }
@@ -8068,19 +8071,17 @@ function csDateInputValue(val) {
     const isEditing = _editingNoticeId != null;
     document.getElementById('noticeSaveMsg').textContent = isEditing ? '수정 중...' : '등록 중...';
     try {
-      // base64 이미지가 본문에 포함될 수 있어 URL 길이 제한을 넘으므로 POST(body)로 전송
-      const isAdmin = !!(window._currentUser && window._currentUser.role === 'admin');
-      const payload = isEditing
-        ? { action:'updateNotice', id:_editingNoticeId, title, content, category, requester:author, isAdmin, attachments: _noticeAttachments }
-        : { action:'saveNotice', title, content, category, author, attachments: _noticeAttachments };
-      const res = await fetch(`${RESERVE_URL}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        redirect: 'follow',
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.status !== 'ok') { document.getElementById('noticeSaveMsg').textContent = '' + (data.message||'실패'); return; }
+      await window.fbEnsureAuth();
+      if (isEditing) {
+        // 제목/내용/구분/첨부만 갱신 — updateDoc은 부분수정이라 작성자/작성일은 그대로 유지된다.
+        await window.FB.updateDoc(window.FB.doc(window.FB.db, 'notices', _editingNoticeId), {
+          title, content, category, attachments: _noticeAttachments
+        });
+      } else {
+        await window.FB.addDoc(window.FB.collection(window.FB.db, 'notices'), {
+          title, content, category, author, attachments: _noticeAttachments, date: _fmtNoticeDate(new Date())
+        });
+      }
       document.getElementById('noticeSaveMsg').textContent = isEditing ? '수정 완료!' : '등록 완료!';
       document.getElementById('noticeTitle').value = '';
       document.getElementById('noticeContent').innerHTML = '';
@@ -9318,27 +9319,16 @@ function csDateInputValue(val) {
         saveBtn.textContent = '저장 중...';
 
         try {
-            const res = await fetchWithRetry(ERP_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({
-                    action: 'appendRow',
-                    spreadsheetId: SHEET_CONFIG.ID_RESERVE,
-                    sheetName: SHEET_CONFIG.CONTACTS,
-                    row: [company, name, position, mobile, phone, today]
-                })
+            await window.fbEnsureAuth();
+            await window.FB.addDoc(window.FB.collection(window.FB.db, 'contacts'), {
+                company, name, position, mobile, phone, date: today, createdAtMs: Date.now()
             });
-            const data = await res.json();
-            if (data.status === 'ok' || data.result === 'success' || data.success) {
-                showToast('저장 완료!');
-                resetForm();
-                previewWrap.style.display = 'none';
-                formWrap.style.display = 'none';
-                uploadInput.value = '';
-                currentImageFile = null;
-            } else {
-                showToast('저장 실패: ' + JSON.stringify(data));
-            }
+            showToast('저장 완료!');
+            resetForm();
+            previewWrap.style.display = 'none';
+            formWrap.style.display = 'none';
+            uploadInput.value = '';
+            currentImageFile = null;
         } catch(e) {
             showToast('저장 오류: ' + e.message);
         } finally {
@@ -9821,15 +9811,11 @@ function csDateInputValue(val) {
             try {
                 data = await _loginViaAuthApi(id, pw);
             } catch(apiErr) {
-                data = null; // 신규 API 호출 자체가 실패(배포 전/장애) → 폴백
+                data = { status: 'error', message: '로그인 서버에 연결할 수 없습니다: ' + apiErr.message };
             }
-            // 2) 폴백: 기존 시트 기반 로그인 — 이 경로로 성공하면 UI 로그인은 되지만
-            //    Firebase 신원(커스텀 토큰)은 못 받으므로 개인전용 데이터(메모 등)는 이후
-            //    별도 안내 없이는 비어 보일 수 있다. auth-api 장애 시의 임시 대체 경로일 뿐이다.
-            if (!data || data.status !== 'ok') {
-                const res = await fetchWithRetry(`${RESERVE_URL}?action=login&id=${encodeURIComponent(id)}&password=${encodeURIComponent(pw)}`);
-                data = await res.json();
-            } else if (data.token) {
+            // ★ 2026-09-22: 시트 기반 로그인 폴백 제거 — 이제 auth-api(Firestore)가 유일한
+            //   로그인 경로다. auth-api 장애 시엔 바로 오류를 보여준다(구글시트로 대체 조회하지 않음).
+            if (data && data.token) {
                 try {
                     await window.FB.signInWithCustomToken(window.FB.auth, data.token);
                     gotFirebaseToken = true;
@@ -9879,6 +9865,20 @@ function csDateInputValue(val) {
         return await res.json();
     }
 
+    // ★ 직원 등록/수정/비밀번호 변경·초기화·찾기/홈화면설정(2026-09-22): 전부 이 Cloud
+    //   Function(auth-api, Admin SDK)을 거친다 — firestore.rules가 employees 컬렉션의
+    //   클라이언트 write를 관리자로만 제한해둬서, 직원 본인의 사소한 설정(홈화면 등)조차
+    //   이 함수 없이는 저장할 방법이 없다. 구글시트(RESERVE스크립트)는 이제 이 경로들에서
+    //   전혀 조회/저장되지 않는다.
+    window._authApiCall = async function(action, params) {
+        const res = await fetchWithRetry(`${AUTH_API_URL}?action=${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ _appKey: AUTH_API_KEY }, params || {}))
+        });
+        return await res.json();
+    };
+
     // ★ 휴가신청(2026-09-14): 부서장→대표 결재 검증이 필요한 쓰기는 전부 이 Cloud
     //   Function(leave-api, Admin SDK)을 거친다 — firestore.rules도 leaves 컬렉션의
     //   클라이언트 write를 막아뒀다(읽기만 허용).
@@ -9919,9 +9919,7 @@ function csDateInputValue(val) {
         if (!user) { msg.textContent = '로그인 정보 없음'; return; }
         msg.textContent = '변경 중...';
         try {
-            const params = new URLSearchParams({ action:'changePassword', id:user.id, currentPassword:curPw, newPassword:newPw });
-            const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-            const data = await res.json();
+            const data = await window._authApiCall('changePassword', { id:user.id, currentPassword:curPw, newPassword:newPw });
             if (data.status === 'ok') {
                 msg.textContent = '비밀번호가 변경되었습니다.';
                 document.getElementById('miCurPw').value = '';
@@ -10142,9 +10140,7 @@ function csDateInputValue(val) {
       const roleEl = document.getElementById(`emp-role-${rowIdx}`);
       const role = roleEl ? roleEl.value : 'staff';
       try {
-        const params = new URLSearchParams({ action: 'updateEmployee', id: empId, role });
-        const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-        const data = await res.json();
+        const data = await window._authApiCall('updateEmployee', { id: empId, role });
         if (data.status !== 'ok') { showAdminToast('' + (data.message||'오류'), true); return; }
         showAdminToast('저장됨');
       } catch(e) { showAdminToast('오류: ' + e.message, true); }
@@ -10302,23 +10298,13 @@ function csDateInputValue(val) {
         // ★ 사용연차/조정연차 입력칸은 "연차관리" 탭으로 옮겼지만, 여기서 다른 필드만
         //   고쳐 저장해도 그 두 값이 0으로 덮어써지지 않도록 모달 열 때 담아둔 현재값
         //   (_empModalUsedLeave/_empModalLeaveAdjust)을 그대로 다시 실어 보낸다.
-        const empData = { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team, empStatus };
-
         const action = _empModalMode === 'add' ? 'addEmployee' : 'updateEmployeeInfo';
         // ★ stockBetaEditor/compatEditor/scheduleEditor가 예전(직원정보 저장 속도 개선,
         //   클라이언트측 중복 Firestore 쓰기 제거) 리팩터링 때 이 params에서 빠진 채로
         //   남아있었다 — 체크박스는 토글되는데 실제로는 저장이 안 되고 있었던 버그. 연차관리
         //   탭 권한(leaveManagerEditor) 추가하는 김에 같이 넣어서 고침.
-        const params = new URLSearchParams({ action, id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team, empStatus });
-        const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-        const data = await res.json();
+        const data = await window._authApiCall(action, { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team, empStatus });
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
-
-        // ★ Firestore employees 사본 동기화는 서버(addEmployee/updateEmployeeInfo →
-        //   _syncEmployeeRowToFirestore)가 시트 저장과 같은 요청 안에서 이미 끝내고 나서
-        //   status:'ok'를 돌려준다 — 예전엔 여기서 클라이언트가 완전히 같은 내용을 Firestore에
-        //   또 한번 써서(중복 네트워크 왕복) "저장" 버튼 반응이 느리게 느껴졌다. 서버가 이미
-        //   동기화를 끝낸 뒤이므로 제거.
 
         // 캐시 초기화
         if (window._allStaffMapCache) window._allStaffMapCache = null;
@@ -10335,8 +10321,7 @@ function csDateInputValue(val) {
       if (!confirm(`[${_selectedEmpId}] 직원의 비밀번호를 0000으로 초기화하시겠습니까?`)) return;
       const msg = document.getElementById('empModalMsg');
       try {
-        const res = await fetchWithRetry(`${RESERVE_URL}?${new URLSearchParams({ action: 'resetPassword', id: _selectedEmpId })}`);
-        const data = await res.json();
+        const data = await window._authApiCall('resetPassword', { id: _selectedEmpId });
         if (data.status === 'ok') { msg.style.color='#1a7a45'; msg.textContent='비밀번호가 0000으로 초기화되었습니다.'; }
         else { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류'); }
       } catch(e) { msg.style.color='#e74c3c'; msg.textContent='오류: ' + e.message; }
@@ -10350,9 +10335,7 @@ function csDateInputValue(val) {
       const msg = document.getElementById('empModalMsg');
       try {
         const today = new Date().toISOString().slice(0,10);
-        const params = new URLSearchParams({ action: 'updateEmployeeLeave', id: _selectedEmpId, leaveDate: today });
-        const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-        const data = await res.json();
+        const data = await window._authApiCall('updateEmployeeLeave', { id: _selectedEmpId, leaveDate: today });
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류'); return; }
         if (window._allStaffMapCache) window._allStaffMapCache = null;
         msg.style.color = '#1a7a45';
@@ -10427,9 +10410,7 @@ function csDateInputValue(val) {
       //   드롭다운의 markEmpDirty와 서로의 필드를 덮어쓰지 않도록 완전히 분리).
       const finalTabs = allowedTabs.length === ALL_TABS.length ? 'ALL' : allowedTabs.join(',');
       try {
-        const params = new URLSearchParams({ action: 'updateEmployee', id: _tabPermEmpId, allowedTabs: finalTabs });
-        const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-        const data = await res.json();
+        const data = await window._authApiCall('updateEmployee', { id: _tabPermEmpId, allowedTabs: finalTabs });
         if (data.status === 'ok') {
           if (data.firestoreSynced === false) {
             showAdminToast('저장은 됐지만 화면 동기화 실패 — 새로고침 후 다시 확인해주세요', true);
@@ -12013,9 +11994,7 @@ window.saveMyHomeTab = async function() {
   if (!id) { if (msg) msg.textContent = '로그인 정보가 없습니다.'; return; }
   if (msg) msg.textContent = '저장 중...';
   try {
-    const params = new URLSearchParams({ action: 'saveMyHomeTab', id, homeTab });
-    const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-    const data = await res.json();
+    const data = await window._authApiCall('saveMyHomeTab', { id, homeTab });
     if (data.status === 'ok') {
       window._currentUser.homeTab = homeTab;
       if (msg) { msg.textContent = '저장되었습니다!'; setTimeout(() => { msg.textContent = ''; }, 2500); }
@@ -15365,18 +15344,12 @@ async function _ivRenderUnsettledView(body, flags) {
     listEl.style.display = 'none';
     emptyEl.style.display = 'none';
     try {
-        const rows = await fetchSheetJson(SHEET_CONFIG.CONTACTS);
-        allContacts = rows
-            .filter(row => row && row.c)
-            .map(row => ({
-                company:  getCellVal(row.c[0]),
-                name:     getCellVal(row.c[1]),
-                position: getCellVal(row.c[2]),
-                mobile:   getCellVal(row.c[3]),
-                phone:    getCellVal(row.c[4]),
-                date:     getCellVal(row.c[5]),
-            }))
-            .filter(r => r.company || r.name || r.mobile || r.phone);
+        await window.fbEnsureAuth();
+        const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, 'contacts'));
+        allContacts = snap.docs
+            .map(d => d.data())
+            .filter(r => r.company || r.name || r.mobile || r.phone)
+            .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
         renderContacts(allContacts);
     } catch(e) {
         console.error('loadContacts 오류:', e);
@@ -16780,9 +16753,7 @@ if ('serviceWorker' in navigator) {
     const adjustVal = adjustInput ? adjustInput.value : '0';
     const msg = document.getElementById('usedLeaveMsg_' + id);
     try {
-      const params = new URLSearchParams({ action:'updateEmployeeInfo', id, usedLeave: val, annualLeave: adjustVal });
-      const res = await fetchWithRetry(`${RESERVE_URL}?${params}`);
-      const data = await res.json();
+      const data = await window._authApiCall('updateEmployeeInfo', { id, usedLeave: val, annualLeave: adjustVal });
       if (data.status === 'ok') {
         if (msg) { msg.style.color = '#1a7a45'; msg.textContent = '저장됨'; }
         const emp = _orgEmps.find(e => String(e.id) === String(id));
@@ -19834,8 +19805,7 @@ window.submitFindId = async function() {
   if (!name || !phone) { resultEl.style.color = '#c0392b'; resultEl.textContent = '이름과 연락처를 입력해주세요.'; return; }
   btn.disabled = true; btn.textContent = '확인 중...';
   try {
-    const res = await fetch(`${RESERVE_URL}?action=findIdByNamePhone&name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}`);
-    const data = await res.json();
+    const data = await window._authApiCall('findIdByNamePhone', { name, phone });
     if (data.status === 'ok') {
       resultEl.style.color = '#1a7a45';
       resultEl.textContent = `아이디: ${data.id}`;
@@ -19868,8 +19838,7 @@ window.submitFindPw = async function() {
   if (!id || !phone) { resultEl.style.color = '#c0392b'; resultEl.textContent = '아이디와 연락처를 입력해주세요.'; return; }
   btn.disabled = true; btn.textContent = '발송 중...';
   try {
-    const res = await fetch(`${RESERVE_URL}?action=resetPasswordBySms&id=${encodeURIComponent(id)}&phone=${encodeURIComponent(phone)}`);
-    const data = await res.json();
+    const data = await window._authApiCall('resetPasswordBySms', { id, phone });
     if (data.status === 'ok') {
       resultEl.style.color = '#1a7a45';
       resultEl.textContent = '새 비밀번호를 문자로 발송했습니다.';
