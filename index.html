@@ -19304,6 +19304,20 @@ if ('serviceWorker' in navigator) {
   const AppPlugin = window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if (!AppPlugin || typeof AppPlugin.addListener !== 'function') return;
   AppPlugin.addListener('backButton', ({ canGoBack }) => {
+    // ★ 시공사례(갤러리) 전체화면 보기는 브라우저 Fullscreen API를 직접 쓰고 history와는
+    //   무관하다 — 전체화면 중에 history.back()을 그대로 넘기면 전체화면 오버레이는 그대로
+    //   떠있는 채 그 아래 탭만 바뀌어버려서 화면이 먹통처럼 보인다(2026-09-22 사용자 리포트).
+    //   전체화면이면 그것부터 정상적으로 빠져나오고 history는 건드리지 않는다.
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) {
+      if (typeof window._galToggleFullscreen === 'function') {
+        window._galToggleFullscreen();
+      } else {
+        const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exitFn) { const p = exitFn.call(document); if (p && p.catch) p.catch(() => {}); }
+      }
+      return;
+    }
     if (canGoBack) {
       window.history.back();
     } else {
