@@ -77,6 +77,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── 제품(단가표) — 단가표/계산기/견적서 탭 데이터. 게스트도 기본 노출 탭이라 읽기는
+    //   인증된 세션(익명 포함) 전체 허용, 등록/수정/삭제는 관리자만(관리자페이지 "제품관리") ──
+    match /products/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
     // ── 예약/상담 (고객 개인정보 포함) ──
     match /slots/{date} {
       allow read: if request.auth != null;   // 공개예약페이지 + 직원

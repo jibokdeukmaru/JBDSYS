@@ -8868,6 +8868,87 @@ function csDateInputValue(val) {
   </div>
   </div>
 
+  <!-- 제품관리 (단가표/계산기/견적서가 쓰는 Firestore products 컬렉션) -->
+  <div class="admin-card" style="margin-top:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+      <span class="admin-section-title" style="margin:0;">제품관리 (단가표)</span>
+      <button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th style="width:70px;">순서</th>
+            <th>품번</th>
+            <th>품명</th>
+            <th>스펙</th>
+            <th>소비자가(평)</th>
+            <th>업체가(평)</th>
+            <th style="width:60px;">네츄럴</th>
+            <th style="width:110px;">관리</th>
+          </tr>
+        </thead>
+        <tbody id="productAdminTableBody">
+          <tr><td colspan="8" class="admin-empty">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 제품 등록/수정 모달 -->
+  <div id="productModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:20000;align-items:flex-start;justify-content:center;overflow-y:auto;padding:30px 0 40px;">
+    <div style="background:#fff;border-radius:14px;padding:24px;width:92%;max-width:520px;">
+      <h3 id="productModalTitle" style="font-size:15px;font-weight:800;margin:0 0 16px;">신규 제품 등록</h3>
+      <input type="hidden" id="productModalOrigId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">품번 *</label>
+          <input type="text" id="productModalCode" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">품명</label>
+          <input type="text" id="productModalName" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">스펙</label>
+        <input type="text" id="productModalSpec" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">박스당 면적(㎡)</label>
+          <input type="number" step="any" id="productModalBoxM2" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">박스당 장수</label>
+          <input type="number" step="any" id="productModalSheetsPerBox" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="font-size:12px;font-weight:800;color:var(--brand);margin:14px 0 6px;">소비자가</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">평</label><input type="number" step="any" id="productModalConsumerPy" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">자재</label><input type="number" step="any" id="productModalConsumerMaterial" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">m²</label><input type="number" step="any" id="productModalConsumerSqm" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">BOX</label><input type="number" step="any" id="productModalConsumerBox" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+      </div>
+      <div style="font-size:12px;font-weight:800;color:var(--brand);margin:14px 0 6px;">업체가</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">평</label><input type="number" step="any" id="productModalVendorPy" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">자재</label><input type="number" step="any" id="productModalVendorMaterial" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">m²</label><input type="number" step="any" id="productModalVendorSqm" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">BOX</label><input type="number" step="any" id="productModalVendorBox" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#555;margin:14px 0 18px;cursor:pointer;">
+        <input type="checkbox" id="productModalNatural"> 네츄럴 (단가표에서 강조 표시)
+      </label>
+      <div id="productModalMsg" style="font-size:12px;margin-bottom:10px;min-height:16px;"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button class="admin-btn" onclick="closeProductModal()">취소</button>
+        <button class="admin-btn primary" onclick="saveProductModal()">저장</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 데이터베이스 연동 관리 -->
   <div class="admin-card" style="margin-top:20px;">
     <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;" onclick="toggleAdminGroup('dbGroup','flex')">
@@ -8889,6 +8970,19 @@ function csDateInputValue(val) {
           <button class="admin-btn primary" onclick="syncAllToFirestore()">Firestore 동기화</button>
           <span id="holidaySyncMsg" style="font-size:12.5px;color:#666;"></span>
         </div>
+      </div>
+
+      <!-- 제품(단가표) 구글시트 → Firestore 이전 -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
+        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          제품(단가표) Firestore 이전 <span style="font-size:10.5px;background:#fdf1d0;color:#a87900;border-radius:4px;padding:2px 7px;font-weight:700;margin-left:4px;">1회성</span>
+        </div>
+        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+          단가표/계산기/견적서 탭은 이제 구글시트(PRICE/TOOLTIP)가 아니라 아래 "제품관리" 카드의 Firestore 데이터를 읽습니다. 시트에만 있는 최신 내용을 Firestore로 옮기고 싶을 때 누르세요. 같은 품번은 시트 값으로 덮어쓰며, 여러 번 눌러도 안전합니다.
+        </div>
+        <button class="admin-btn primary" onclick="migrateProductsToFirestore()">시트 → Firestore 이전 실행</button>
+        <div id="productMigrateProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
       </div>
 
       <!-- 솔라피 SMS -->
@@ -11594,7 +11688,7 @@ function renderLeftTable() {
     const hay=`${p.code} ${p.name} ${p.spec}`.toLowerCase();
     if(q && !hay.includes(q)) return;
     const tr=document.createElement('tr');
-    const isNatural = tooltipMap && tooltipMap[p.code.toUpperCase()]?.natural;
+    const isNatural = !!p.natural;
     if (isNatural) tr.style.cssText = 'background:#fffbeb; border-left:3px solid #f59e0b;';
     tr.innerHTML=`<td>${p.code}</td><td class="name">${p.name}</td><td class="spec-left">${p.spec}</td><td class="price">${fmt(p.consumer.py)}</td><td class="price">${fmt(p.vendor.py)}</td><td class="price">${fmt(p.consumer.material)}</td><td class="price">${fmt(p.vendor.material)}</td>`;
     tr.addEventListener('dblclick',()=>addCode(p.code));
@@ -11680,13 +11774,10 @@ function setTab(tabId, fromPopstate) {
       typeof loadAllStaffMap === 'function' ? loadAllStaffMap() : Promise.resolve()
     ]);
   }
-  // 단가표/계산기/견적서 탭: products 없으면 그때 로드
+  // 단가표/계산기/견적서 탭: products 없으면 그때 로드 (Firestore products 컬렉션)
   if (['pricingTab', 'calculatorTab', 'invoiceTab'].includes(tabId)) {
     if (typeof products !== 'undefined' && products.length === 0) {
-      Promise.all([
-        typeof loadProducts === 'function' ? loadProducts() : Promise.resolve(),
-        typeof loadTooltipMap === 'function' ? loadTooltipMap() : Promise.resolve()
-      ]).then(() => {
+      (typeof loadProducts === 'function' ? loadProducts() : Promise.resolve()).then(() => {
         // 로드 완료 후 드롭다운 및 테이블 갱신
         if (typeof fillSelect === 'function') fillSelect();
         if (typeof renderAll === 'function') renderAll();
@@ -11727,6 +11818,7 @@ function setTab(tabId, fromPopstate) {
     ]);
     if (typeof loadAdminApiSettings === 'function') loadAdminApiSettings();
     if (typeof window.refreshGuestTabSummary === 'function') window.refreshGuestTabSummary();
+    if (typeof loadAdminProducts === 'function') loadAdminProducts();
   }
   if (tabId === 'leaveManagerTab') {
     // ★ 나비게이션 버튼 노출은 로그인 시점 캐시값 기준이라(최대 8시간 유지) 그 사이
@@ -12510,7 +12602,7 @@ async function startApp() {
     // 백그라운드에서 미리 로드 시도 (실패해도 UI에 영향 없음)
     setTimeout(async () => {
       try {
-        await Promise.all([loadProducts(), loadTooltipMap()]);
+        await loadProducts();
         // 로드 완료 후 드롭다운 및 테이블 갱신
         if (typeof fillSelect === 'function') fillSelect();
         if (typeof renderAll === 'function') renderAll();
@@ -12669,14 +12761,59 @@ function toNum(cell) {
 }
 
 // ============================================================
-//  PRICE 시트 → products 배열 로드
+//  제품(단가표) 데이터 — Firestore `products` 컬렉션 (구글시트 PRICE/TOOLTIP 대체, 2026-09-22)
+//  문서ID: 품번을 정제한 값. 필드: name, spec, box_m2, sheets_per_box,
+//          consumer{py,material,sqm,box}, vendor{py,material,sqm,box}, natural(bool), order(정렬순서)
+//  등록/수정/삭제는 관리자페이지 "제품관리" 카드에서(_productDocId 등 admin 함수 참고).
+// ============================================================
+function _productDocId(code) {
+    return String(code || '').replace(/[\/\r\n\t]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 150);
+}
+function _productColRef() {
+    return window.FB.collection(window.FB.db, 'products');
+}
+function _productFromDoc(id, v) {
+    return {
+        id,
+        code:           v.code || id,
+        name:           v.name || '',
+        spec:           v.spec || '',
+        box_m2:         v.box_m2 || 0,
+        sheets_per_box: v.sheets_per_box || 0,
+        consumer: {
+            py:       (v.consumer && v.consumer.py) || 0,
+            material: (v.consumer && v.consumer.material) || 0,
+            sqm:      (v.consumer && v.consumer.sqm) || 0,
+            box:      (v.consumer && v.consumer.box) || 0
+        },
+        vendor: {
+            py:       (v.vendor && v.vendor.py) || 0,
+            material: (v.vendor && v.vendor.material) || 0,
+            sqm:      (v.vendor && v.vendor.sqm) || 0,
+            box:      (v.vendor && v.vendor.box) || 0
+        },
+        natural: !!v.natural,
+        order:   Number.isFinite(v.order) ? v.order : 0
+    };
+}
+async function loadProducts() {
+    await window.fbEnsureAuth();
+    const q = window.FB.query(_productColRef(), window.FB.orderBy('order', 'asc'));
+    const snap = await window.FB.getDocs(q);
+    products = snap.docs.map(d => _productFromDoc(d.id, d.data()));
+}
+
+// ============================================================
+//  (1회성 이전 도구 전용) 구글시트 PRICE/TOOLTIP을 예전 방식 그대로 읽어오는 레거시 로더.
+//  관리자페이지 "제품 Firestore 이전" 버튼에서만 쓰인다 — 평소 화면 로드 경로(loadProducts)는
+//  더 이상 시트를 보지 않는다.
 //  컬럼 순서: 품번(0) 품명(1) 스펙(2) 박스면적(3) 박스당장수(4)
 //            소비자가PY(5) 자재소비자가PY(6) 소비자가m²(7) 소비자가BOX(8)
 //            업체가PY(9) 자재업체가PY(10) 업체가m²(11) 업체가BOX(12)
 // ============================================================
-async function loadProducts() {
-    const rows = await fetchSheetJson(SHEET_CONFIG.PRICE);
-    products = rows
+async function _legacyLoadProductsFromSheet() {
+    const rows = await fetchSheetJson(SHEET_CONFIG.PRICE, 20000, true);
+    return rows
         .filter(row => row && row.c && getCellVal(row.c[0]) && getCellVal(row.c[0]) !== '품번')
         .map(row => ({
             code:           getCellVal(row.c[0]),
@@ -12698,36 +12835,201 @@ async function loadProducts() {
             }
         }));
 }
-
-// ============================================================
-//  TOOLTIP 시트 캐시
-//  컬럼: 품번(0) 품명(1) 스펙(2)  — 스펙값이 '단종'이면 단종 표시
-// ============================================================
-let tooltipMap = null;
-
-function _buildTooltipMap(rows) {
+// D열(4번째, 인덱스 3): 네츄럴 여부(Y/N) — 품번 대문자 기준 맵
+async function _legacyLoadNaturalMapFromSheet() {
+    const rows = await fetchSheetJson(SHEET_CONFIG.TOOLTIP, 20000, true);
     const map = {};
     (rows || []).forEach(row => {
         if (!row || !row.c) return;
         const code = getCellVal(row.c[0]);
         if (!code || code === '품번') return;
-        map[code.toUpperCase()] = {
-            name:    getCellVal(row.c[1]),
-            spec:    getCellVal(row.c[2]),
-            natural: getCellVal(row.c[3]).toUpperCase() === 'Y'   // D열: 네츄럴 여부
-        };
+        map[code.toUpperCase()] = getCellVal(row.c[3]).toUpperCase() === 'Y';
     });
     return map;
 }
 
-async function loadTooltipMap() {
-    if (tooltipMap) return;
+// ============================================================
+//  관리자페이지 "제품관리" 카드 — Firestore products 컬렉션 CRUD
+// ============================================================
+let _adminProducts = [];
+
+async function loadAdminProducts() {
+    const wrap = $('productAdminTableBody');
+    if (!wrap) return;
     try {
-        const rows = await fetchSheetJson(SHEET_CONFIG.TOOLTIP);
-        tooltipMap = _buildTooltipMap(rows);
+        await window.fbEnsureAuth();
+        const q = window.FB.query(_productColRef(), window.FB.orderBy('order', 'asc'));
+        const snap = await window.FB.getDocs(q);
+        _adminProducts = snap.docs.map(d => _productFromDoc(d.id, d.data()));
+        renderAdminProductsTable();
     } catch (e) {
-        console.warn('툴팁 데이터 로드 실패:', e.message);
-        tooltipMap = {};
+        wrap.innerHTML = `<tr><td colspan="8" class="admin-empty">목록을 불러오지 못했습니다: ${e.message}</td></tr>`;
+    }
+}
+
+function renderAdminProductsTable() {
+    const wrap = $('productAdminTableBody');
+    if (!wrap) return;
+    if (!_adminProducts.length) {
+        wrap.innerHTML = '<tr><td colspan="8" class="admin-empty">등록된 제품이 없습니다.</td></tr>';
+        return;
+    }
+    wrap.innerHTML = _adminProducts.map((p, idx) => `
+        <tr>
+            <td style="white-space:nowrap;">
+                <button class="admin-btn" style="padding:2px 8px;" ${idx === 0 ? 'disabled' : ''} onclick="moveProductOrder('${p.id}',-1)">▲</button>
+                <button class="admin-btn" style="padding:2px 8px;" ${idx === _adminProducts.length - 1 ? 'disabled' : ''} onclick="moveProductOrder('${p.id}',1)">▼</button>
+            </td>
+            <td>${escapeHtmlProduct(p.code)}</td>
+            <td>${escapeHtmlProduct(p.name)}</td>
+            <td>${escapeHtmlProduct(p.spec)}</td>
+            <td>${fmt(p.consumer.py)}</td>
+            <td>${fmt(p.vendor.py)}</td>
+            <td>${p.natural ? '✔' : ''}</td>
+            <td style="white-space:nowrap;">
+                <button class="admin-btn" onclick="openProductModal('${p.id}')">수정</button>
+                <button class="admin-btn" onclick="deleteProductAdmin('${p.id}')">삭제</button>
+            </td>
+        </tr>
+    `).join('');
+}
+function escapeHtmlProduct(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function openProductModal(id) {
+    const p = id ? _adminProducts.find(x => x.id === id) : null;
+    $('productModalTitle').textContent = p ? '제품 수정' : '신규 제품 등록';
+    $('productModalOrigId').value = p ? p.id : '';
+    $('productModalCode').value = p ? p.code : '';
+    $('productModalCode').disabled = !!p; // 품번은 문서ID 기준이라 수정 시 변경 불가(삭제 후 재등록해야 함)
+    $('productModalName').value = p ? p.name : '';
+    $('productModalSpec').value = p ? p.spec : '';
+    $('productModalBoxM2').value = p ? p.box_m2 : '';
+    $('productModalSheetsPerBox').value = p ? p.sheets_per_box : '';
+    $('productModalConsumerPy').value = p ? p.consumer.py : '';
+    $('productModalConsumerMaterial').value = p ? p.consumer.material : '';
+    $('productModalConsumerSqm').value = p ? p.consumer.sqm : '';
+    $('productModalConsumerBox').value = p ? p.consumer.box : '';
+    $('productModalVendorPy').value = p ? p.vendor.py : '';
+    $('productModalVendorMaterial').value = p ? p.vendor.material : '';
+    $('productModalVendorSqm').value = p ? p.vendor.sqm : '';
+    $('productModalVendorBox').value = p ? p.vendor.box : '';
+    $('productModalNatural').checked = p ? !!p.natural : false;
+    $('productModalMsg').textContent = '';
+    $('productModal').style.display = 'flex';
+}
+function closeProductModal() { $('productModal').style.display = 'none'; }
+
+async function saveProductModal() {
+    const origId = $('productModalOrigId').value;
+    const code = $('productModalCode').value.trim();
+    const msg = $('productModalMsg');
+    if (!code) { msg.textContent = '품번을 입력하세요.'; msg.style.color = '#c0392b'; return; }
+    const id = origId || _productDocId(code);
+    const num = (elId) => { const v = parseFloat($(elId).value); return Number.isFinite(v) ? v : 0; };
+    const existing = _adminProducts.find(x => x.id === id);
+    const data = {
+        code,
+        name: $('productModalName').value.trim(),
+        spec: $('productModalSpec').value.trim(),
+        box_m2: num('productModalBoxM2'),
+        sheets_per_box: num('productModalSheetsPerBox'),
+        consumer: {
+            py: num('productModalConsumerPy'), material: num('productModalConsumerMaterial'),
+            sqm: num('productModalConsumerSqm'), box: num('productModalConsumerBox')
+        },
+        vendor: {
+            py: num('productModalVendorPy'), material: num('productModalVendorMaterial'),
+            sqm: num('productModalVendorSqm'), box: num('productModalVendorBox')
+        },
+        natural: $('productModalNatural').checked,
+        order: existing ? existing.order : (_adminProducts.length ? Math.max(..._adminProducts.map(x => x.order)) + 1 : 0),
+        updatedAtMs: Date.now()
+    };
+    try {
+        msg.textContent = '저장 중...'; msg.style.color = '#888';
+        await window.fbEnsureAuth();
+        await window.FB.setDoc(window.FB.doc(window.FB.db, 'products', id), data, { merge: true });
+        closeProductModal();
+        await loadAdminProducts();
+        products = []; // 단가표/계산기/견적서 탭이 다음에 열릴 때 최신값을 다시 읽도록 캐시 무효화
+        showToast(existing ? '제품이 수정되었습니다.' : '제품이 등록되었습니다.');
+    } catch (e) {
+        msg.textContent = '저장 실패: ' + e.message; msg.style.color = '#c0392b';
+    }
+}
+
+async function deleteProductAdmin(id) {
+    const p = _adminProducts.find(x => x.id === id);
+    if (!confirm(`"${p ? p.code : id}" 제품을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    try {
+        await window.fbEnsureAuth();
+        await window.FB.deleteDoc(window.FB.doc(window.FB.db, 'products', id));
+        await loadAdminProducts();
+        products = [];
+        showToast('삭제되었습니다.');
+    } catch (e) {
+        alert('삭제 실패: ' + e.message);
+    }
+}
+
+async function moveProductOrder(id, dir) {
+    const idx = _adminProducts.findIndex(x => x.id === id);
+    const targetIdx = idx + dir;
+    if (idx < 0 || targetIdx < 0 || targetIdx >= _adminProducts.length) return;
+    const a = _adminProducts[idx], b = _adminProducts[targetIdx];
+    const aOrder = a.order, bOrder = b.order;
+    try {
+        await window.fbEnsureAuth();
+        const batch = window.FB.writeBatch(window.FB.db);
+        batch.update(window.FB.doc(window.FB.db, 'products', a.id), { order: bOrder });
+        batch.update(window.FB.doc(window.FB.db, 'products', b.id), { order: aOrder });
+        await batch.commit();
+        await loadAdminProducts();
+        products = [];
+    } catch (e) {
+        alert('순서 변경 실패: ' + e.message);
+    }
+}
+
+// ── 1회성: 구글시트(PRICE+TOOLTIP) → Firestore products 이전 ──
+// 여러 번 눌러도 같은 품번은 upsert(merge)라 중복 생성되지 않는다.
+async function migrateProductsToFirestore() {
+    const prog = $('productMigrateProgress');
+    if (!confirm('현재 구글시트(PRICE/TOOLTIP)의 제품 데이터를 Firestore로 가져옵니다.\n이미 Firestore에 있는 같은 품번은 시트 값으로 덮어씁니다. 계속할까요?')) return;
+    try {
+        if (prog) { prog.style.color = '#888'; prog.textContent = '시트 데이터 조회 중...'; }
+        const [sheetProducts, naturalMap] = await Promise.all([
+            _legacyLoadProductsFromSheet(),
+            _legacyLoadNaturalMapFromSheet().catch(() => ({}))
+        ]);
+        if (!sheetProducts.length) { if (prog) { prog.style.color = '#c0392b'; prog.textContent = '시트에서 제품을 찾지 못했습니다.'; } return; }
+        await window.fbEnsureAuth();
+        if (prog) prog.textContent = `${sheetProducts.length}건 저장 중...`;
+        let saved = 0;
+        for (let i = 0; i < sheetProducts.length; i += 400) {
+            const chunk = sheetProducts.slice(i, i + 400);
+            const batch = window.FB.writeBatch(window.FB.db);
+            chunk.forEach((p, chunkIdx) => {
+                const id = _productDocId(p.code);
+                batch.set(window.FB.doc(window.FB.db, 'products', id), {
+                    code: p.code, name: p.name, spec: p.spec,
+                    box_m2: p.box_m2, sheets_per_box: p.sheets_per_box,
+                    consumer: p.consumer, vendor: p.vendor,
+                    natural: !!naturalMap[p.code.toUpperCase()],
+                    order: i + chunkIdx,
+                    updatedAtMs: Date.now()
+                }, { merge: true });
+            });
+            await batch.commit();
+            saved += chunk.length;
+        }
+        if (prog) { prog.style.color = '#1a7a45'; prog.textContent = `✔ 완료: ${saved}건 이전됨`; }
+        products = [];
+        await loadAdminProducts();
+    } catch (e) {
+        if (prog) { prog.style.color = '#c0392b'; prog.textContent = '오류: ' + e.message; }
     }
 }
 
