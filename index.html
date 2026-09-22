@@ -11540,9 +11540,7 @@ function renderLeftTable() {
     const tr=document.createElement('tr');
     const isNatural = !!p.natural;
     if (isNatural) tr.style.cssText = 'background:#fffbeb; border-left:3px solid #f59e0b;';
-    const boxLabel = boxSizeLabel(p);
-    const boxMetaHtml = boxLabel ? `<div class="muted" style="white-space:normal;margin-top:2px;">1BOX = ${boxLabel}</div>` : '';
-    tr.innerHTML=`<td>${p.code}</td><td class="name">${p.name}</td><td class="spec-left">${p.spec}${boxMetaHtml}</td><td class="price">${fmt(p.consumer.py)}</td><td class="price">${fmt(p.vendor.py)}</td><td class="price">${fmt(p.consumer.material)}</td><td class="price">${fmt(p.vendor.material)}</td>`;
+    tr.innerHTML=`<td>${p.code}</td><td class="name">${p.name}</td><td class="spec-left">${p.spec}</td><td class="price">${fmt(p.consumer.py)}</td><td class="price">${fmt(p.vendor.py)}</td><td class="price">${fmt(p.consumer.material)}</td><td class="price">${fmt(p.vendor.material)}</td>`;
     tr.addEventListener('dblclick',()=>addCode(p.code));
     frag.appendChild(tr);
   });
