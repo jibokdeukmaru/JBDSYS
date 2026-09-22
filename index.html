@@ -8870,28 +8870,33 @@ function csDateInputValue(val) {
 
   <!-- 제품관리 (단가표/계산기/견적서가 쓰는 Firestore products 컬렉션) -->
   <div class="admin-card" style="margin-top:20px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-      <span class="admin-section-title" style="margin:0;">제품관리 (단가표)</span>
+    <div class="admin-toolbar" style="justify-content:space-between;">
+      <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        <span class="admin-section-title" style="margin:0;">제품관리 (단가표)</span>
+      </div>
       <button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button>
     </div>
-    <div style="overflow-x:auto;">
-      <table class="admin-table">
-        <thead>
-          <tr>
-            <th style="width:70px;">순서</th>
-            <th>품번</th>
-            <th>품명</th>
-            <th>스펙</th>
-            <th>소비자가(평)</th>
-            <th>업체가(평)</th>
-            <th style="width:60px;">네츄럴</th>
-            <th style="width:110px;">관리</th>
-          </tr>
-        </thead>
-        <tbody id="productAdminTableBody">
-          <tr><td colspan="8" class="admin-empty">불러오는 중...</td></tr>
-        </tbody>
-      </table>
+    <div id="adminProductListWrap" style="display:none;margin-top:14px;">
+      <div style="overflow-x:auto;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th style="width:70px;">순서</th>
+              <th>품번</th>
+              <th>품명</th>
+              <th>스펙</th>
+              <th>소비자가(평)</th>
+              <th>업체가(평)</th>
+              <th style="width:60px;">네츄럴</th>
+              <th style="width:110px;">관리</th>
+            </tr>
+          </thead>
+          <tbody id="productAdminTableBody">
+            <tr><td colspan="8" class="admin-empty">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -8909,6 +8914,10 @@ function csDateInputValue(val) {
           <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">품명</label>
           <input type="text" id="productModalName" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
         </div>
+      </div>
+      <div id="productModalPositionRow" style="margin-bottom:10px;">
+        <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">표시 순서</label>
+        <select id="productModalPosition" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;"></select>
       </div>
       <div style="margin-bottom:10px;">
         <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">스펙</label>
@@ -9933,6 +9942,15 @@ function csDateInputValue(val) {
     window.toggleEmpListVisible = function() {
       const wrap = document.getElementById('adminEmpListWrap');
       const icon = document.getElementById('empListToggleIcon');
+      if (!wrap) return;
+      const show = wrap.style.display === 'none';
+      wrap.style.display = show ? 'block' : 'none';
+      if (icon) icon.style.transform = show ? 'rotate(90deg)' : 'rotate(0deg)';
+    };
+
+    window.toggleProductListVisible = function() {
+      const wrap = document.getElementById('adminProductListWrap');
+      const icon = document.getElementById('productListToggleIcon');
       if (!wrap) return;
       const show = wrap.style.display === 'none';
       wrap.style.display = show ? 'block' : 'none';
@@ -12903,6 +12921,18 @@ function openProductModal(id) {
     $('productModalOrigId').value = p ? p.id : '';
     $('productModalCode').value = p ? p.code : '';
     $('productModalCode').disabled = !!p; // 품번은 문서ID 기준이라 수정 시 변경 불가(삭제 후 재등록해야 함)
+    // 표시 순서 선택은 신규 등록 때만 노출 — 기존 제품 순서는 목록의 ▲▼ 버튼으로 바꾼다.
+    const posRow = $('productModalPositionRow');
+    if (posRow) posRow.style.display = p ? 'none' : 'block';
+    if (!p) {
+        const posSel = $('productModalPosition');
+        const opts = ['<option value="end">맨 뒤 (기본)</option>', '<option value="start">맨 앞</option>'];
+        _adminProducts.forEach(prod => {
+            opts.push(`<option value="${prod.id}">${escapeHtmlProduct(prod.code)} (${escapeHtmlProduct(prod.name)}) 뒤</option>`);
+        });
+        posSel.innerHTML = opts.join('');
+        posSel.value = 'end';
+    }
     $('productModalName').value = p ? p.name : '';
     $('productModalSpec').value = p ? p.spec : '';
     $('productModalBoxM2').value = p ? p.box_m2 : '';
@@ -12944,13 +12974,43 @@ async function saveProductModal() {
             sqm: num('productModalVendorSqm'), box: num('productModalVendorBox')
         },
         natural: $('productModalNatural').checked,
-        order: existing ? existing.order : (_adminProducts.length ? Math.max(..._adminProducts.map(x => x.order)) + 1 : 0),
         updatedAtMs: Date.now()
     };
+    // 신규 등록: "어느 제품 뒤" 선택에 맞춰 전체 순서를 다시 매긴다. 수정(기존 제품)은 순서를
+    // 건드리지 않고(▲▼ 버튼 전용), 기존 order 값을 그대로 유지한다.
+    let reorderedIds = null;
+    if (!existing) {
+        const posVal = $('productModalPosition') ? $('productModalPosition').value : 'end';
+        const ids = _adminProducts.map(x => x.id);
+        let insertAt = ids.length;
+        if (posVal === 'start') insertAt = 0;
+        else if (posVal !== 'end') {
+            const afterIdx = ids.indexOf(posVal);
+            insertAt = afterIdx === -1 ? ids.length : afterIdx + 1;
+        }
+        ids.splice(insertAt, 0, id);
+        reorderedIds = ids;
+        data.order = insertAt;
+    } else {
+        data.order = existing.order;
+    }
     try {
         msg.textContent = '저장 중...'; msg.style.color = '#888';
         await window.fbEnsureAuth();
-        await window.FB.setDoc(window.FB.doc(window.FB.db, 'products', id), data, { merge: true });
+        if (reorderedIds) {
+            const batch = window.FB.writeBatch(window.FB.db);
+            batch.set(window.FB.doc(window.FB.db, 'products', id), data, { merge: true });
+            reorderedIds.forEach((pid, newOrder) => {
+                if (pid === id) return; // 새 문서는 위에서 이미 올바른 order로 set됨
+                const prod = _adminProducts.find(x => x.id === pid);
+                if (prod && prod.order !== newOrder) {
+                    batch.update(window.FB.doc(window.FB.db, 'products', pid), { order: newOrder });
+                }
+            });
+            await batch.commit();
+        } else {
+            await window.FB.setDoc(window.FB.doc(window.FB.db, 'products', id), data, { merge: true });
+        }
         closeProductModal();
         await loadAdminProducts();
         products = []; // 단가표/계산기/견적서 탭이 다음에 열릴 때 최신값을 다시 읽도록 캐시 무효화
@@ -18255,25 +18315,58 @@ if ('serviceWorker' in navigator) {
     </div>`;
   }
 
-  // 첨부파일 다운로드 — 서버에서 base64 데이터를 받아 브라우저 다운로드로 저장
+  // 첨부파일 다운로드 — 서버에서 base64 데이터를 받아 저장.
+  // ★ <a download>+blob URL은 데스크톱 브라우저에서만 실제 "다운로드"로 동작한다.
+  //   iOS Safari는 download 속성을 무시하고 그냥 열기만 해서 아무 일도 안 일어난 것처럼
+  //   보이고(시공사례 이미지 다운로드 _galDownload()/견적서 saveInvoiceImage()와 동일 증상),
+  //   안드로이드 앱(Capacitor WebView)은 blob: URL이 진짜 네트워크 다운로드가 아니라서 OS의
+  //   다운로드 매니저가 아예 못 가로챈다 — 그래서 클릭해도 조용히 아무 반응이 없었다.
+  //   플랫폼별로 실제로 동작하는 저장 방식으로 분기한다.
   window.downloadGmailAttachment = async function(i) {
     const msg = _currentGmailDetailMsg;
     const att = msg && msg.attachments && msg.attachments[i];
     if (!att) return;
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
+    const filename = att.filename || 'attachment';
     try {
       const params = new URLSearchParams({ action: 'getGmailAttachment', email, id: msg.id, attachmentId: att.attachmentId });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
       if (data.status !== 'ok') { alert('첨부파일 다운로드 실패: ' + (data.message || '')); return; }
+
+      // 1) 안드로이드 앱(Capacitor) — 기기 저장소에 파일로 쓴 뒤 공유시트(저장/공유)로 연다.
+      if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) {
+        // ★ Directory 등 enum은 플러그인 인스턴스가 아니라 이 페이지에 번들러 없이 직접 로드돼서
+        //   window.Capacitor.Plugins에 없다 — 네이티브가 그대로 받는 문자열 값('CACHE')을 직접 쓴다.
+        const { Filesystem } = window.Capacitor.Plugins;
+        const written = await Filesystem.writeFile({ path: filename, data: data.data, directory: 'CACHE' });
+        const Share = window.Capacitor.Plugins.Share;
+        if (Share) {
+          await Share.share({ title: filename, url: written.uri, dialogTitle: '첨부파일 저장/공유' });
+        } else {
+          showToast('다운로드 완료: ' + filename);
+        }
+        return;
+      }
+
       const byteChars = atob(data.data);
       const byteNumbers = new Array(byteChars.length);
       for (let j = 0; j < byteChars.length; j++) byteNumbers[j] = byteChars.charCodeAt(j);
       const blob = new Blob([new Uint8Array(byteNumbers)], { type: att.mimeType || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
+
+      // 2) iOS Safari(모바일 웹) — download 속성이 무시되므로 새 탭에서 열어 길게 눌러 저장.
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        window.open(url, '_blank');
+        showToast('첨부파일을 길게 눌러 저장하세요');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        return;
+      }
+
+      // 3) 데스크톱 / 안드로이드 모바일 웹 — 기존 방식 그대로.
       const a = document.createElement('a');
-      a.href = url; a.download = att.filename || 'attachment';
+      a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch(e) { alert('오류: ' + e.message); }
