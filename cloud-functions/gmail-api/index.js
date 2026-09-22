@@ -179,13 +179,35 @@ async function getGmailMessage(p) {
   }
 }
 
+// ★ (2026-09-22) 사이드바에 폴더별(스팸/휴지통/보관함/커스텀 라벨) 안읽은 개수를 같이
+//   보여달라는 요청으로 확장 — 기존엔 INBOX 하나만 고정 조회했지만, 이제 쉼표로 여러
+//   라벨 id를 한 번에 받아 병렬로 조회한다(호출 수를 늘리지 않기 위해). 보관함은 실제
+//   Gmail 라벨이 없어서(받은편지함 라벨만 뗀 상태) 검색 쿼리로 대신 센다.
 async function getGmailUnread(p) {
   const email = (p.email || '').trim();
   if (!email) return { status: 'error', message: 'email 없음' };
+  const idsParam = (p.labelIds || 'INBOX').trim();
+  const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean);
   const gmail = gmailClientFor(email);
   try {
-    const res = await gmail.users.labels.get({ userId: 'me', id: 'INBOX' });
-    return { status: 'ok', unread: res.data.messagesUnread || 0, total: res.data.messagesTotal || 0 };
+    const entries = await Promise.all(ids.map(async (id) => {
+      try {
+        if (id === 'ARCHIVE') {
+          const res = await gmail.users.messages.list({
+            userId: 'me', maxResults: 1,
+            q: 'is:unread -in:inbox -in:sent -in:draft -in:spam -in:trash',
+          });
+          return [id, res.data.resultSizeEstimate || 0];
+        }
+        const res = await gmail.users.labels.get({ userId: 'me', id });
+        return [id, res.data.messagesUnread || 0];
+      } catch (e) {
+        return [id, 0];
+      }
+    }));
+    const counts = Object.fromEntries(entries);
+    // 하위호환: 기존 클라이언트는 INBOX 기준 단일 unread 필드만 봄
+    return { status: 'ok', unread: counts.INBOX || 0, counts };
   } catch (err) {
     return { status: 'error', message: err.message };
   }

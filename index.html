@@ -16802,14 +16802,17 @@ if ('serviceWorker' in navigator) {
       <div class="em-folder-item" onclick="setEmailFolder('spam', this)" data-folder="spam">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         <span>스팸메일함</span>
+        <span id="emSpamUnread" style="display:none;margin-left:auto;background:#e74c3c;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;min-width:18px;text-align:center;"></span>
       </div>
       <div class="em-folder-item" onclick="setEmailFolder('trash', this)" data-folder="trash">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         <span>휴지통</span>
+        <span id="emTrashUnread" style="display:none;margin-left:auto;background:#999;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;min-width:18px;text-align:center;"></span>
       </div>
       <div class="em-folder-item" onclick="setEmailFolder('archive', this)" data-folder="archive">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
         <span>보관함</span>
+        <span id="emArchiveUnread" style="display:none;margin-left:auto;background:#999;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;min-width:18px;text-align:center;"></span>
       </div>
       <!-- 개인별 폴더(Gmail 라벨) — 로그인한 사람 본인 것만 loadEmailTab에서 채워짐 -->
       <div id="emCustomFolderList"></div>
@@ -17233,9 +17236,13 @@ if ('serviceWorker' in navigator) {
         <div class="em-folder-item" onclick="setEmailFolder('${l.id}', this)" data-folder="${l.id}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83a2 2 0 0 0-1.41-.58H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .58 1.41l9.59 9.59a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1"/></svg>
           <span>${_emEsc(l.name)}</span>
-          <span style="margin-left:auto;color:#ccc;padding:2px 4px;" onclick="event.stopPropagation();deleteEmailLabel('${l.id}','${_emEsc(l.name)}')" title="폴더 삭제">✕</span>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+            <span class="em-label-unread" data-labelid="${l.id}" style="display:none;background:var(--brand);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;min-width:18px;text-align:center;"></span>
+            <span style="color:#ccc;padding:2px 4px;cursor:pointer;" onclick="event.stopPropagation();deleteEmailLabel('${l.id}','${_emEsc(l.name)}')" title="폴더 삭제">✕</span>
+          </span>
         </div>
       `).join('');
+      if (typeof window.refreshFolderUnreadBadges === 'function') window.refreshFolderUnreadBadges();
     } catch(e) { /* 조용히 무시 — 폴더 목록은 부가 기능 */ }
   }
 
@@ -17362,24 +17369,38 @@ if ('serviceWorker' in navigator) {
 
   // ── 메일 목록 렌더링 ──
   // ── Gmail API로 폴더 메일 조회 후 목록 렌더 ──
-  // 받은편지함 안읽은 개수 갱신 (labels.get, 빠름)
-  window.refreshInboxUnread = async function() {
-    const badge = document.getElementById('emInboxUnread');
-    if (!badge) return;
+  // 폴더별(받은편지함/스팸/휴지통/보관함/커스텀 라벨) 안읽은 개수 갱신
+  // ★ (2026-09-22) 스팸함에 메일이 와도 알아채기 어렵다는 요청으로, 기존 받은편지함
+  //   전용이던 조회를 여러 라벨을 한 번에 조회하도록 확장 — getGmailUnread가 labelIds를
+  //   쉼표로 받아 병렬 조회한 뒤 { counts: {id: n} } 형태로 돌려준다.
+  const _EM_FIXED_UNREAD_BADGES = [
+    ['INBOX', 'emInboxUnread'],
+    ['SPAM', 'emSpamUnread'],
+    ['TRASH', 'emTrashUnread'],
+    ['ARCHIVE', 'emArchiveUnread'],
+  ];
+  window.refreshFolderUnreadBadges = async function() {
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
     if (!email) return;
+    const customIds = (_emailLabels || []).map(l => l.id);
+    const ids = _EM_FIXED_UNREAD_BADGES.map(x => x[0]).concat(customIds);
     try {
-      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?action=getGmailUnread&email=${encodeURIComponent(email)}`, undefined, 0, 20000);
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?action=getGmailUnread&email=${encodeURIComponent(email)}&labelIds=${encodeURIComponent(ids.join(','))}`, undefined, 0, 20000);
       const data = await res.json();
-      if (data.status === 'ok' && data.unread > 0) {
-        badge.textContent = data.unread > 999 ? '999+' : data.unread;
-        badge.style.display = 'inline-block';
-      } else {
-        badge.style.display = 'none';
-      }
+      if (data.status !== 'ok') return;
+      const counts = data.counts || {};
+      const applyBadge = (el, n) => {
+        if (!el) return;
+        if (n > 0) { el.textContent = n > 999 ? '999+' : n; el.style.display = 'inline-block'; }
+        else { el.style.display = 'none'; }
+      };
+      _EM_FIXED_UNREAD_BADGES.forEach(([id, elId]) => applyBadge(document.getElementById(elId), counts[id] || 0));
+      document.querySelectorAll('.em-label-unread').forEach(el => applyBadge(el, counts[el.dataset.labelid] || 0));
     } catch(e) { /* 조용히 무시 */ }
   };
+  // 구 함수명 호환(다른 곳에서 이 이름으로 호출 중)
+  window.refreshInboxUnread = window.refreshFolderUnreadBadges;
 
   // 공통: 서버에서 메일 한 페이지 조회
   async function _gmailFetchPage(email, folder, pageToken, q) {
