@@ -2618,6 +2618,21 @@ window.confirmStockBetaMigration = async function(){
   }
 };
 
+// "③ 완전이관 확정"이 건드리는 필드(stockBetaMeta/status.migrated)만 정확히 되돌린다 —
+// 그 클릭 한 번이 실제로 쓴 값은 이 문서의 migrated/migratedAtMs 두 필드뿐이라, 다른 데이터는
+// 전혀 손대지 않고 원래(시트+파이어스토어 병행) 상태로 정확히 복원된다.
+window.undoStockBetaMigration = async function(){
+  const prog = $('stockBetaMigrateProgress');
+  if (!confirm('완전이관 확정을 취소할까요?\n다시 예전처럼(구글시트+Firestore 병행) 동작합니다.')) return;
+  try {
+    await window.fbEnsureAuth();
+    await window.FB.setDoc(window.FB.doc(window.FB.db, 'stockBetaMeta', 'status'), { migrated: false }, { merge: true });
+    if (prog) { prog.style.color = '#1a7a45'; prog.textContent = '✔ 완전이관 취소됨 — 예전처럼 구글시트도 같이 봅니다.'; }
+  } catch(e) {
+    if (prog) { prog.style.color = '#c0392b'; prog.textContent = '취소 실패: ' + e.message; }
+  }
+};
+
 // 완전이관 전(그 달이 아직 파이어스토어에 없을 때): [재고현황] 기준 데이터 + 그동안 BETA에서
 // 저장한 파이어스토어 수정분을 병합. 완전이관 후(그 달이 이미 파이어스토어에 있을 때):
 // 파이어스토어에 있는 것만 사용(구글시트는 아예 안 봄).
@@ -9153,6 +9168,7 @@ function csDateInputValue(val) {
           <button class="admin-btn primary" onclick="diagnoseStockBetaMigration()">① 진단 실행</button>
           <button class="admin-btn" onclick="backfillStockBetaMigration()">② 빠진 항목 채우기</button>
           <button class="admin-btn" style="border-color:#c0392b;color:#c0392b;" onclick="confirmStockBetaMigration()">③ 완전이관 확정</button>
+          <button class="admin-btn" onclick="undoStockBetaMigration()">↩ 완전이관 되돌리기</button>
         </div>
         <div id="stockBetaMigrateProgress" style="font-size:12px;color:#888;margin-top:10px;white-space:pre-line;"></div>
       </div>
