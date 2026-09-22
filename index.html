@@ -1022,7 +1022,7 @@ window.fetchEmployeesFS = async function() {
                 <rect x="8" y="18.6" width="8" height="1.6" rx="0.8" fill="#fff"/>
               </svg>
             </a>
-            <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/desktop-app-v1.0.0/JBDSYS-ERP-android-debug.apk" title="Android 다운로드">
+            <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.1/JBDSYS-ERP-Android-1.1.apk" title="Android 다운로드">
               <svg width="34" height="34" viewBox="0 0 24 24">
                 <rect width="24" height="24" rx="6" fill="#E8F8EF"/>
                 <g fill="#3DDC84">
@@ -8887,13 +8887,17 @@ function csDateInputValue(val) {
               <th>품명</th>
               <th>스펙</th>
               <th>소비자가(평)</th>
+              <th>소비자가(㎡)</th>
+              <th>소비자가(BOX)</th>
               <th>업체가(평)</th>
+              <th>업체가(㎡)</th>
+              <th>업체가(BOX)</th>
               <th style="width:60px;">네츄럴</th>
               <th style="width:110px;">관리</th>
             </tr>
           </thead>
           <tbody id="productAdminTableBody">
-            <tr><td colspan="8" class="admin-empty">불러오는 중...</td></tr>
+            <tr><td colspan="12" class="admin-empty">불러오는 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -12881,7 +12885,7 @@ async function loadAdminProducts() {
         _adminProducts = snap.docs.map(d => _productFromDoc(d.id, d.data()));
         renderAdminProductsTable();
     } catch (e) {
-        wrap.innerHTML = `<tr><td colspan="8" class="admin-empty">목록을 불러오지 못했습니다: ${e.message}</td></tr>`;
+        wrap.innerHTML = `<tr><td colspan="12" class="admin-empty">목록을 불러오지 못했습니다: ${e.message}</td></tr>`;
     }
 }
 
@@ -12889,7 +12893,7 @@ function renderAdminProductsTable() {
     const wrap = $('productAdminTableBody');
     if (!wrap) return;
     if (!_adminProducts.length) {
-        wrap.innerHTML = '<tr><td colspan="8" class="admin-empty">등록된 제품이 없습니다.</td></tr>';
+        wrap.innerHTML = '<tr><td colspan="12" class="admin-empty">등록된 제품이 없습니다.</td></tr>';
         return;
     }
     wrap.innerHTML = _adminProducts.map((p, idx) => `
@@ -12902,7 +12906,11 @@ function renderAdminProductsTable() {
             <td>${escapeHtmlProduct(p.name)}</td>
             <td>${escapeHtmlProduct(p.spec)}</td>
             <td>${fmt(p.consumer.py)}</td>
+            <td>${fmt(p.consumer.sqm)}</td>
+            <td>${fmt(p.consumer.box)}</td>
             <td>${fmt(p.vendor.py)}</td>
+            <td>${fmt(p.vendor.sqm)}</td>
+            <td>${fmt(p.vendor.box)}</td>
             <td>${p.natural ? '✔' : ''}</td>
             <td style="white-space:nowrap;">
                 <button class="admin-btn" onclick="openProductModal('${p.id}')">수정</button>
@@ -19074,6 +19082,45 @@ if ('serviceWorker' in navigator) {
 })();
 </script>
 
+<!-- 안드로이드 앱(Capacitor) 전용 업데이트 확인 — 데스크톱 앱(main.js checkForUpdate)과 동일한
+     패턴: sys.jibokdeukmaru.com/android-version.json을 조회해서 설치된 버전보다 새 버전이 있으면
+     "업데이트하시겠습니까?" 확인 후 GitHub Release APK 다운로드 링크를 새 탭(시스템 브라우저)으로 연다.
+     일반 웹/PC에서는 window.Capacitor가 없어 조용히 무시된다. -->
+<script>
+(function() {
+  if (!window.Capacitor || typeof window.Capacitor.isNativePlatform !== 'function' || !window.Capacitor.isNativePlatform()) return;
+  const AppPlugin = window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!AppPlugin) return;
+
+  // "1.2.10" 같은 버전 문자열 비교 — remote가 local보다 크면 true (데스크톱 main.js _isNewerVersion과 동일 로직)
+  function isNewerVersion(remote, local) {
+    const r = String(remote).split('.').map(Number);
+    const l = String(local).split('.').map(Number);
+    for (let i = 0; i < Math.max(r.length, l.length); i++) {
+      const rv = r[i] || 0, lv = l[i] || 0;
+      if (rv > lv) return true;
+      if (rv < lv) return false;
+    }
+    return false;
+  }
+
+  async function checkForAndroidUpdate() {
+    try {
+      const info = await AppPlugin.getInfo();
+      const currentVersion = info.version;
+      const res = await fetch('https://sys.jibokdeukmaru.com/android-version.json', { cache: 'no-store' });
+      if (!res.ok) return;
+      const remote = await res.json();
+      if (remote.version && isNewerVersion(remote.version, currentVersion)) {
+        const goUpdate = confirm(`새 버전이 있습니다 (${remote.version}). 업데이트하시겠습니까?`);
+        if (goUpdate && remote.url) window.open(remote.url, '_system');
+      }
+    } catch (e) { console.warn('안드로이드 앱 버전 확인 실패:', e.message); }
+  }
+  setTimeout(checkForAndroidUpdate, 3000);
+})();
+</script>
+
 <!-- 앱 다운로드 선택 모달 -->
 <div id="downloadPageOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100000;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:16px;width:90%;max-width:360px;padding:28px 24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.18);text-align:center;">
@@ -19093,7 +19140,7 @@ if ('serviceWorker' in navigator) {
           <div style="font-size:11px;color:#999;">PC 설치 프로그램 다운로드</div>
         </div>
       </a>
-      <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/desktop-app-v1.0.0/JBDSYS-ERP-android-debug.apk" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #e5e5e5;border-radius:12px;text-decoration:none;">
+      <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.1/JBDSYS-ERP-Android-1.1.apk" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #e5e5e5;border-radius:12px;text-decoration:none;">
         <svg width="40" height="40" viewBox="0 0 24 24" style="flex-shrink:0;">
           <rect width="24" height="24" rx="6" fill="#E8F8EF"/>
           <g fill="#3DDC84">
