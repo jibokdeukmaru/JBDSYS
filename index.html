@@ -4296,53 +4296,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     await saveSlots();
   };
 
-  // ★ Firestore 마이그레이션 이전부터 시트에 있던 기존 데이터(공휴일/슬롯/월별휴무안내/전사게시판)를
-  //   한 번에 Firestore로 복사한다. 저장 로직이 이미 신규 데이터는 자동으로 Firestore에 동기화하므로,
-  //   이 버튼은 "그 이전에 이미 저장돼 있던" 과거 데이터를 처음 한 번 채워넣기 위한 용도.
-  //   전부 id 기반 PATCH라 여러 번 눌러도 중복되지 않는다.
-  window.syncAllToFirestore = async function() {
-    const msg = document.getElementById('holidaySyncMsg');
-    const results = [];
-    let hadError = false;
-    // ★ (2026-09-22) 전사게시판/직원정보는 이제 쓰기 자체가 Firestore 전용이라(구글시트에
-    //   더 이상 아무것도 안 씀) 시트→Firestore 백필이 항상 0건이라 의미가 없어져서 제거함
-    //   — 여기 계속 있으면 클릭할 때마다 느린 구글시트 조회만 한 번 더 도는 셈이었다.
-    const steps = [
-      ['공휴일', `${BOOKING_URL}?action=syncHolidaysToFirestore`],
-      ['슬롯', `${BOOKING_URL}?action=syncSlotsToFirestore`],
-      ['월별휴무안내', `${BOOKING_URL}?action=syncMonthlyNoticeToFirestore`],
-    ];
-
-    async function runSync(idx, label, url, retries, timeoutMs) {
-      if (msg) msg.textContent = `(${idx}/${steps.length}) ${label} 동기화 중...`;
-      try {
-        const res = await fetchWithRetry(url, undefined, retries, timeoutMs);
-        const data = await res.json();
-        if (data.status === 'ok') {
-          const parts = [];
-          if (typeof data.count === 'number') parts.push(data.count + '건');
-          if (typeof data.replyCount === 'number') parts.push('댓글 ' + data.replyCount + '건');
-          results.push(`${label} ${parts.join(' · ') || '완료'}`);
-        } else {
-          hadError = true;
-          results.push(`${label} 실패(${data.message || '알 수 없는 오류'})`);
-        }
-      } catch(e) {
-        hadError = true;
-        results.push(`${label} 오류(${e.message})`);
-      }
-    }
-
-    for (let i = 0; i < steps.length; i++) {
-      await runSync(i + 1, ...steps[i]);
-    }
-
-    if (msg) msg.textContent = results.join(' / ');
-    await loadAdminHolidays();
-    if (typeof window.loadNotices === 'function') window.loadNotices().catch(() => {});
-    if (!hadError) setTimeout(() => { if (msg) msg.textContent = ''; }, 6000);
-  };
-
   // ── 공휴일 관리자 목록 렌더 ──
   function renderHolidayAdminList() {
     const wrap = document.getElementById('holidayAdminList');
@@ -8543,40 +8496,9 @@ function csDateInputValue(val) {
   </div>
 
   <div class="admin-card">
-    <div class="admin-section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>게스트 메뉴 설정</div>
-    <div style="font-size:12.5px;color:#888;margin-bottom:12px;">게스트 접속 시 상단에 보일 메뉴를 선택합니다. (미설정 시 기본: 단가표·계산기·견적서·메모장)</div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <button class="admin-btn primary" onclick="openGuestTabModal()">게스트 메뉴 선택</button>
-      <span id="guestTabSummary" style="font-size:12.5px;color:#666;">불러오는 중...</span>
-    </div>
-  </div>
-
-  <div class="admin-card">
-    <div class="admin-section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>데이터 내보내기</div>
-    <div style="display:flex;flex-direction:column;gap:16px;">
-      <div>
-        <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">쇼룸상담</div>
-        <button class="admin-btn primary" onclick="downloadConsultCSV()">목록 다운로드(CSV)</button>
-      </div>
-      <div>
-        <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">재고현황(예약/실시간 · 바람외재고 · 장기재고)</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <select id="adminStockExportDomain" onchange="onAdminStockExportDomainChange()" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;">
-            <option value="main">예약재고 / 실시간재고</option>
-            <option value="other">바람 외 재고</option>
-            <option value="longterm">장기재고</option>
-          </select>
-          <select id="adminStockExportMonth" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;"></select>
-          <button class="admin-btn primary" onclick="adminExportStockCsv()">CSV 내보내기</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="admin-card">
     <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;" onclick="toggleAdminGroup('empGroup')">
       <svg id="empGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-      <span class="admin-section-title" style="margin:0 0 0 8px;">직원 관리</span>
+      <span class="admin-section-title" style="margin:0 0 0 8px;">인사관리</span>
     </div>
     <div id="empGroupWrap" style="display:none;margin-top:14px;">
 
@@ -8720,39 +8642,137 @@ function csDateInputValue(val) {
   </div>
   </div>
 
-  <!-- 제품관리 (단가표/계산기/견적서가 쓰는 Firestore products 컬렉션) -->
+  <!-- 데이터베이스 관리 (구 "데이터베이스 연동 관리") -->
   <div class="admin-card" style="margin-top:20px;">
-    <div class="admin-toolbar" style="justify-content:space-between;">
-      <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-        <span class="admin-section-title" style="margin:0;">제품관리 (단가표)</span>
-      </div>
-      <button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button>
+    <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;" onclick="toggleAdminGroup('dbGroup','flex')">
+      <svg id="dbGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      <span class="admin-section-title" style="margin:0 0 0 8px;">데이터베이스 관리</span>
     </div>
-    <div id="adminProductListWrap" style="display:none;margin-top:14px;">
-      <div style="overflow-x:auto;">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th style="width:70px;">순서</th>
-              <th>품번</th>
-              <th>품명</th>
-              <th>스펙</th>
-              <th>소비자가(평)</th>
-              <th>소비자가(㎡)</th>
-              <th>소비자가(BOX)</th>
-              <th>업체가(평)</th>
-              <th>업체가(㎡)</th>
-              <th>업체가(BOX)</th>
-              <th style="width:60px;">네츄럴</th>
-              <th style="width:110px;">관리</th>
-            </tr>
-          </thead>
-          <tbody id="productAdminTableBody">
-            <tr><td colspan="12" class="admin-empty">불러오는 중...</td></tr>
-          </tbody>
-        </table>
+    <div id="dbGroupWrap" style="display:none;margin-top:14px;flex-direction:column;gap:20px;">
+
+      <!-- 1. 문자메세지 발송설정 (구 솔라피 SMS, 이름 변경 + 접기/펼치기 추가) -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
+        <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;margin-bottom:0;" onclick="toggleAdminGroup('smsGroup')">
+          <svg id="smsGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <span style="font-size:13px;font-weight:800;color:var(--brand);margin-left:8px;">문자메세지 발송설정</span>
+        </div>
+        <div id="smsGroupWrap" style="display:none;margin-top:14px;">
+          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+            솔라피 콘솔에서 API Key 발급 시 <b>‘모든 IP 허용’</b>으로 생성하세요. 발신번호는 솔라피에 사전등록·인증된 번호여야 합니다.
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div>
+              <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">API Key</label>
+              <input type="password" id="adminSolapiApiKey" placeholder="솔라피 API Key" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">API Secret</label>
+              <input type="password" id="adminSolapiApiSecret" placeholder="솔라피 API Secret" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">발신번호</label>
+              <input type="text" id="adminSolapiSender" placeholder="예: 0312345678" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;box-sizing:border-box;">
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <span id="adminSolapiSecretHint" style="font-size:11px;color:#aaa;"></span>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span id="adminSolapiSaved" style="font-size:12px;color:#1a7a45;font-weight:700;display:none;">✓ 저장됨</span>
+              <button onclick="adminSaveSolapiSettings()" class="admin-btn primary" style="padding:8px 20px;">저장</button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <!-- 2. 데이터 내보내기 -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
+        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          데이터 내보내기
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">쇼룸상담</div>
+            <button class="admin-btn primary" onclick="downloadConsultCSV()">목록 다운로드(CSV)</button>
+          </div>
+          <div>
+            <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">재고현황(예약/실시간 · 바람외재고 · 장기재고)</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <select id="adminStockExportDomain" onchange="onAdminStockExportDomainChange()" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;">
+                <option value="main">예약재고 / 실시간재고</option>
+                <option value="other">바람 외 재고</option>
+                <option value="longterm">장기재고</option>
+              </select>
+              <select id="adminStockExportMonth" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;"></select>
+              <button class="admin-btn primary" onclick="adminExportStockCsv()">CSV 내보내기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 제품관리 (단가표/계산기/견적서가 쓰는 Firestore products 컬렉션) -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
+        <div class="admin-toolbar" style="justify-content:space-between;margin-bottom:0;">
+          <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            <span style="font-size:13px;font-weight:800;color:var(--brand);">제품관리 (단가표)</span>
+          </div>
+          <button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button>
+        </div>
+        <div id="adminProductListWrap" style="display:none;margin-top:14px;">
+          <div style="overflow-x:auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width:70px;">순서</th>
+                  <th>품번</th>
+                  <th>품명</th>
+                  <th>스펙</th>
+                  <th>소비자가(평)</th>
+                  <th>소비자가(㎡)</th>
+                  <th>소비자가(BOX)</th>
+                  <th>업체가(평)</th>
+                  <th>업체가(㎡)</th>
+                  <th>업체가(BOX)</th>
+                  <th style="width:60px;">네츄럴</th>
+                  <th style="width:110px;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="productAdminTableBody">
+                <tr><td colspan="12" class="admin-empty">불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4·5. 재고현황/시공일정 수정기록 전체 삭제 -->
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
+          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            재고현황(예약/실시간) 수정기록 전체 삭제
+          </div>
+          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
+          </div>
+          <button onclick="runStockBetaClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
+          <div id="stockBetaClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
+          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            시공일정 수정기록 전체 삭제
+          </div>
+          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
+          </div>
+          <button onclick="runScheduleClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
+          <div id="scheduleClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -8812,90 +8832,6 @@ function csDateInputValue(val) {
         <button class="admin-btn primary" onclick="saveProductModal()">저장</button>
       </div>
     </div>
-  </div>
-
-  <!-- 데이터베이스 연동 관리 -->
-  <div class="admin-card" style="margin-top:20px;">
-    <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;" onclick="toggleAdminGroup('dbGroup','flex')">
-      <svg id="dbGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-      <span class="admin-section-title" style="margin:0 0 0 8px;">데이터베이스 연동 관리</span>
-    </div>
-    <div id="dbGroupWrap" style="display:none;margin-top:14px;flex-direction:column;gap:20px;">
-
-      <!-- Firestore 동기화 -->
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-          Firestore 동기화
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          공휴일·직원정보 시트를 직접 수정했거나, 예전(파이어스토어 도입 이전)부터 있던 슬롯·월별휴무안내·전사게시판 데이터를 한 번에 옮기고 싶을 때 누르세요. 여러 번 눌러도 중복 생성되지 않아 안전합니다.
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <button class="admin-btn primary" onclick="syncAllToFirestore()">Firestore 동기화</button>
-          <span id="holidaySyncMsg" style="font-size:12.5px;color:#666;"></span>
-        </div>
-      </div>
-
-      <!-- 솔라피 SMS -->
-      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          솔라피(SOLAPI) SMS API <span style="font-size:10.5px;background:#e8f5ec;color:#1a7a45;border-radius:4px;padding:2px 7px;font-weight:700;margin-left:4px;">권장 · IP 등록 불필요</span>
-        </div>
-        <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-          솔라피 콘솔에서 API Key 발급 시 <b>‘모든 IP 허용’</b>으로 생성하세요. 발신번호는 솔라피에 사전등록·인증된 번호여야 합니다.
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
-          <div>
-            <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">API Key</label>
-            <input type="password" id="adminSolapiApiKey" placeholder="솔라피 API Key" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;box-sizing:border-box;">
-          </div>
-          <div>
-            <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">API Secret</label>
-            <input type="password" id="adminSolapiApiSecret" placeholder="솔라피 API Secret" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;box-sizing:border-box;">
-          </div>
-          <div>
-            <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">발신번호</label>
-            <input type="text" id="adminSolapiSender" placeholder="예: 0312345678" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;box-sizing:border-box;">
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-          <span id="adminSolapiSecretHint" style="font-size:11px;color:#aaa;"></span>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span id="adminSolapiSaved" style="font-size:12px;color:#1a7a45;font-weight:700;display:none;">✓ 저장됨</span>
-            <button onclick="adminSaveSolapiSettings()" class="admin-btn primary" style="padding:8px 20px;">저장</button>
-          </div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;">
-        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
-          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            재고현황(예약/실시간) 수정기록 전체 삭제
-          </div>
-          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
-          </div>
-          <button onclick="runStockBetaClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
-          <div id="stockBetaClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-        </div>
-
-        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
-          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            시공일정 수정기록 전체 삭제
-          </div>
-          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
-          </div>
-          <button onclick="runScheduleClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
-          <div id="scheduleClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-        </div>
-      </div>
-
-  </div>
   </div>
 
 </div>
@@ -9858,7 +9794,24 @@ function csDateInputValue(val) {
               const idx = TITLE_ORDER.findIndex(o => t.includes(o));
               return idx === -1 ? 999 : idx;
             };
-            const sorted = [...data.rows].sort((a,b) => getTitleRank(a.title) - getTitleRank(b.title));
+            // ★ 관리자 목록 최상단 정렬(2026-09-22): role==='admin'을 최우선 정렬키로 두고,
+            //   그 다음에 직급 순서를 적용한다. 게스트는 실제 직원이 아니라서 이 목록엔 안
+            //   들어있고, adminCount 위치에 별도로 끼워넣는다(아래).
+            const sorted = [...data.rows].sort((a,b) => {
+              const adminDiff = (a.role==='admin'?0:1) - (b.role==='admin'?0:1);
+              if (adminDiff !== 0) return adminDiff;
+              return getTitleRank(a.title) - getTitleRank(b.title);
+            });
+            const adminCount = sorted.filter(r => r.role === 'admin').length;
+            // 게스트 행을 관리자 다음, 일반 사원 앞에 끼워넣기 위한 표시용 목록 구성.
+            // ★ ri(행 인덱스)는 sorted 배열 기준 그대로 유지 — openTabPermModal/selectEmp 등
+            //   기존 로직이 emp-row-${ri}/emp-tabs-${ri} id로 실제 직원을 찾으므로, 게스트 행이
+            //   중간에 끼어들어도 실제 직원의 ri가 밀리면 안 된다.
+            const displayRows = [
+              ...sorted.slice(0, adminCount).map((r, ri) => ({ type: 'emp', r, ri })),
+              { type: 'guest' },
+              ...sorted.slice(adminCount).map((r, i) => ({ type: 'emp', r, ri: adminCount + i })),
+            ];
 
             const isMobile = (window.screen && window.screen.width) ? window.screen.width <= 768 : window.innerWidth <= 768;
             const allTabIds = ALL_TABS.map(t => t.id);
@@ -9883,7 +9836,28 @@ function csDateInputValue(val) {
 
             if (isMobile) {
               // 모바일: 카드형 렌더링
-              tbody.innerHTML = sorted.map((r, ri) => {
+              tbody.innerHTML = displayRows.map((row) => {
+                if (row.type === 'guest') {
+                  return `<tr><td colspan="8" style="padding:0;border:none;">
+                    <div style="background:#fdf9ee;border:1px solid #f0dfa0;border-radius:12px;padding:14px 16px;margin:6px 0;">
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <div>
+                          <span style="font-size:15px;font-weight:800;color:#222;">게스트</span>
+                          <span style="font-size:12px;color:#888;margin-left:6px;">비회원 공개 메뉴</span>
+                        </div>
+                        <span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#eee;color:#888;">공용</span>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <button onclick="event.stopPropagation();openGuestTabModal()"
+                          style="padding:6px 12px;background:var(--cream-2);color:var(--brand);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">
+                          게스트 메뉴 선택
+                        </button>
+                        <span id="guestTabSummaryInline" style="font-size:11.5px;color:#888;">불러오는 중...</span>
+                      </div>
+                    </div>
+                  </td></tr>`;
+                }
+                const r = row.r, ri = row.ri;
                 const st = empStatusInfo(r);
                 const allowed = resolveAllowed(r.allowedTabs);
                 const roleLabel = (r.role||'staff').toUpperCase();
@@ -9919,7 +9893,26 @@ function csDateInputValue(val) {
               }).join('');
             } else {
               // PC: 테이블 방식 (이름 첫째, 직급 정렬)
-              tbody.innerHTML = sorted.map((r, ri) => {
+              tbody.innerHTML = displayRows.map((row) => {
+                if (row.type === 'guest') {
+                  return `<tr style="background:#fdf9ee;">
+                    <td><strong>게스트</strong></td>
+                    <td style="color:#aaa;font-size:12px;">-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td><span class="admin-status-badge" style="background:#eee;color:#888;">공용</span></td>
+                    <td>
+                      <button onclick="openGuestTabModal()"
+                        style="padding:5px 12px;background:var(--cream-2);color:var(--brand);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">
+                        게스트 메뉴 선택
+                      </button>
+                      <div id="guestTabSummaryInline" style="font-size:11px;color:#888;margin-top:4px;">불러오는 중...</div>
+                    </td>
+                    <td>-</td>
+                  </tr>`;
+                }
+                const r = row.r, ri = row.ri;
                 const st = empStatusInfo(r);
                 const allowed = resolveAllowed(r.allowedTabs);
                 return `<tr id="emp-row-${ri}" onclick="selectEmp(${ri},\'${r.id}\')" style="cursor:pointer;"
@@ -9949,6 +9942,7 @@ function csDateInputValue(val) {
                 </tr>`;
               }).join('');
             }
+            if (typeof window.refreshGuestTabSummary === 'function') window.refreshGuestTabSummary();
         } catch(e) {
             console.error(e);
             const tbody = document.getElementById('adminEmpList');
@@ -10285,7 +10279,7 @@ function csDateInputValue(val) {
 
     // 관리화면 요약 표시 갱신
     window.refreshGuestTabSummary = async function() {
-      const el = document.getElementById('guestTabSummary');
+      const el = document.getElementById('guestTabSummaryInline');
       if (!el) return;
       _guestTabsCurrent = await window.getGuestTabs();
       const ids = _guestTabsCurrent.split(',').map(s=>s.trim()).filter(Boolean);
