@@ -5087,19 +5087,20 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     <table class="dw-table" id="csTable">
       <thead>
         <tr>
-          <th style="width:46px;">No.<span class="dw-col-resizer"></span></th>
-          <th style="width:34px;"><input type="checkbox" class="dw-checkbox" disabled><span class="dw-col-resizer"></span></th>
-          <th style="width:90px; cursor:pointer;" onclick="toggleSort('status')">상태 <span id="sort-status"></span><span class="dw-col-resizer"></span></th>
-          <th style="width:70px;">재방문<span class="dw-col-resizer"></span></th>
-          <th style="width:110px; cursor:pointer;" onclick="toggleSort('counselor')">상담자 <span id="sort-counselor"></span><span class="dw-col-resizer"></span></th>
-          <th style="width:90px; cursor:pointer;" onclick="toggleSort('name')">성함 <span id="sort-name"></span><span class="dw-col-resizer"></span></th>
-          <th style="width:200px; cursor:pointer;" onclick="toggleSort('company')">업체명 <span id="sort-company"></span><span class="dw-col-resizer"></span></th>
-          <th style="width:150px; cursor:pointer;" onclick="toggleSort('date')">일정 <span id="sort-date">▼</span><span class="dw-col-resizer"></span></th>
-          <th style="width:130px;">연락처<span class="dw-col-resizer"></span></th>
+          <th data-col="no" style="width:23px;">No.<span class="dw-col-resizer"></span></th>
+          <th data-col="check" style="width:34px;"><input type="checkbox" class="dw-checkbox" disabled><span class="dw-col-resizer"></span></th>
+          <th data-col="status" style="width:54px; cursor:pointer;" onclick="toggleSort('status')">상태 <span id="sort-status"></span><span class="dw-col-resizer"></span></th>
+          <th data-col="revisit" style="width:70px;">재방문<span class="dw-col-resizer"></span></th>
+          <th data-col="counselor" style="width:110px; cursor:pointer;" onclick="toggleSort('counselor')">상담자 <span id="sort-counselor"></span><span class="dw-col-resizer"></span></th>
+          <th data-col="name" style="width:90px; cursor:pointer;" onclick="toggleSort('name')">성함 <span id="sort-name"></span><span class="dw-col-resizer"></span></th>
+          <th data-col="company" style="width:100px; cursor:pointer;" onclick="toggleSort('company')">업체명 <span id="sort-company"></span><span class="dw-col-resizer"></span></th>
+          <th data-col="address" style="width:160px;">현장주소<span class="dw-col-resizer"></span></th>
+          <th data-col="date" style="width:120px; cursor:pointer;" onclick="toggleSort('date')">일정 <span id="sort-date">▼</span><span class="dw-col-resizer"></span></th>
+          <th data-col="phone" style="width:104px;">연락처<span class="dw-col-resizer"></span></th>
         </tr>
       </thead>
       <tbody id="csTableBody">
-        <tr class="dw-empty-row"><td colspan="9">불러오는 중...</td></tr>
+        <tr class="dw-empty-row"><td colspan="10">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -5722,7 +5723,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     const q = (document.getElementById('csSearch').value || '').trim();
     if (q) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">검색 중...</td></tr>';
+      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">검색 중...</td></tr>';
     }
     currentPage = 1;
     await renderConsultList();
@@ -5753,7 +5754,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     }
     // 캐시가 없거나 강제 새로고침: 로딩 표시 후 받아오기
     const bodyEl = document.getElementById('csTableBody');
-    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">불러오는 중...</td></tr>';
+    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">불러오는 중...</td></tr>';
     await _fetchConsults();
   };
 
@@ -5855,7 +5856,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       }
       if (!_consultsCache) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="9">오류: ${e.message}</td></tr>`;
+        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="10">오류: ${e.message}</td></tr>`;
       }
     } finally {
       _consultsLoading = false;
@@ -5916,7 +5917,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     currentPage = 1;
     if (_myConsultsOnly) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">나의 상담내역 조회 중...</td></tr>';
+      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">나의 상담내역 조회 중...</td></tr>';
     }
     renderConsultList();
   };
@@ -6087,7 +6088,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     document.getElementById('csCount').textContent = list.length;
 
     if (!list.length) {
-      document.getElementById('csTableBody').innerHTML = '<tr class="dw-empty-row"><td colspan="9">데이터가 없습니다.</td></tr>';
+      document.getElementById('csTableBody').innerHTML = '<tr class="dw-empty-row"><td colspan="10">데이터가 없습니다.</td></tr>';
       return;
     }
 
@@ -6134,7 +6135,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       if (_isMobileCard) {
         return `
           <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
-            <td colspan="9" style="padding:0;border:none;">
+            <td colspan="10" style="padding:0;border:none;">
               <div class="cs-card">
                 <div class="cs-card-top">
                   <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
@@ -6167,6 +6168,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           <td>${counselorDisplay}</td>
           <td class="dw-td-name">${r.name||''} <span style="color:#ccc;font-size:11px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span></td>
           <td>${r.company||''}</td>
+          <td title="${(r.address||'').replace(/"/g,'&quot;')}">${r.address||''}</td>
           <td>${scheduleDisplay}</td>
           <td>${r.phone||''}</td>
         </tr>
@@ -6214,7 +6216,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       const curTotalPages = Math.ceil((allConsults || []).length / pageSize);
       if (p > curTotalPages) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">전체 상담내역 불러오는 중...</td></tr>';
+        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">전체 상담내역 불러오는 중...</td></tr>';
         let full = [];
         try {
           full = await ensureFullConsults();
@@ -6226,7 +6228,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           if (typeof _syncConsultRefs === 'function') _syncConsultRefs();
         } else {
           // 전체 불러오기 실패/빈손: 무반응 방지 — 안내 후 현재 페이지 유지
-          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="9">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
+          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
           alert('전체 상담내역을 불러오지 못했습니다.\n네트워크 상태를 확인한 뒤 다시 시도해주세요.');
           renderConsultList();
           return;
@@ -6236,9 +6238,38 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     currentPage = p;
     renderConsultList();
   };
+  // ── 쇼룸상담 표 컬럼 너비: 사원별 저장/복원 ──
+  //   개인설정(_syncUserPrefs/userPrefs) 패턴과 동일하게, 기기(localStorage)엔 즉시 반영하고
+  //   로그인 계정(Firestore userPrefs/{uid}.consultColWidths)에도 저장해 다른 기기에서도 유지되게 한다.
+  const CS_COL_DEFAULT_WIDTHS = { no:23, check:34, status:54, revisit:70, counselor:110, name:90, company:100, address:160, date:120, phone:104 };
+  function _csColWidthsStorageKey() {
+    const uid = window._currentUser && window._currentUser.id;
+    return uid ? `baram_consult_col_widths_${uid}` : 'baram_consult_col_widths';
+  }
+  window._applyConsultColWidths = function() {
+    const table = document.getElementById('csTable');
+    if (!table) return;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(_csColWidthsStorageKey()) || 'null'); } catch(_) {}
+    const widths = Object.assign({}, CS_COL_DEFAULT_WIDTHS, saved || {});
+    table.querySelectorAll('thead th[data-col]').forEach(th => {
+      const w = widths[th.dataset.col];
+      if (w) th.style.width = w + 'px';
+    });
+  };
+  function _saveConsultColWidths() {
+    const table = document.getElementById('csTable');
+    if (!table) return;
+    const widths = {};
+    table.querySelectorAll('thead th[data-col]').forEach(th => { widths[th.dataset.col] = th.offsetWidth; });
+    try { localStorage.setItem(_csColWidthsStorageKey(), JSON.stringify(widths)); } catch(_) {}
+    if (typeof _syncUserPrefs === 'function') _syncUserPrefs({ consultColWidths: widths });
+  }
   function initColumnResize() {
     const table = document.getElementById('csTable');
     let startX, startWidth, currentTh, allThs;
+
+    window._applyConsultColWidths();
 
     table.querySelectorAll('.dw-col-resizer').forEach(resizer => {
       resizer.addEventListener('mousedown', function(e) {
@@ -6266,9 +6297,11 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       currentTh.style.width = newWidth + 'px';
     }
     function onMouseUp() {
+      if (!currentTh) return;
       currentTh = null;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      _saveConsultColWidths();
     }
   }
   initColumnResize();
@@ -13027,6 +13060,12 @@ window.applyUserPrefsFromFirestore = async function() {
         if (prefs.tabVisMap && typeof prefs.tabVisMap === 'object') {
             localStorage.setItem(TAB_VIS_MAP_KEY, JSON.stringify(prefs.tabVisMap));
             if (typeof window.applyVisibleTabs === 'function') window.applyVisibleTabs();
+        }
+        if (prefs.consultColWidths && typeof prefs.consultColWidths === 'object') {
+            const uid2 = window._currentUser && window._currentUser.id;
+            const key2 = uid2 ? `baram_consult_col_widths_${uid2}` : 'baram_consult_col_widths';
+            localStorage.setItem(key2, JSON.stringify(prefs.consultColWidths));
+            if (typeof window._applyConsultColWidths === 'function') window._applyConsultColWidths();
         }
     } catch(e) { console.warn('개인설정 조회 실패:', e.message); }
 };
