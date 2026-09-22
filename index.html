@@ -8650,7 +8650,45 @@ function csDateInputValue(val) {
     </div>
     <div id="dbGroupWrap" style="display:none;margin-top:14px;flex-direction:column;gap:20px;">
 
-      <!-- 1. 문자메세지 발송설정 (구 솔라피 SMS, 이름 변경 + 접기/펼치기 추가) -->
+      <!-- 1. 제품관리 (단가표/계산기/견적서가 쓰는 Firestore products 컬렉션) -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
+        <div class="admin-toolbar" style="justify-content:space-between;margin-bottom:0;">
+          <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            <span style="font-size:13px;font-weight:800;color:var(--brand);">제품관리 (단가표)</span>
+          </div>
+          <button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button>
+        </div>
+        <div id="adminProductListWrap" style="display:none;margin-top:14px;">
+          <div style="overflow-x:auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width:70px;">순서</th>
+                  <th>품번</th>
+                  <th>품명</th>
+                  <th>스펙</th>
+                  <th>박스당 면적(㎡)</th>
+                  <th>박스당 장수</th>
+                  <th>소비자가(평)</th>
+                  <th>소비자가(㎡)</th>
+                  <th>소비자가(BOX)</th>
+                  <th>업체가(평)</th>
+                  <th>업체가(㎡)</th>
+                  <th>업체가(BOX)</th>
+                  <th style="width:60px;">네츄럴</th>
+                  <th style="width:110px;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="productAdminTableBody">
+                <tr><td colspan="14" class="admin-empty">불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 문자메세지 발송설정 (구 솔라피 SMS, 이름 변경 + 접기/펼치기 추가) -->
       <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
         <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;margin-bottom:0;" onclick="toggleAdminGroup('smsGroup')">
           <svg id="smsGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -8684,92 +8722,66 @@ function csDateInputValue(val) {
         </div>
       </div>
 
-      <!-- 2. 데이터 내보내기 -->
+      <!-- 3. 데이터 내보내기 (접기/펼치기 추가, 기본 접힘) -->
       <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
-        <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          데이터 내보내기
+        <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;margin-bottom:0;" onclick="toggleAdminGroup('exportGroup')">
+          <svg id="exportGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <span style="font-size:13px;font-weight:800;color:var(--brand);margin-left:8px;">데이터 내보내기</span>
         </div>
-        <div style="display:flex;flex-direction:column;gap:16px;">
-          <div>
-            <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">쇼룸상담</div>
-            <button class="admin-btn primary" onclick="downloadConsultCSV()">목록 다운로드(CSV)</button>
-          </div>
-          <div>
-            <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">재고현황(예약/실시간 · 바람외재고 · 장기재고)</div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <select id="adminStockExportDomain" onchange="onAdminStockExportDomainChange()" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;">
-                <option value="main">예약재고 / 실시간재고</option>
-                <option value="other">바람 외 재고</option>
-                <option value="longterm">장기재고</option>
-              </select>
-              <select id="adminStockExportMonth" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;"></select>
-              <button class="admin-btn primary" onclick="adminExportStockCsv()">CSV 내보내기</button>
+        <div id="exportGroupWrap" style="display:none;margin-top:14px;">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div>
+              <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">쇼룸상담</div>
+              <button class="admin-btn primary" onclick="downloadConsultCSV()">목록 다운로드(CSV)</button>
+            </div>
+            <div>
+              <div style="font-size:12.5px;font-weight:700;color:#555;margin-bottom:8px;">재고현황(예약/실시간 · 바람외재고 · 장기재고)</div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <select id="adminStockExportDomain" onchange="onAdminStockExportDomainChange()" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;">
+                  <option value="main">예약재고 / 실시간재고</option>
+                  <option value="other">바람 외 재고</option>
+                  <option value="longterm">장기재고</option>
+                </select>
+                <select id="adminStockExportMonth" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;"></select>
+                <button class="admin-btn primary" onclick="adminExportStockCsv()">CSV 내보내기</button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 3. 제품관리 (단가표/계산기/견적서가 쓰는 Firestore products 컬렉션) -->
+      <!-- 4. 수정기록 삭제 (재고현황/시공일정, 접기/펼치기 추가, 기본 접힘) -->
       <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
-        <div class="admin-toolbar" style="justify-content:space-between;margin-bottom:0;">
-          <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            <span style="font-size:13px;font-weight:800;color:var(--brand);">제품관리 (단가표)</span>
-          </div>
-          <button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button>
+        <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;margin-bottom:0;" onclick="toggleAdminGroup('clearHistoryGroup')">
+          <svg id="clearHistoryGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <span style="font-size:13px;font-weight:800;color:var(--brand);margin-left:8px;">수정기록 삭제</span>
         </div>
-        <div id="adminProductListWrap" style="display:none;margin-top:14px;">
-          <div style="overflow-x:auto;">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th style="width:70px;">순서</th>
-                  <th>품번</th>
-                  <th>품명</th>
-                  <th>스펙</th>
-                  <th>소비자가(평)</th>
-                  <th>소비자가(㎡)</th>
-                  <th>소비자가(BOX)</th>
-                  <th>업체가(평)</th>
-                  <th>업체가(㎡)</th>
-                  <th>업체가(BOX)</th>
-                  <th style="width:60px;">네츄럴</th>
-                  <th style="width:110px;">관리</th>
-                </tr>
-              </thead>
-              <tbody id="productAdminTableBody">
-                <tr><td colspan="12" class="admin-empty">불러오는 중...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+        <div id="clearHistoryGroupWrap" style="display:none;margin-top:14px;">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
+              <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                재고현황(예약/실시간) 수정기록 전체 삭제
+              </div>
+              <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+                지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
+              </div>
+              <button onclick="runStockBetaClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
+              <div id="stockBetaClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
+            </div>
 
-      <!-- 4·5. 재고현황/시공일정 수정기록 전체 삭제 -->
-      <div style="display:flex;gap:16px;flex-wrap:wrap;">
-        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
-          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            재고현황(예약/실시간) 수정기록 전체 삭제
+            <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
+              <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                시공일정 수정기록 전체 삭제
+              </div>
+              <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
+                지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
+              </div>
+              <button onclick="runScheduleClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
+              <div id="scheduleClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
+            </div>
           </div>
-          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
-          </div>
-          <button onclick="runStockBetaClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
-          <div id="stockBetaClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
-        </div>
-
-        <div style="border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:260px;">
-          <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            시공일정 수정기록 전체 삭제
-          </div>
-          <div style="font-size:11px;color:#999;margin-bottom:14px;line-height:1.6;">
-            지금까지 쌓인 수정기록을 전부 지웁니다. <b>되돌릴 수 없습니다.</b>
-          </div>
-          <button onclick="runScheduleClearHistory()" class="admin-btn primary" style="padding:8px 20px;">수정기록 전체 삭제 실행</button>
-          <div id="scheduleClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
         </div>
       </div>
 
@@ -12510,7 +12522,7 @@ async function loadAdminProducts() {
         _adminProducts = snap.docs.map(d => _productFromDoc(d.id, d.data()));
         renderAdminProductsTable();
     } catch (e) {
-        wrap.innerHTML = `<tr><td colspan="12" class="admin-empty">목록을 불러오지 못했습니다: ${e.message}</td></tr>`;
+        wrap.innerHTML = `<tr><td colspan="14" class="admin-empty">목록을 불러오지 못했습니다: ${e.message}</td></tr>`;
     }
 }
 
@@ -12518,9 +12530,12 @@ function renderAdminProductsTable() {
     const wrap = $('productAdminTableBody');
     if (!wrap) return;
     if (!_adminProducts.length) {
-        wrap.innerHTML = '<tr><td colspan="12" class="admin-empty">등록된 제품이 없습니다.</td></tr>';
+        wrap.innerHTML = '<tr><td colspan="14" class="admin-empty">등록된 제품이 없습니다.</td></tr>';
         return;
     }
+    // ★ 박스당 면적(㎡)/장수는 견적서 REMARKS의 "[1BOX = 품번(Npcs/X㎡)]" 표기와 박스기준
+    //   헤베계산(useBoxCalc)의 근거값이라, 관리자가 목록에서 바로 채워졌는지 확인할 수 있어야
+    //   한다 — 모달에만 있고 목록엔 안 보여서 "데이터가 없는 것 같다"는 문의가 있었음(2026-09-22).
     wrap.innerHTML = _adminProducts.map((p, idx) => `
         <tr>
             <td style="white-space:nowrap;">
@@ -12530,6 +12545,8 @@ function renderAdminProductsTable() {
             <td>${escapeHtmlProduct(p.code)}</td>
             <td>${escapeHtmlProduct(p.name)}</td>
             <td>${escapeHtmlProduct(p.spec)}</td>
+            <td style="${p.box_m2 ? '' : 'color:#c0392b;'}">${p.box_m2 ? fmt(p.box_m2) : '미입력'}</td>
+            <td style="${p.sheets_per_box ? '' : 'color:#c0392b;'}">${p.sheets_per_box ? fmt(p.sheets_per_box) : '미입력'}</td>
             <td>${fmt(p.consumer.py)}</td>
             <td>${fmt(p.consumer.sqm)}</td>
             <td>${fmt(p.consumer.box)}</td>
