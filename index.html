@@ -2273,155 +2273,10 @@ window.addEventListener('message', async (e) => {
 //  iframe이 postMessage로 이 스크립트(부모)에게 요청하면, 부모가 대신 파이어스토어를
 //  읽고 쓴 뒤 결과를 다시 postMessage로 돌려준다.
 //
-//  기준 데이터는 처음엔 이미 잘 동작하는 [재고현황] 탭이 보여주는 데이터(구글시트
-//  STOCK+RESERVE 기반)를 그대로 재사용하고, BETA에서 수정/추가한 LOT만 파이어스토어
-//  문서(stockBetaLots 컬렉션)로 저장해서 그걸로 덮어쓴다. 관리자가 [재고현황
-//  BETA완전이관] 버튼을 누르면 그 시점의 병합된 최종 내용을 전부 확정 저장하고
-//  (stockBetaMeta/status.migrated=true), 그 뒤로는 구글시트를 아예 안 보고
-//  파이어스토어만으로 동작한다.
+//  ★ (2026-09-22) 완전이관 확정됨 — 구글시트(STOCK/RESERVE)를 "기본 뼈대"로 읽어와 병합하던
+//  구시대 코드(품번→탭 매핑표, 시트 파싱 등)는 전부 제거했다. 이제 stockBetaLots 컬렉션이
+//  유일한 데이터 소스다.
 // ════════════════════════════════════════════════════════════════
-
-// 8월에 만든 BETA 시안 데이터 기준 "품번 → 소속탭" 매핑표(정규화된 대문자 키) — 그
-// 이후 새로 생긴 품번은 여기 없으니 시리즈 추정으로 보완한다.
-window._STOCK_BETA_CODE_TO_SHEET = {"C#1401":"C#14","C#1402":"C#14","C#1403":"C#14","C#1501":"C#15","C#1502":"C#15","C#1503":"C#15","C#1504":"C#15","C#1505":"C#15","C#1507":"C#15","C#1508":"C#15","스모크 오크C#1801":"C#18","C#1802":"C#18","오크 C#1803":"C#18","C#1804":"C#18","C#1801":"C#18","C#1805":"C#18","C#1806":"C#18","C#1807":"C#18","C#1808":"C#18","C#1809":"C#18","C#1810":"C#18","C#18002":"C#18","C#1901":"C#19","C#1902":"C#19","C#1904":"C#19","C#1905":"C#19","C#1906":"C#19","C#1907":"C#19","C#1909":"C#19","C#1910":"C#19","C#1913":"C#19","C#19G2":"C#19","C#19011":"C#19","C#19012":"C#19","C#19013":"C#19","A#1401":"A#14","A#1402":"A#14","A#1403":"A#14","A#1404 (L)":"A#14","A#1404 (D)":"A#14","A#1405":"A#14","A#1406":"A#14","A#1407":"A#14","A#1408":"A#14","A#1409":"A#14","A#1501":"A#15","A#1502":"A#15","A#1503":"A#15","A#1504":"A#15","A#1505":"A#15","A#1506":"A#15","A#1507":"A#15","A#1601":"A#16","A#1602":"A#16","A#1603":"A#16","A#1604":"A#16","A#1605":"A#16","A#1606":"A#16","A#1607":"A#16","A#1608":"A#16","A# 17011":"A#171","A# 17012":"A#171","A# 17013":"A#171","A# 17014":"A#171","C#17015":"A#171","C#17016":"A#171","C#17017":"A#171","C#17018":"A#171","A#1700":"A#17","A#1701":"A#17","화이트빈 A#1702":"A#17","얠로우 화이트 A#1703":"A#17","화이트 워시 A#1705":"A#17","락그레이 A#1706":"A#17","그린 A#1707":"A#17","카워시 A#1708":"A#17","비비블랙 A#1709":"A#17","A#1801":"A#18","A#1802":"A#18","(엠보X) A#1803":"A#18","A#1801 웨이브X":"A#18","A#18001":"A#18","A#18002":"A#18","A#18003":"A#18","A#1804":"A#18","A#1805":"A#18","A#1806":"A#18","A#1800":"A#18","A#1803":"A#18","A#1807":"A#18","A#18901":"A#18","A#18903":"A#18","오크 브러쉬 A#1901":"A#19","A#19001":"A#19","A#19003":"A#19","A#1902":"A#19","A#1903":"A#19","A#1904":"A#19","A#1905":"A#19","A#1906":"A#19","A#1907":"A#19","A#1908":"A#19","A#1909":"A#19","A#1910":"A#19","A#1911":"A#19","A#2000":"A#20","A#2001":"A#20","A#2002":"A#20","A#2003":"A#20","A#2007":"A#20","오크 D#1801":"D#,E#,선일,성원특","오크 알타이":"D#,E#,선일,성원특","D#2001":"D#,E#,선일,성원특","떼카 E#1801":"D#,E#,선일,성원특","선일 우드":"D#,E#,선일,성원특","성원":"D#,E#,선일,성원특","성원 특가":"D#,E#,선일,성원특","#1":"바람1","#2":"바람1","#3":"바람1","#4":"바람1","#6":"바람1","#7":"바람1","#8":"바람1","#10":"바람1","#11":"바람1","#13":"바람1","#14":"바람1","#15":"바람1","#17":"바람1"};
-
-function _stockBetaNormCode(s){
-  return String(s||'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().toUpperCase();
-}
-
-const _STOCK_BETA_KNOWN_SERIES = ['14','15','16','17','18','19','20'];
-const _STOCK_BETA_SERIES_OVERRIDES = [['C#19G2','19'],['D#2101','20']];
-function _stockBetaGuessSeries(itemCode){
-  const str = String(itemCode);
-  for (const [needle, forced] of _STOCK_BETA_SERIES_OVERRIDES) { if (str.includes(needle)) return forced; }
-  const m = str.match(/#\s*(\d{2})(\w*)/);
-  if (!m) return 'ETC';
-  const series = m[1];
-  if (!_STOCK_BETA_KNOWN_SERIES.includes(series)) return 'ETC';
-  return series;
-}
-// 매핑표에 없는(8월 이후 새로 생긴) 품번은 알파벳 접두사+시리즈 추정으로 기존 탭 이름과
-// 일치하면 그 탭에, 아니면 "미분류(신규품번)" 탭으로 몰아서 관리자가 나중에 직접 정리하게 한다.
-function _resolveStockBetaSheet(itemCode){
-  const norm = _stockBetaNormCode(itemCode);
-  const known = window._STOCK_BETA_CODE_TO_SHEET[norm];
-  if (known) return known;
-  const series = _stockBetaGuessSeries(itemCode);
-  if (series === 'ETC') return '미분류(신규품번)';
-  const letterMatch = String(itemCode).match(/([A-Z])#/);
-  const letter = letterMatch ? letterMatch[1] : '';
-  const guess = letter + '#' + series;
-  const existingSheets = new Set(Object.values(window._STOCK_BETA_CODE_TO_SHEET));
-  return existingSheets.has(guess) ? guess : '미분류(신규품번)';
-}
-
-// [재고현황] 탭(renderStockTable)과 동일한 방식으로 STOCK 시트 원본 행을 정리(품번 병합
-// 등)한다 — 화면을 그리지 않고 데이터만 뽑아내는 별도 함수라, 기존 재고현황 탭 코드는
-// 전혀 건드리지 않는다(이미 실사용 중인 기능이라 회귀 위험을 피하려고 일부러 분리).
-function _buildStockProcessedRows(stockRows){
-  const processedRows = [];
-  let currentItemCode = '';
-  (stockRows || []).forEach(row => {
-    if (!row || !row.c) return;
-    const itemCode = getCellVal(row.c[0]);
-    const lotInfo  = getCellVal(row.c[1]);
-    const boxSpec  = getCellVal(row.c[2]);
-    const curStock = getCellVal(row.c[3]);
-    const totalBox = getCellVal(row.c[4]);
-    const totalM2  = getCellVal(row.c[5]);
-    if (!itemCode && !lotInfo && !boxSpec && !curStock && !totalBox && !totalM2) return;
-    if (itemCode === '품번' || itemCode.includes('모든 자재') || itemCode.includes('통합') || lotInfo.includes('통합')) return;
-    if (itemCode) currentItemCode = itemCode;
-    if (!itemCode && !boxSpec && !curStock && !totalBox && !totalM2) return;
-    function formatLotStr(str){
-      if (!str) return '-';
-      return str.replace(/\(([^)]+)\)/, function(m, inner){
-        const d = new Date(inner);
-        if (!isNaN(d.getTime()) && inner.length > 10) {
-          const yy = String(d.getFullYear()).slice(2);
-          return '(' + yy + '/' + (d.getMonth()+1) + '/' + d.getDate() + ')';
-        }
-        return m;
-      });
-    }
-    processedRows.push({
-      itemCode: itemCode || currentItemCode,
-      lotInfo:  formatLotStr(lotInfo || '-'),
-      boxSpec:  boxSpec  || '-',
-      curStock: curStock || 0,
-      totalBox: totalBox || '-',
-      totalM2:  totalM2  || '-'
-    });
-  });
-  return processedRows;
-}
-
-// RESERVE 시트 전체를 한 번에 품번별로 묶어서 반환 — openItemDetail의
-// parseReserveFromSheet와 같은 파싱 규칙을 전체 품번 대상으로 한 번에 수행하는 버전.
-function _groupReserveAllByCode(rows){
-  const map = {};
-  (rows || []).forEach(row => {
-    if (!row || !row.c) return;
-    const code = row.c[0] ? String(row.c[0].v !== undefined ? row.c[0].v : '').trim() : '';
-    if (!code || code === '품번') return;
-    const company = row.c[1] ? String(row.c[1].v !== undefined ? row.c[1].v : '').trim() : '';
-    const area    = row.c[2] ? String(row.c[2].v !== undefined ? row.c[2].v : '').trim().replace(/[^0-9.]/g,'') : '';
-    const date    = row.c[3] ? String(row.c[3].v !== undefined ? row.c[3].v : '').trim() : '';
-    if (!company) return;
-    const boxNum = area ? parseFloat(area) : NaN;
-    (map[code] = map[code] || []).push({ co: company, box: isNaN(boxNum) ? '' : boxNum, date });
-  });
-  return map;
-}
-
-// LOT 문자열("51차(24/8/7)") → { cha, inDate }
-function _splitLotInfo(lotInfo){
-  const s = String(lotInfo || '').trim();
-  const m = /^(.*?)\(([^)]+)\)\s*$/.exec(s);
-  if (m) return { cha: m[1].trim() || '-', inDate: m[2].trim() };
-  return { cha: s || '-', inDate: '' };
-}
-
-// [재고현황] 탭 기준 최신 스냅샷을 BETA가 쓰는 DB{sheetName:{products:[{code,lots:[]}]}} 형태로 변환
-async function _buildStockBetaLiveBase(){
-  // ★ fetchSheetJsonBatch 자체 캐시(90초)는 그대로 두되, BETA를 열 때는 사용자가 명시적으로
-  //   최신 데이터를 보려는 것이므로 forceRefresh로 캐시를 건너뛰고 항상 최신 시트를 읽는다.
-  const ssId = sheetSpreadsheetId(SHEET_CONFIG.STOCK);
-  const sheets = await fetchSheetJsonBatch([SHEET_CONFIG.STOCK, SHEET_CONFIG.RESERVE], ssId, 20000, true);
-  const stockRows = sheets[SHEET_CONFIG.STOCK] || [];
-  const reserveRows = sheets[SHEET_CONFIG.RESERVE] || [];
-  const processedRows = _buildStockProcessedRows(stockRows);
-  const reserveMap = _groupReserveAllByCode(reserveRows);
-
-  const db = {};
-  processedRows.forEach(row => {
-    const sheetName = _resolveStockBetaSheet(row.itemCode);
-    if (!db[sheetName]) db[sheetName] = { products: [] };
-    let prod = db[sheetName].products.find(p => p.code === row.itemCode);
-    if (!prod) { prod = { code: row.itemCode, lots: [] }; db[sheetName].products.push(prod); }
-    const { cha, inDate } = _splitLotInfo(row.lotInfo);
-    const box = parseFloat(String(row.totalBox).replace(/[^0-9.\-]/g,'')) || 0;
-    const totalM2Num = parseFloat(String(row.totalM2).replace(/[^0-9.\-]/g,''));
-    const totalM2 = isNaN(totalM2Num) ? 0 : totalM2Num; // STOCK시트 "총재고" 컬럼은 ㎡ 단위
-    const heibei = box > 0 ? String(Math.round((totalM2 / box) * 1000) / 1000) : ''; // ㎡/BOX
-    const py = Math.round((totalM2 / 3.24) * 100) / 100; // 평 = ㎡ ÷ 3.24
-    prod.lots.push({
-      cha, inDate, spec: row.boxSpec, heibei,
-      box, py,
-      ship: [],
-      resv: []
-    });
-  });
-  // RESERVE 시트엔 차수(LOT) 구분이 없어서 품번 전체 예약목록을 모든 차수에 똑같이 복제하면
-  // "차수마다 중복돼서 들어감"처럼 보인다. 대신 가장 마지막(최신) 차수 하나에만 붙여두고
-  // 나머지는 비워둔다 — 실제 배정은 화면의 ×/＋ 버튼으로 사람이 직접 옮긴다.
-  Object.keys(db).forEach(sheetName => {
-    db[sheetName].products.forEach(prod => {
-      if (prod.lots.length) prod.lots[prod.lots.length - 1].resv = reserveMap[prod.code] || [];
-    });
-  });
-  return db;
-}
 
 // ── 파이어스토어 stockBetaLots 문서 ID(결정적 — 같은 LOT은 항상 같은 ID) ──
 // ★ 월별 데이터 — 실시간재고 기준재고는 달마다 독립된 스냅샷으로 쌓이고(그 달의 마지막
@@ -2442,14 +2297,6 @@ function _stockBetaNextMonth(month){
   const [y, m] = String(month).split('-').map(Number);
   const d = new Date(y, m, 1); // m은 1-based로 들어오지만 Date 생성자는 0-based라 그대로 넣으면 다음달 1일이 됨
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-}
-
-async function _stockBetaIsMigrated(){
-  try {
-    await window.fbEnsureAuth();
-    const snap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'stockBetaMeta', 'status'));
-    return !!(snap.exists() && snap.data().migrated);
-  } catch(e) { return false; }
 }
 
 // 지금까지 만들어진 월 목록(드롭다운용) — 없으면 빈 배열.
@@ -2481,34 +2328,14 @@ async function _stockBetaFetchAllLots(month){
   return list;
 }
 
-// 완전이관 전(그 달이 아직 파이어스토어에 없을 때): [재고현황] 기준 데이터 + 그동안 BETA에서
-// 저장한 파이어스토어 수정분을 병합. 완전이관 후(그 달이 이미 파이어스토어에 있을 때):
-// 파이어스토어에 있는 것만 사용(구글시트는 아예 안 봄).
+// ★ (2026-09-22) 완전이관 확정됨 — 이제 항상 Firestore 데이터만으로 DB를 구성한다.
+//   예전엔 여기서 매번 구글시트(STOCK/RESERVE)를 "기본 뼈대"로 같이 읽어와 병합했는데,
+//   그 시트 조회가 느려지면(실측 40~79초) 화면이 그대로 타임아웃나는 지연의 원인이었다.
+//   완전이관 확정 이후로는 이 함수가 시트를 아예 호출하지 않아 그 지연 자체가 안 생긴다.
 async function _buildStockBetaSnapshot(month){
   month = month || _stockBetaCurrentRealMonth();
-  const migrated = await _stockBetaIsMigrated();
-  const monthsList = await _stockBetaGetMonthsList();
-  const monthExists = monthsList.includes(month);
   const fsLots = await _stockBetaFetchAllLots(month);
-
-  let db;
-  if (migrated && monthExists) {
-    db = {};
-  } else {
-    db = await _buildStockBetaLiveBase();
-    // 파이어스토어에 저장된 LOT은 그걸로 덮어쓴다(그 LOT은 수정된 순간부터 파이어스토어가 기준)
-    fsLots.forEach(lot => {
-      const sheetName = lot.sheetName;
-      if (!db[sheetName]) db[sheetName] = { products: [] };
-      let prod = db[sheetName].products.find(p => p.code === lot.code);
-      if (!prod) { prod = { code: lot.code, lots: [] }; db[sheetName].products.push(prod); }
-      const idx = prod.lots.findIndex(l => (l.cha||'-') === (lot.cha||'-'));
-      const lotData = { cha: lot.cha, inDate: lot.inDate, spec: lot.spec, heibei: lot.heibei, box: lot.box, py: lot.py, ship: lot.ship||[], resv: lot.resv||[], _merged: lot._merged||false };
-      if (idx === -1) prod.lots.push(lotData); else prod.lots[idx] = lotData;
-    });
-    return db;
-  }
-  // 완전이관 후: 파이어스토어 데이터만으로 DB 구성
+  const db = {};
   fsLots.forEach(lot => {
     const sheetName = lot.sheetName;
     if (!db[sheetName]) db[sheetName] = { products: [] };
@@ -4477,13 +4304,13 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     const msg = document.getElementById('holidaySyncMsg');
     const results = [];
     let hadError = false;
+    // ★ (2026-09-22) 전사게시판/직원정보는 이제 쓰기 자체가 Firestore 전용이라(구글시트에
+    //   더 이상 아무것도 안 씀) 시트→Firestore 백필이 항상 0건이라 의미가 없어져서 제거함
+    //   — 여기 계속 있으면 클릭할 때마다 느린 구글시트 조회만 한 번 더 도는 셈이었다.
     const steps = [
       ['공휴일', `${BOOKING_URL}?action=syncHolidaysToFirestore`],
       ['슬롯', `${BOOKING_URL}?action=syncSlotsToFirestore`],
       ['월별휴무안내', `${BOOKING_URL}?action=syncMonthlyNoticeToFirestore`],
-      ['전사게시판', `${RESERVE_URL}?action=syncNoticesToFirestore`],
-      // 직원정보는 인원 수에 따라 오래 걸릴 수 있어 재시도 없이 타임아웃만 넉넉하게(2분)
-      ['직원정보', `${RESERVE_URL}?action=syncEmployeesToFirestore`, 0, 120000],
     ];
 
     async function runSync(idx, label, url, retries, timeoutMs) {
@@ -12630,147 +12457,6 @@ if (document.readyState === 'loading') {
     startApp();
 }
 
-
-// ============================================================
-//  구글 시트 설정 (단일 ID, 탭 이름만 구분)
-// ============================================================
-const SHEET_CONFIG = {
-    // ────────────────────────────────────────────────────────────
-    //  ★ 사내계정 이전 시 4개 파일 ID를 여기에 입력 ★
-    //  이전 전: 4개 ID 모두 기존 ID로 채우면 기존과 100% 동일 동작.
-    //  이전 후: 각 도메인 파일 생성 후 해당 ID로 교체.
-    // ────────────────────────────────────────────────────────────
-    ID_STOCK:   '1BErtYoh68Yiz5u4odV5VqGrtpa4yVdePUZeUZhs5eQw', // ① 재고·단가
-    ID_RESERVE: '153ErZIx1oaA0gjw3xHIehk1-v8745fi5-rbAILte3LQ', // ② 고객·예약
-    ID_HR:      '1LoHBLtOQHa1arIkQGXtV3Hneiq83fkvcS4lpUNTWodM', // ③ 인사
-
-    // 시트(탭) 이름
-    PRICE:    'PRICE',
-    STOCK:    'STOCK',
-    TOOLTIP:  'TOOLTIP',
-    RESERVE:  'RESERVE',
-    ORDER:    '발주현황',
-    ARRIVAL:  '입고예정일',
-    CONTACTS: '연락처',
-
-    // 하위호환: 기존 SHEET_CONFIG.ID 참조 코드용(재고단가 파일을 가리킴)
-    get ID() { return this.ID_STOCK; },
-};
-
-// 시트 이름 → 소속 스프레드시트 ID 매핑 (gviz 읽기/쓰기 시 올바른 파일 선택)
-function sheetSpreadsheetId(sheetName) {
-    if (sheetName === SHEET_CONFIG.CONTACTS) return SHEET_CONFIG.ID_RESERVE; // 연락처=고객예약 파일
-    // PRICE/STOCK/TOOLTIP/RESERVE/발주현황/입고예정일 = 재고단가 파일
-    return SHEET_CONFIG.ID_STOCK;
-}
-
-// 구글 시트 데이터 조회 공통 함수
-// ★ 변경: docs.google.com/.../gviz/tq 비공식 엔드포인트 직접 호출 → ERP스크립트 Apps Script(doGet) 경유로 전환.
-//   (1) 시트 "링크 공개" 설정에 의존하지 않음 → 모바일에서 로그인 세션 문제로 인한 실패 해소
-//   (2) 서버(ERP스크립트)에서 CacheService로 캐싱 → 반복 호출 시 응답 속도/안정성 개선
-//   (3) 타임아웃 10초→20초로 완화 + 실패 시 1회 자동 재시도 (모바일 네트워크 지연 대응)
-// ★ 클라이언트 캐시(90초): 같은 시트를 재방문/재조회할 때 매번 네트워크를 타지 않도록 함.
-//   백엔드(ERP스크립트) 캐시(2분)보다 짧게 잡아 신선도를 유지한다.
-const _sheetJsonCache = {};
-const _SHEET_JSON_CACHE_MS = 90 * 1000;
-
-// fetchSheetJson/fetchSheetJsonBatch 공용 재시도 헬퍼 — 타임아웃/1회 자동 재시도 로직만
-// 공유하고, 에러 문구/추출할 필드는 호출부에서 그대로 넘겨 기존 문구를 한 글자도 안 바꾼다.
-async function fetchErpJsonWithRetry(url, timeoutMs, { resultKey, defaultValue, netErrMsg, dataErrDefaultMsg, timeoutMsg, retryWarnMsg }) {
-    async function attemptOnce() {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const res = await fetch(url, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!res.ok) throw new Error(`${netErrMsg}: ${res.status}`);
-            const data = await res.json();
-            if (data.status === 'error') throw new Error(data.message || dataErrDefaultMsg);
-            return data[resultKey] || defaultValue;
-        } catch (err) {
-            clearTimeout(timeoutId);
-            if (err.name === 'AbortError') throw new Error(timeoutMsg);
-            throw err;
-        }
-    }
-    try {
-        return await attemptOnce();
-    } catch (err) {
-        console.warn(retryWarnMsg, err.message);
-        return await attemptOnce();
-    }
-}
-
-async function fetchSheetJson(sheetName, timeoutMs = 20000, forceRefresh = false) {
-    const ssId = sheetSpreadsheetId(sheetName);
-    const cacheKey = ssId + '|' + sheetName;
-    const cached = _sheetJsonCache[cacheKey];
-    if (!forceRefresh && cached && (Date.now() - cached.at) < _SHEET_JSON_CACHE_MS) {
-        return cached.rows;
-    }
-    const url = `${ERP_URL}?action=getSheetData&spreadsheetId=${encodeURIComponent(ssId)}&sheetName=${encodeURIComponent(sheetName)}`;
-
-    // 모바일 네트워크 일시 오류 대비 1회 자동 재시도
-    const rows = await fetchErpJsonWithRetry(url, timeoutMs, {
-        resultKey: 'rows',
-        defaultValue: [],
-        netErrMsg: `네트워크 오류 (${sheetName})`,
-        dataErrDefaultMsg: `시트 접근 오류 (${sheetName})`,
-        timeoutMsg: `요청 시간 초과 (${timeoutMs/1000}초) - 시트: ${sheetName}`,
-        retryWarnMsg: `시트 로드 1차 실패(${sheetName}), 재시도:`,
-    });
-    _sheetJsonCache[cacheKey] = { rows, at: Date.now() };
-    return rows;
-}
-
-// 여러 시트를 한 번의 요청으로 묶어서 조회 — 같은 백엔드에 동시요청 여러 개가 몰려
-// 서로 대기하다 타임아웃나는 문제를 방지한다(예: 재고현황 탭이 STOCK+발주현황+입고예정일+TOOLTIP
-// 4개를 매번 동시에 쐈던 것). 캐시는 fetchSheetJson과 동일한 키/TTL을 공유한다.
-async function fetchSheetJsonBatch(sheetNames, ssId, timeoutMs = 20000, forceRefresh = false) {
-    const result = {};
-    const uncached = [];
-    sheetNames.forEach(name => {
-        const cacheKey = ssId + '|' + name;
-        const cached = _sheetJsonCache[cacheKey];
-        if (!forceRefresh && cached && (Date.now() - cached.at) < _SHEET_JSON_CACHE_MS) {
-            result[name] = cached.rows;
-        } else {
-            uncached.push(name);
-        }
-    });
-    if (!uncached.length) return result;
-
-    const url = `${ERP_URL}?action=getSheetDataBatch&spreadsheetId=${encodeURIComponent(ssId)}&sheetNames=${encodeURIComponent(uncached.join(','))}`;
-
-    const sheets = await fetchErpJsonWithRetry(url, timeoutMs, {
-        resultKey: 'sheets',
-        defaultValue: {},
-        netErrMsg: `네트워크 오류 (배치)`,
-        dataErrDefaultMsg: `시트 배치 조회 오류`,
-        timeoutMsg: `요청 시간 초과 (${timeoutMs/1000}초) - 배치: ${uncached.join(',')}`,
-        retryWarnMsg: `시트 배치 로드 1차 실패, 재시도:`,
-    });
-    const now = Date.now();
-    uncached.forEach(name => {
-        const rows = sheets[name] || [];
-        result[name] = rows;
-        _sheetJsonCache[ssId + '|' + name] = { rows, at: now };
-    });
-    return result;
-}
-
-function getCellVal(cell) {
-    if (!cell) return '';
-    if (cell.f !== undefined) return String(cell.f).trim();
-    return (cell.v !== null && cell.v !== undefined) ? String(cell.v).trim() : '';
-}
-
-// 쉼표·공백·원 기호 등 제거 후 숫자로 변환
-function toNum(cell) {
-    const raw = getCellVal(cell).replace(/[,\s₩원]/g, "");
-    const n = Number(raw);
-    return Number.isFinite(n) ? Math.round(n) : 0;
-}
 
 // ============================================================
 //  제품(단가표) 데이터 — Firestore `products` 컬렉션 (구글시트 PRICE/TOOLTIP 대체, 2026-09-22)
