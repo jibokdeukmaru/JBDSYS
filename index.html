@@ -13970,7 +13970,11 @@ async function saveInvoiceImage() {
         container.appendChild(clone);
         document.body.appendChild(container);
 
-        // 2. 렌더링 대기
+        // 2. 렌더링 대기 — Pretendard가 CDN에서 비동기로 로드되는 웹폰트라, 페이지 진입 직후
+        //   바로 저장하면 폰트 교체가 덜 끝난 상태(대체 폰트)로 html2canvas가 캡처해버려서
+        //   화면(나중에 폰트 로드 완료 후 재렌더링됨)과 저장된 이미지의 숫자 정렬이 미세하게
+        //   달라지는 원인이 됐다 — document.fonts.ready로 폰트 로딩 자체를 먼저 기다린다.
+        if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
         await new Promise(r => setTimeout(r, isMobile ? 300 : 80));
 
         // 3. 캡처
@@ -14029,6 +14033,8 @@ async function saveInvoicePdf() {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     try {
         renderInvoice();
+        // Pretendard 웹폰트 로딩이 안 끝난 상태로 캡처되는 걸 막는다(saveInvoiceImage와 동일 이유).
+        if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
         await new Promise(r => setTimeout(r, 300));
 
         const el = document.getElementById('invoiceDoc');
