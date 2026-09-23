@@ -13364,6 +13364,14 @@ function formatInvSize(spec='') {
         .trim();
 }
 
+// 품번 첫 글자가 A/C/E(바람 자체 브랜드 라인)면 "바람 {품번}", 그 외 타사 자재는 "{품번} {품명}"으로 표기.
+function formatInvProductName(p) {
+    const code = String(p.code || '').trim();
+    const prefix = code.charAt(0).toUpperCase();
+    if (prefix === 'A' || prefix === 'C' || prefix === 'E') return `바람 ${code}`;
+    return `${code} ${p.name || ''}`.trim();
+}
+
 function getInvItemFromBox(box) {
 
     // ── 구분선 항목 (제품 목록 사이 빨간 강조 문구, 가격 계산 없음) ──
@@ -13483,14 +13491,14 @@ function getInvItemFromBox(box) {
                 ? ceilTo(discount / PY_FACTOR, 100)
                 : discount;
             return [
-                { name: `바람 ${p.code}`, size: formatInvSize(p.spec), unit, qty: splitQty, unitPrice: materialPrice, total: Math.round(splitQty * materialPrice) },
+                { name: formatInvProductName(p), size: formatInvSize(p.spec), unit, qty: splitQty, unitPrice: materialPrice, total: Math.round(splitQty * materialPrice) },
                 { name: '인건비, 부자재비', isLaborCost: true, size: '', unit, qty: splitQty, unitPrice: laborPrice, total: Math.round(splitQty * laborPrice) }
             ];
         }
     }
 
     return {
-        name: `바람 ${p.code}`,
+        name: formatInvProductName(p),
         size: formatInvSize(p.spec),
         unit,
         qty: displayQty,
