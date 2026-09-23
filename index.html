@@ -6406,7 +6406,7 @@ function csDateInputValue(val) {
     if (r.reqSample) lines.push('[샘플] ' + r.reqSample);
     if (r.reqCard)   lines.push('[명함] ' + r.reqCard);
     if (r.reqQuote === 'Y') lines.push('[견적서 요청]');
-    if (r.memo)      lines.push('[전달사항] ' + r.memo);
+    if (r.content || r.memo) lines.push('[전달사항] ' + (r.content || r.memo));
     let summary = lines.join('\n');
     // ★ 이력 체이닝: 이 방문 문서가 이미 갖고 있던 과거 이력(pastHistory)을 뒤에 이어붙인다.
     //   예) 3차에서 2차를 선택하면 → 2차 요약 + (2차에 저장돼 있던 1차 이력)까지 누적된다.
