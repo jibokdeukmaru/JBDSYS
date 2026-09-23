@@ -59,10 +59,17 @@ async function isWithinRoot(drive, id) {
   return false;
 }
 
+// Drive의 기본 thumbnailLink는 짧은 변 기준 ~220px라 미리보기로 쓰기엔 너무 작다 — URL 끝의
+// 크기 파라미터(=sNNN)를 더 큰 값으로 바꿔서 요청한다(없으면 새로 붙임).
+function upsizeThumbnail(link) {
+  if (!link) return null;
+  return /=s\d+$/.test(link) ? link.replace(/=s\d+$/, '=s1600') : link + '=s1600';
+}
+
 async function listFolder(drive, folderId) {
   const res = await drive.files.list({
     q: `'${folderId}' in parents and trashed = false`,
-    fields: 'files(id,name,mimeType)',
+    fields: 'files(id,name,mimeType,thumbnailLink)',
     pageSize: 1000,
     orderBy: 'name_natural',
     supportsAllDrives: true,
@@ -71,7 +78,12 @@ async function listFolder(drive, folderId) {
   });
   const files = res.data.files || [];
   const folders = files.filter(f => f.mimeType === FOLDER_MIME).map(f => ({ id: f.id, name: f.name }));
-  const images = files.filter(f => f.mimeType && f.mimeType.startsWith(IMAGE_MIME_PREFIX)).map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType }));
+  // ★ 속도개선(2026-09-23): 화면 미리보기는 원본 스트리밍(action=image) 대신 구글 자체
+  //   CDN인 thumbnailLink를 우선 쓰게 해서 Cloud Run 왕복 없이 훨씬 빠르게 뜨도록 한다.
+  //   다운로드 버튼은 여전히 action=image(원본)를 그대로 쓰므로 화질 손해는 없다.
+  const images = files.filter(f => f.mimeType && f.mimeType.startsWith(IMAGE_MIME_PREFIX)).map(f => ({
+    id: f.id, name: f.name, mimeType: f.mimeType, thumbnailLink: upsizeThumbnail(f.thumbnailLink)
+  }));
   // folderId는 호출 시점에 이미 루트 하위로 확인된 상태이므로, 그 직속 하위 폴더들도
   // 전부 루트 하위임이 자동으로 보장된다 — 다음에 이 하위 폴더를 클릭할 때 isWithinRoot가
   // 부모 체인을 다시 훑지 않고 캐시로 즉시 통과하도록 미리 등록해둔다.
