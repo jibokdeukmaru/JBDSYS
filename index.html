@@ -8504,7 +8504,7 @@ function csDateInputValue(val) {
 
   <div class="admin-card">
     <div class="admin-toolbar" style="justify-content:space-between;">
-      <div onclick="toggleEmpListVisible()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+      <div onclick="toggleEmpListVisible()" style="display:flex;align-items:center;gap:18px;cursor:pointer;">
         <svg id="empListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
         <span class="admin-section-title" style="margin:0;">직원 목록</span>
       </div>
@@ -8531,24 +8531,29 @@ function csDateInputValue(val) {
     </div>
   </div>
   <div class="admin-card" style="margin-top:20px;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-      <div class="admin-section-title" style="margin:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/></svg>정보 수정 신청 목록</div>
-      <button class="admin-btn" onclick="loadInfoRequests()" style="margin-left:auto;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>새로고침</button>
+    <div class="admin-toolbar" style="justify-content:space-between;">
+      <div onclick="toggleAdminGroup('infoRequestGroup')" style="display:flex;align-items:center;gap:18px;cursor:pointer;">
+        <svg id="infoRequestGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        <span class="admin-section-title" style="margin:0;">정보 수정 신청 목록</span>
+      </div>
+      <button class="admin-btn" onclick="loadInfoRequests()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>새로고침</button>
     </div>
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th style="width:50px;">번호</th>
-          <th style="width:110px;">신청자</th>
-          <th style="width:90px;">신청 시각</th>
-          <th style="width:110px;">상태</th>
-          <th style="width:60px;">관리</th>
-        </tr>
-      </thead>
-      <tbody id="adminInfoRequestList">
-        <tr><td colspan="5" class="admin-empty">불러오는 중...</td></tr>
-      </tbody>
-    </table>
+    <div id="infoRequestGroupWrap" style="display:none;margin-top:14px;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th style="width:50px;">번호</th>
+            <th style="width:110px;">신청자</th>
+            <th style="width:90px;">신청 시각</th>
+            <th style="width:110px;">상태</th>
+            <th style="width:60px;">관리</th>
+          </tr>
+        </thead>
+        <tbody id="adminInfoRequestList">
+          <tr><td colspan="5" class="admin-empty">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- ★ 2026-09-16: 연차 관련 카드 전체를 "연차관리" 전용 탭으로 옮기는 중 — 이 div를
@@ -8653,7 +8658,7 @@ function csDateInputValue(val) {
       <!-- 1. 제품관리 (단가표/계산기/견적서가 쓰는 Firestore products 컬렉션) -->
       <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
         <div class="admin-toolbar" style="justify-content:space-between;margin-bottom:0;">
-          <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:18px;cursor:pointer;">
             <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
             <span style="font-size:13px;font-weight:800;color:var(--brand);">제품관리 (단가표)</span>
           </div>
