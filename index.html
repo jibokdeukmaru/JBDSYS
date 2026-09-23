@@ -13385,7 +13385,7 @@ function formatInvSize(spec='') {
     return String(spec)
         .split('/')[0]
         .replace(/\s*T.*$/i, '')
-        .replace(/[×x]/g, ' * ')
+        .replace(/[×x]/gi, ' * ')
         .replace(/\s*\*\s*/g, ' * ')
         .replace(/\s+/g, ' ')
         .trim();
