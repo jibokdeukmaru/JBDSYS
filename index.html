@@ -504,9 +504,12 @@ window.fetchEmployeesFS = async function() {
 .oneui-cal .flatpickr-weekday { font-weight: 700; font-size: 12px; color:#999; }
 .oneui-cal .flatpickr-weekday:first-child { color:#e74c3c; }
 .oneui-cal .flatpickr-weekday:last-child { color:#3b82f6; }
+/* ★ 날짜칸은 줄바꿈되는 flex 배치라, 칸폭을 38px처럼 고정하면 날짜영역(약 308px)에 한 줄 8칸이
+   들어가 요일 머리글과 한 칸씩 어긋났다(9/17~9/28). 폭을 "1/7 - 좌우여백"으로 잡아 항상 7칸. */
 .oneui-cal .flatpickr-day {
   border-radius: 50%; font-size: 13.5px; font-weight: 600; color:#333;
-  max-width: 38px; height: 38px; line-height: 38px; margin: 1px auto;
+  flex: 0 0 calc(100% / 7 - 6.2px); width: calc(100% / 7 - 6.2px); max-width: calc(100% / 7 - 6.2px);
+  height: 38px; line-height: 38px; margin: 1px 3.1px;
 }
 .oneui-cal .flatpickr-day.oneui-sun { color:#e74c3c; }
 .oneui-cal .flatpickr-day.oneui-sat { color:#3b82f6; }
