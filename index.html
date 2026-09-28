@@ -3054,6 +3054,11 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 .inv-total-table .amount { font-family:'Pretendard',sans-serif; font-size:14px; font-weight:300; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 /* 원 기호는 항상 셀 왼쪽, 금액은 항상 셀 오른쪽 — 자릿수가 달라도 기호 위치가 행마다 안 흔들리게 고정 */
 .inv-won-wrap { display:flex; justify-content:space-between; width:100%; }
+/* ★ html2canvas는 font-variant-numeric(tabular-nums)을 무시하고 폰트 기본 숫자폭(Pretendard는 '1'이 좁음)으로
+   그리면서, 글자 시작점은 화면(고정폭 숫자) 기준으로 잡는다 → 저장된 이미지에서 '1'이 든 금액만 우측 끝이
+   안쪽으로 들어갔다(1,700,000 약 7px, 111,111은 18px). 캡처할 때만 이 클래스로 고정폭을 꺼서
+   화면 배치와 캔버스 글자폭을 일치시킨다(화면 표시는 그대로). 적용: _h2cOnclone */
+.h2c-capture, .h2c-capture * { font-variant-numeric: normal !important; }
 .inv-won-num { margin-left:6px; }
 /* GRAND TOTAL 금액값: Pretendard Medium */
 .inv-total-table .grand .amount { font-weight:500; }
@@ -11666,7 +11671,7 @@ function renderAll() { renderLeftTable(); buildRightHeader(); renderRightTable()
 function addCode(code) { if(!code || state.selected.includes(code)) return; if(state.selected.length >= state.maxSelected) return showToast(`선택은 최대 ${state.maxSelected}개까지만 가능합니다.`); state.selected.push(code); renderAll(); }
 function removeCode(code) { state.selected = state.selected.filter(x=>x!==code); renderAll(); }
 function resetAll() { state.selected=[]; renderAll(); }
-async function saveCapture() { const el=$('captureArea'); if(!el) return; const captureNow = new Date(); updateQuoteDate(captureNow); const scrollers=el.querySelectorAll('.scroll'); const prev=[]; el.classList.add('is-capturing'); scrollers.forEach(node=>{ prev.push([node,node.style.overflow,node.style.maxHeight]); node.style.overflow='visible'; node.style.maxHeight='none'; }); try { const canvas=await html2canvas(el,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false}); const now=new Date(); const stamp=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download=`단가안내_${stamp}.png`; a.click(); } finally { prev.forEach(([node,overflow,maxHeight])=>{ node.style.overflow=overflow; node.style.maxHeight=maxHeight; }); el.classList.remove('is-capturing'); } }
+async function saveCapture() { const el=$('captureArea'); if(!el) return; const captureNow = new Date(); updateQuoteDate(captureNow); const scrollers=el.querySelectorAll('.scroll'); const prev=[]; el.classList.add('is-capturing'); scrollers.forEach(node=>{ prev.push([node,node.style.overflow,node.style.maxHeight]); node.style.overflow='visible'; node.style.maxHeight='none'; }); try { const canvas=await html2canvas(el,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,onclone:window._h2cOnclone}); const now=new Date(); const stamp=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download=`단가안내_${stamp}.png`; a.click(); } finally { prev.forEach(([node,overflow,maxHeight])=>{ node.style.overflow=overflow; node.style.maxHeight=maxHeight; }); el.classList.remove('is-capturing'); } }
 function initPreviews() { document.querySelectorAll('[data-preview]').forEach(node=>{ node.textContent = templates[node.dataset.preview] || ''; }); }
 function resetViewportZoom() {
   const meta = document.querySelector('meta[name="viewport"]');
@@ -14000,6 +14005,9 @@ function _cleanInvoiceContactPhrase(s) {
     return tokens.join(' ').replace(/님$/, '');
 }
 
+// html2canvas 공통 onclone — 캡처용 복제 문서에서만 숫자 고정폭을 끈다(.h2c-capture CSS 주석 참고)
+window._h2cOnclone = function(doc) { doc.documentElement.classList.add('h2c-capture'); };
+
 async function saveInvoiceImage() {
     renderInvoice();
     const el = document.getElementById('invoiceDoc');
@@ -14057,6 +14065,7 @@ async function saveInvoiceImage() {
             width:  930,
             height: clone.scrollHeight,
             windowWidth: 930,
+            onclone: window._h2cOnclone,
         });
 
         // 4. 컨테이너 제거
@@ -14116,7 +14125,8 @@ async function saveInvoicePdf() {
             useCORS: true,
             backgroundColor: '#ffffff',
             windowWidth: el.scrollWidth,
-            windowHeight: el.scrollHeight
+            windowHeight: el.scrollHeight,
+            onclone: window._h2cOnclone,
         });
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
