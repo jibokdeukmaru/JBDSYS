@@ -2,6 +2,8 @@
 // Apps Script(ERP스크립트.txt)의 getGmailMessages/getGmailMessage/getGmailUnread/
 // gmailBatchModify/getGmailAttachment/sendEmailFromERP를 그대로 옮긴 것 — 로직 동일.
 const { google } = require('googleapis');
+const admin = require('firebase-admin');
+if (!admin.apps.length) admin.initializeApp();
 
 const SA_EMAIL = process.env.GMAIL_SA_EMAIL;
 const SA_KEY = (process.env.GMAIL_SA_KEY || '').replace(/\\n/g, '\n');
@@ -36,13 +38,24 @@ function mimeEncodeHeader(str) {
   return '=?UTF-8?B?' + Buffer.from(str, 'utf8').toString('base64') + '?=';
 }
 
+// ★ (2026-09-30) 본문을 무조건 UTF-8로 읽어서 EUC-KR(ks_c_5601) 한글 메일이 깨지던 문제 —
+//   파트의 Content-Type charset을 보고 해당 인코딩으로 디코딩한다(Node 내장 TextDecoder, full ICU).
+function decodePartData(part) {
+  const buf = Buffer.from(part.body.data, 'base64');
+  const ct = ((part.headers || []).find((h) => (h.name || '').toLowerCase() === 'content-type') || {}).value || '';
+  const m = ct.match(/charset\s*=\s*"?([^";\s]+)/i);
+  const cs = m ? m[1].toLowerCase() : 'utf-8';
+  if (cs === 'utf-8' || cs === 'utf8' || cs === 'us-ascii') return buf.toString('utf8');
+  try { return new TextDecoder(cs).decode(buf); } catch (e) { return buf.toString('utf8'); }
+}
+
 function extractBody(payload) {
   const out = { html: '', text: '' };
   function walk(part) {
     if (!part) return;
     const mime = part.mimeType || '';
     if (part.body && part.body.data) {
-      const decoded = Buffer.from(part.body.data, 'base64').toString('utf8');
+      const decoded = decodePartData(part);
       if (mime === 'text/html' && !out.html) out.html = decoded;
       else if (mime === 'text/plain' && !out.text) out.text = decoded;
     }
@@ -537,6 +550,31 @@ async function sendEmailFromERP(p) {
   }
 }
 
+// ★ (2026-09-30 보안) 예전엔 공유 비밀키(_appKey)만 맞으면 요청에 적힌 아무 직원의 메일함이나 열어줬다.
+//   그 키는 웹페이지 소스에 그대로 들어있어 누구나 볼 수 있으므로, 이제는 ERP 로그인 때 발급되는
+//   Firebase 로그인 토큰(_idToken)을 검증해서 "로그인한 직원 본인 메일함"만 허용한다.
+//   토큰의 email 클레임(auth-api가 발급 시 넣음)을 쓰고, 없으면 employees/{uid}에서 조회한다.
+async function resolveCallerEmail(params, req) {
+  const authHeader = String((req.get && req.get('Authorization')) || '');
+  const idToken = String(params._idToken || '').trim() || (authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : '');
+  if (!idToken) return { error: '로그인 정보가 없습니다. 페이지를 새로고침(Ctrl+F5)한 뒤 다시 시도해 주세요.' };
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(idToken);
+  } catch (e) {
+    return { error: '로그인 정보가 만료되었거나 올바르지 않습니다. 로그아웃 후 다시 로그인해 주세요.' };
+  }
+  let email = String(decoded.email || '').trim().toLowerCase();
+  if (!email && decoded.uid) {
+    try {
+      const snap = await admin.firestore().collection('employees').doc(decoded.uid).get();
+      email = String((snap.exists && snap.data().email) || '').trim().toLowerCase();
+    } catch (e) { /* 조회 실패 시 아래에서 거부 */ }
+  }
+  if (!email) return { error: '직원 계정으로 로그인되어 있지 않습니다. 로그아웃 후 다시 로그인해 주세요.' };
+  return { email };
+}
+
 exports.gmailApi = async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, POST');
@@ -556,6 +594,13 @@ exports.gmailApi = async (req, res) => {
     return res.status(403).json({ status: 'error', message: '인증 실패' });
   }
   const action = params.action;
+  const caller = await resolveCallerEmail(params, req);
+  if (caller.error) return res.status(401).json({ status: 'error', message: caller.error });
+  // 모든 기능은 params.email(조회/수정할 메일함), 발송은 senderEmail(보내는 사람 본인 계정)을 쓴다 — 둘 다 로그인한 본인이어야 함
+  const target = String((action === 'sendEmailFromERP' ? params.senderEmail : params.email) || '').trim().toLowerCase();
+  if (target !== caller.email) {
+    return res.status(403).json({ status: 'error', message: '본인 메일함에만 접근할 수 있습니다.' });
+  }
   try {
     let result;
     switch (action) {

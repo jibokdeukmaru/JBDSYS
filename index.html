@@ -3828,6 +3828,29 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           }
         }
       } catch (e) { /* 패치 실패해도 원래 요청은 그대로 진행 */ }
+      // ★ (2026-09-30 보안) 메일 서버(gmail-api)는 이제 공유 비밀키만으로는 안 열어주고, 로그인한 직원 본인
+      //   메일함인지 Firebase 로그인 토큰으로 확인한다 — 메일 요청에는 토큰(_idToken)을 같이 실어 보낸다.
+      //   (서버를 새 버전으로 재배포하기 전에도 이 값은 그냥 무시되므로 먼저 배포해도 안전)
+      try {
+        var gUrl = typeof input === 'string' ? input : (input && input.url) || '';
+        if (gUrl.indexOf(GMAIL_CF_URL) === 0) {
+          var ensure = (typeof window.fbEnsureAuth === 'function') ? window.fbEnsureAuth() : Promise.resolve();
+          return Promise.resolve(ensure).catch(function () {}).then(function () {
+            var u = window.FB && window.FB.auth && window.FB.auth.currentUser;
+            return u ? u.getIdToken() : '';
+          }).catch(function () { return ''; }).then(function (tok) {
+            if (tok) {
+              var m2 = ((init && init.method) || 'GET').toUpperCase();
+              if (m2 === 'GET' && typeof input === 'string') {
+                input = input + (input.indexOf('?') === -1 ? '?' : '&') + '_idToken=' + encodeURIComponent(tok);
+              } else if (init && typeof init.body === 'string') {
+                try { var b2 = JSON.parse(init.body); b2._idToken = tok; init = Object.assign({}, init, { body: JSON.stringify(b2) }); } catch (pe) {}
+              }
+            }
+            return _origFetch(input, init);
+          });
+        }
+      } catch (e2) { /* 토큰 첨부 실패해도 원래 요청은 진행 */ }
       return _origFetch(input, init);
     };
   })();
