@@ -372,6 +372,80 @@ async function createGmailFilter(p) {
   }
 }
 
+// ── 수신거부(발신주소 차단) ──
+// 스팸 신고가 아니라 "이 주소에서 오는 메일은 받은편지함 대신 바로 휴지통으로" 가는 Gmail 필터를
+// 만든다. 차단 목록은 별도 저장 없이 Gmail 필터 중 이 형태(from 조건만 + 휴지통 이동)인 것들로 본다.
+function isBlockFilter(fl) {
+  const c = fl.criteria || {}, a = fl.action || {};
+  return !!c.from && !c.to && !c.subject && !c.query && !c.negatedQuery
+    && (a.addLabelIds || []).includes('TRASH');
+}
+
+async function blockSender(p) {
+  const email = (p.email || '').trim();
+  const from = (p.from || '').trim().toLowerCase();
+  const trashExisting = p.trashExisting === 'true' || p.trashExisting === true;
+  if (!email || !from) return { status: 'error', message: '필수 파라미터 누락(email, from)' };
+  const gmail = gmailClientFor(email);
+  try {
+    // 이미 같은 주소로 차단돼 있으면 필터를 또 만들지 않는다(같은 필터 중복 생성은 Gmail이 에러 냄).
+    const listRes = await gmail.users.settings.filters.list({ userId: 'me' });
+    const existing = (listRes.data.filter || []).find((fl) => isBlockFilter(fl) && String(fl.criteria.from).toLowerCase() === from);
+    let filterId = existing ? existing.id : null;
+    if (!existing) {
+      const res = await gmail.users.settings.filters.create({
+        userId: 'me',
+        requestBody: { criteria: { from }, action: { addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] } },
+      });
+      filterId = res.data.id;
+    }
+    let trashedCount = 0;
+    if (trashExisting) {
+      let ids = [], pageToken;
+      do {
+        const r = await gmail.users.messages.list({ userId: 'me', q: 'from:' + from + ' -in:trash', maxResults: 500, pageToken });
+        ids = ids.concat((r.data.messages || []).map((m) => m.id));
+        pageToken = r.data.nextPageToken;
+      } while (pageToken && ids.length < 2000);
+      for (let i = 0; i < ids.length; i += 50) {
+        await Promise.all(ids.slice(i, i + 50).map((id) => gmail.users.messages.trash({ userId: 'me', id })));
+      }
+      trashedCount = ids.length;
+    }
+    return { status: 'ok', filterId, alreadyBlocked: !!existing, trashedCount };
+  } catch (err) {
+    const detail = (err.response && err.response.data) || err.errors || null;
+    return { status: 'error', message: err.message, code: err.code, detail: detail ? JSON.stringify(detail) : undefined };
+  }
+}
+
+async function listBlockedSenders(p) {
+  const email = (p.email || '').trim();
+  if (!email) return { status: 'error', message: '필수 파라미터 누락(email)' };
+  const gmail = gmailClientFor(email);
+  try {
+    const res = await gmail.users.settings.filters.list({ userId: 'me' });
+    const items = (res.data.filter || []).filter(isBlockFilter).map((fl) => ({ id: fl.id, from: fl.criteria.from }));
+    items.sort((a, b) => a.from.localeCompare(b.from));
+    return { status: 'ok', items };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+}
+
+async function unblockSender(p) {
+  const email = (p.email || '').trim();
+  const filterId = (p.filterId || '').trim();
+  if (!email || !filterId) return { status: 'error', message: '필수 파라미터 누락(email, filterId)' };
+  const gmail = gmailClientFor(email);
+  try {
+    await gmail.users.settings.filters.delete({ userId: 'me', id: filterId });
+    return { status: 'ok' };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+}
+
 async function sendEmailFromERP(p) {
   const to = (p.to || '').trim();
   const cc = (p.cc || '').trim();
@@ -494,6 +568,9 @@ exports.gmailApi = async (req, res) => {
       case 'deleteGmailLabel': result = await deleteGmailLabel(params); break;
       case 'gmailModifyLabel': result = await gmailModifyLabel(params); break;
       case 'createGmailFilter': result = await createGmailFilter(params); break;
+      case 'blockSender': result = await blockSender(params); break;
+      case 'listBlockedSenders': result = await listBlockedSenders(params); break;
+      case 'unblockSender': result = await unblockSender(params); break;
       default: result = { status: 'error', message: '알 수 없는 action: ' + action };
     }
     res.json(result);

@@ -17468,6 +17468,10 @@ if ('serviceWorker' in navigator) {
       </div>
       <!-- 개인별 폴더(Gmail 라벨) — 로그인한 사람 본인 것만 loadEmailTab에서 채워짐 -->
       <div id="emCustomFolderList"></div>
+      <div class="em-folder-item" onclick="openBlockedSendersModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        <span>수신거부 목록</span>
+      </div>
       <div class="em-folder-item" onclick="promptCreateEmailLabel()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span>새 폴더</span>
@@ -17481,7 +17485,7 @@ if ('serviceWorker' in navigator) {
     <!-- 메일 목록 뷰 -->
     <div id="emListView" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
       <div class="em-toolbar">
-        <span class="em-toolbar-title" id="emFolderTitle">받은메일함</span><select id="emFolderSelectMobile" onchange="setEmailFolder(this.value)" style="display:none;font-size:13px;font-weight:700;color:#222;border:1px solid #ddd;border-radius:8px;padding:6px 8px;background:#fff;"><option value="inbox">받은메일함</option><option value="sent">보낸메일함</option><option value="draft">임시보관함</option><option value="spam">스팸메일함</option><option value="trash">휴지통</option><option value="archive">보관함</option></select>
+        <span class="em-toolbar-title" id="emFolderTitle">받은메일함</span><select id="emFolderSelectMobile" onchange="if(this.value==='__blocked'){openBlockedSendersModal();}else{setEmailFolder(this.value);}" style="display:none;font-size:13px;font-weight:700;color:#222;border:1px solid #ddd;border-radius:8px;padding:6px 8px;background:#fff;"><option value="inbox">받은메일함</option><option value="sent">보낸메일함</option><option value="draft">임시보관함</option><option value="spam">스팸메일함</option><option value="trash">휴지통</option><option value="archive">보관함</option><option value="__blocked">수신거부 목록</option></select>
         <span class="em-toolbar-count" id="emMailCount"></span>
         <div class="em-toolbar-right">
           <div class="em-search-box">
@@ -18522,6 +18526,9 @@ if ('serviceWorker' in navigator) {
             <button class="em-detail-action-btn" data-label="보관" onclick="archiveCurrentEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="4" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>보관
             </button>
+            <button class="em-detail-action-btn" data-label="수신거부" onclick="blockCurrentSender()" title="이 주소에서 오는 메일을 앞으로 받지 않음(휴지통으로)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>수신거부
+            </button>
             <button class="em-detail-action-btn" data-label="삭제" onclick="deleteCurrentEmail()" style="color:#c0392b;border-color:#e6b8b3;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>삭제
             </button>
@@ -18694,6 +18701,96 @@ if ('serviceWorker' in navigator) {
     _renderGmailList(_allEmailItems, _currentFolder);
     _appendMoreButton();
     if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
+  };
+
+  // ── 수신거부: 스팸 신고가 아니라 이 발신주소에서 오는 메일을 앞으로 바로 휴지통으로 보낸다 ──
+  //   (Gmail 필터로 동작 — 로그인한 본인 메일함에만 적용. 차단 목록/해제는 openBlockedSendersModal)
+  window.blockCurrentSender = async function() {
+    const msg = _currentGmailDetailMsg;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    if (!msg || !email) return;
+    const fromAddr = (_parseFromHeader(msg.from || '').email || '').toLowerCase();
+    if (!fromAddr || fromAddr.indexOf('@') < 0) { alert('보낸사람 주소를 확인할 수 없습니다.'); return; }
+    if (fromAddr === email.toLowerCase()) { alert('본인 주소는 수신거부할 수 없습니다.'); return; }
+    if (!await appConfirm(`앞으로 ${fromAddr} 에서 오는 메일은 받은메일함에 들어오지 않고 바로 휴지통으로 갑니다.\n수신거부할까요?`)) return;
+    const trashExisting = await appConfirm(`이미 받은 메일 중 ${fromAddr} 에서 온 것들도 지금 휴지통으로 옮길까요?\n(아니요 = 이 메일만 휴지통으로)`);
+    try {
+      const params = new URLSearchParams({ action: 'blockSender', email, from: fromAddr, trashExisting: trashExisting ? 'true' : 'false' });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 60000);
+      const data = await res.json();
+      if (data.status !== 'ok') { alert('수신거부 실패: ' + (data.message||'')); return; }
+      // 지금 보던 메일은 (기존 메일 이동을 안 골랐어도) 휴지통으로
+      if (!trashExisting && _currentFolder !== 'trash') {
+        const p2 = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'trash', ids: msg.id });
+        await fetchWithRetry(`${window.GMAIL_CF_URL}?${p2}`, undefined, 0, 30000);
+      }
+      alert(trashExisting
+        ? `${fromAddr} 수신거부했습니다. 기존 메일 ${data.trashedCount || 0}건도 휴지통으로 옮겼습니다.`
+        : `${fromAddr} 수신거부했습니다.`);
+    } catch(e) { alert('수신거부 오류: ' + e.message); return; }
+    // 여러 폴더 목록 캐시에 이 주소 메일이 남아있을 수 있어 본인 메일함 캐시를 모두 비운다
+    Object.keys(_gmailCache).forEach(k => { if (k.indexOf(email + '|') === 0) delete _gmailCache[k]; });
+    if (_currentFolder !== 'trash') {
+      _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id && (!trashExisting || (_parseFromHeader(m.from || '').email || '').toLowerCase() !== fromAddr));
+    }
+    backToEmailList();
+    _renderGmailList(_allEmailItems, _currentFolder);
+    _appendMoreButton();
+    if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
+  };
+
+  // 수신거부 목록 — 주소별 "해제"로 차단 필터 삭제
+  window.openBlockedSendersModal = async function() {
+    const sel = document.getElementById('emFolderSelectMobile'); if (sel) sel.value = _currentFolder;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    if (!email) return;
+    let ov = document.getElementById('emBlockedModal');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'emBlockedModal';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px;';
+      ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+      document.body.appendChild(ov);
+    }
+    const box = (inner) => `<div style="background:#fff;border-radius:12px;width:100%;max-width:420px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(0,0,0,0.18);">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eee;">
+          <b style="font-size:15px;">수신거부 목록</b>
+          <button type="button" onclick="document.getElementById('emBlockedModal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">×</button>
+        </div>
+        <div style="padding:12px 18px;overflow-y:auto;">${inner}</div>
+      </div>`;
+    ov.innerHTML = box('<div style="padding:20px;text-align:center;color:#999;font-size:13px;">불러오는 중...</div>');
+    try {
+      const params = new URLSearchParams({ action: 'listBlockedSenders', email });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
+      const data = await res.json();
+      if (data.status !== 'ok') { ov.innerHTML = box(`<div style="padding:20px;text-align:center;color:#c0392b;font-size:13px;">조회 실패: ${_emEsc(data.message||'')}</div>`); return; }
+      const items = data.items || [];
+      const note = '<div style="font-size:11.5px;color:#999;margin-bottom:10px;">아래 주소에서 온 메일은 받은메일함 대신 휴지통으로 갑니다(휴지통은 30일 후 자동 삭제).</div>';
+      ov.innerHTML = box(note + (items.length
+        ? items.map(it => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f3f3f3;">
+            <span style="font-size:13px;word-break:break-all;">${_emEsc(it.from)}</span>
+            <button type="button" class="secondary" style="font-size:11px;padding:4px 10px;flex-shrink:0;" onclick="_emUnblockSender('${_emEsc(it.id)}','${_emEsc(it.from)}')">해제</button>
+          </div>`).join('')
+        : '<div style="padding:16px;text-align:center;color:#999;font-size:13px;">수신거부한 주소가 없습니다.</div>'));
+    } catch(e) {
+      ov.innerHTML = box(`<div style="padding:20px;text-align:center;color:#c0392b;font-size:13px;">오류: ${_emEsc(e.message||'')}</div>`);
+    }
+  };
+  window._emUnblockSender = async function(filterId, fromAddr) {
+    if (!await appConfirm(`${fromAddr} 수신거부를 해제할까요?\n(앞으로 이 주소의 메일이 다시 받은메일함으로 들어옵니다)`)) return;
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    try {
+      const params = new URLSearchParams({ action: 'unblockSender', email, filterId });
+      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
+      const data = await res.json();
+      if (data.status !== 'ok') { alert('해제 실패: ' + (data.message||'')); return; }
+      showToast('수신거부를 해제했습니다');
+    } catch(e) { alert('해제 오류: ' + e.message); return; }
+    openBlockedSendersModal();
   };
 
   window.backToEmailList = function() {
