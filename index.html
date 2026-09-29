@@ -9240,7 +9240,12 @@ function xiParseForecast(wb) {
     var set = function(t, color){ prog.style.color = color || '#888'; prog.textContent = t; };
     setRunEnabled(false);
     try {
-      await window.fbEnsureAuth();
+      var fbUser = await window.fbEnsureAuth();
+      if (!fbUser || fbUser.isAnonymous) {
+        set('직원 로그인 인증이 풀려 있어 저장할 수 없습니다. 로그아웃 후 다시 로그인해서 시도해주세요.', '#c0392b');
+        setRunEnabled(true);
+        return;
+      }
       var done = [], u = window._currentUser;
       var log = async function(text){ try { await _scheduleSaveHistory(text, (u && u.name) || '', (u && u.title) || ''); } catch(e) {} };
       if (p.schedFiles.length) {
@@ -9263,7 +9268,8 @@ function xiParseForecast(wb) {
       parsed = null;
       set('✔ 완료: ' + done.join(' / '), '#1a7a45');
     } catch (e) {
-      set('오류: ' + e.message + ' (다시 시도해주세요)', '#c0392b');
+      var perm = /permission/i.test(e.message || '');
+      set('오류: ' + e.message + (perm ? ' — 로그아웃 후 다시 로그인해서 시도해주세요.' : ' (다시 시도해주세요)'), '#c0392b');
       setRunEnabled(true);
     }
   };
@@ -9688,6 +9694,18 @@ function xiParseForecast(wb) {
             if (typeof window.fbEnsureAuth === 'function') { window.fbEnsureAuth().catch(() => {}); return; }
             if (tries > 0) setTimeout(() => ensureFbAuthWithRetry(tries - 1), 200);
         })(15);
+        // ★ 2026-09-29: 새로고침으로 직원 로그인이 복원됐는데 Firebase 쪽 신원은 직원(커스텀토큰)이
+        //   아니라 익명인 경우가 있었다 — 화면은 로그인 상태인데 직원 전용 데이터 쓰기가 전부
+        //   "Missing or insufficient permissions"로 막힘. 비밀번호 없이는 직원 토큰을 다시 받을 수
+        //   없으니, 이 상태를 발견하면 조용히 버티지 말고 다시 로그인하게 한다.
+        if (loginType === 'user' && isRestore) {
+            window._waitForFirebase().then(() => window.fbEnsureAuth()).then(u => {
+                if (u && u.isAnonymous && localStorage.getItem(LOGIN_TYPE_KEY) === 'user') {
+                    sessionStorage.setItem('baram_relogin_msg', '1');
+                    window.logoutUser();
+                }
+            }).catch(() => {});
+        }
         if (lockSection) lockSection.style.display = 'none';
         if (mainSection) mainSection.style.display = 'block';
         unlockBody();
@@ -11541,7 +11559,8 @@ function xiParseForecast(wb) {
             // ★ 세션 만료로 화면상의 로그인만 풀리는 것뿐, Firebase 신원은 그대로 남아있는
             //   상태다 — 이 상태에서 게스트로 들어가면 방금 만료된 직원 신원을 그대로
             //   이어받아버리므로(fbEnsureAuth가 이미 인증됐다고 판단) 명시적으로 끊어준다.
-            try { window._waitForFirebase().then(() => window.FB.signOut(window.FB.auth)).catch(() => {}); } catch(e) {}
+            //   (그 사이 사용자가 새로 로그인했으면 방금 받은 직원 신원을 끊으면 안 되므로 다시 확인)
+            try { window._waitForFirebase().then(() => { if (!localStorage.getItem(LOGIN_TYPE_KEY)) return window.FB.signOut(window.FB.auth); }).catch(() => {}); } catch(e) {}
             lockBody();
             _fillSavedLoginFields();
         }
@@ -11558,6 +11577,12 @@ function xiParseForecast(wb) {
     } else {
         lockBody();
         _fillSavedLoginFields();
+        // 위 unlock()에서 직원 인증이 익명으로 풀린 걸 발견해 로그아웃시킨 경우 안내
+        if (sessionStorage.getItem('baram_relogin_msg')) {
+            sessionStorage.removeItem('baram_relogin_msg');
+            const errEl = document.getElementById('loginError');
+            if (errEl) { errEl.style.display = 'block'; errEl.textContent = '로그인 인증이 만료되어 다시 로그인해주세요.'; }
+        }
     }
 
     // 이벤트 연결
