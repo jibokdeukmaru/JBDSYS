@@ -15177,6 +15177,38 @@ window._ivMoveQuote = async function(id) {
     showToast('이동했습니다');
     _ivRenderVaultBody();
 };
+// 저장할 때 입력한 파일명을 나중에 바꿀 수 있게 — 저장소 표시용 fileName만 바꾼다
+// (업체명·단계 데이터·폴더 위치나 이미 내려받은 jpg/pdf 파일명은 그대로).
+window._ivRenameQuote = function(id) {
+    const q = (window._ivBrowseCache || {})[id] || (window._ivTreeQuotesById || {})[id];
+    if (!q) return;
+    window.showAppPrompt('견적서 파일명을 입력하세요', q.fileName || q.companyName || '', async (name) => {
+        if (name == null) return;
+        const trimmed = name.trim();
+        if (!trimmed || trimmed === q.fileName) return;
+        await window.fbEnsureAuth();
+        await window.FB.updateDoc(_ivDoc('salesQuotes', id), { fileName: trimmed, updatedAt: window.FB.serverTimestamp() });
+        q.fileName = trimmed;
+        showToast('파일명을 변경했습니다');
+        _ivRenderVaultBody();
+    });
+};
+// 좌측 트리의 견적서는 한 번 클릭 = 열기, 더블클릭 = 이름변경. 더블클릭 시 열기가 먼저
+// 실행되지 않도록 한 번 클릭은 잠깐 기다렸다가 처리한다.
+let _ivTreeQuoteClickTimer = null;
+window._ivTreeQuoteClick = function(id) {
+    clearTimeout(_ivTreeQuoteClickTimer);
+    _ivTreeQuoteClickTimer = setTimeout(() => { _ivTreeQuoteClickTimer = null; window._ivBrowseOpenQuote(id); }, 250);
+};
+window._ivTreeQuoteDblClick = function(id) {
+    clearTimeout(_ivTreeQuoteClickTimer);
+    _ivTreeQuoteClickTimer = null;
+    const q = (window._ivTreeQuotesById || {})[id] || (window._ivBrowseCache || {})[id];
+    const flags = window._ivVaultState.flags || {};
+    if (!q) return;
+    if (q.authorId === flags.id || flags.viewAll) window._ivRenameQuote(id);
+    else window._ivBrowseOpenQuote(id); // 권한 없으면 그냥 연다
+};
 window._ivDeleteQuote = async function(id) {
     if (!await appConfirm('이 견적서를 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
     await window.fbEnsureAuth();
@@ -15266,6 +15298,7 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
           <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555;cursor:${canManage ? 'pointer' : 'default'};" onclick="event.stopPropagation();">
             <input type="checkbox" ${q.completed ? 'checked' : ''} ${canManage ? '' : 'disabled'} onchange="_ivToggleCompleted('${q.id}', this.checked)"> 완료현장
           </label>
+          ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();_ivRenameQuote('${q.id}')">이름변경</button>` : ''}
           ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();_ivMoveQuote('${q.id}')">이동</button>` : ''}
           ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();_ivToggleShare('${q.id}',${!q.sharedWithDept})">${q.sharedWithDept ? '공유해제' : '공유'}</button>` : ''}
           ${canManage ? `<button type="button" class="secondary" style="font-size:11px;padding:4px 8px;color:#e74c3c;" onclick="event.stopPropagation();_ivDeleteQuote('${q.id}')">삭제</button>` : ''}
@@ -15335,7 +15368,7 @@ function _ivRenderFolderNode(f, folders, quotesForEmp, y, empId, br, depth) {
         filesHere.forEach(q => {
             window._ivTreeQuotesById[q.id] = q;
             html += `<div class="iv-tree-row" style="padding-left:${pad + 16}px;">
-              <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
+              <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivTreeQuoteClick('${q.id}')" ondblclick="event.stopPropagation();_ivTreeQuoteDblClick('${q.id}')" title="드래그해서 폴더로 이동 · 더블클릭하면 이름변경"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
             </div>`;
         });
     }
@@ -15385,7 +15418,7 @@ function _ivRenderTreeHtml(employees, br, treeQuotesByEmp) {
                 topFolders.forEach(f => { html += _ivRenderFolderNode(f, folders, quotesForEmp, y, e.id, br, 0); });
                 rootQuotes.forEach(q => {
                     html += `<div class="iv-tree-row" style="padding-left:32px;">
-                      <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivBrowseOpenQuote('${q.id}')" title="드래그해서 폴더로 이동"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
+                      <span class="iv-tree-label" draggable="true" style="cursor:grab;" ondragstart="_ivTreeDragStart(event,'${q.id}')" onclick="_ivTreeQuoteClick('${q.id}')" ondblclick="event.stopPropagation();_ivTreeQuoteDblClick('${q.id}')" title="드래그해서 폴더로 이동 · 더블클릭하면 이름변경"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> ${q.fileName || q.companyName || '(파일명 미입력)'}</span>
                     </div>`;
                 });
             }
