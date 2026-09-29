@@ -18295,9 +18295,11 @@ if ('serviceWorker' in navigator) {
     ['emBulkRead','emBulkUnread','emBulkArchive','emBulkSpam','emBulkTrash'].forEach(id => {
       const b = document.getElementById(id); if (b) b.disabled = (n === 0);
     });
-    // 스팸함에선 '스팸' 버튼이 '스팸해제'로
+    // 스팸함에선 '스팸' 버튼이 '스팸해제'로, 보관함에선 '보관' 버튼이 '받은메일함으로'
     const spamBtn = document.getElementById('emBulkSpam');
     if (spamBtn) spamBtn.textContent = (_currentFolder === 'spam') ? '스팸해제' : '스팸';
+    const archBtn = document.getElementById('emBulkArchive');
+    if (archBtn) archBtn.textContent = (_currentFolder === 'archive') ? '받은메일함으로' : '보관';
     // 전체선택 체크 상태 동기화
     const all = document.getElementById('emSelectAll');
     const boxes = document.querySelectorAll('.em-mail-check');
@@ -18372,6 +18374,7 @@ if ('serviceWorker' in navigator) {
     if (!ids.length) return;
     let realOp = op;
     if (op === 'spam' && _currentFolder === 'spam') realOp = 'unspam'; // 스팸함에선 해제
+    if (op === 'archive' && _currentFolder === 'archive') realOp = 'unarchive'; // 보관함에선 받은메일함으로
     if (op === 'trash' && _currentFolder === 'trash') realOp = 'delete'; // 이미 휴지통이면 완전삭제
     if (op === 'trash') {
       if (_currentFolder === 'trash') {
@@ -18414,6 +18417,8 @@ if ('serviceWorker' in navigator) {
     // 캐시도 갱신된 목록으로 반영
     const cacheKey = email + '|' + _currentFolder;
     if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    // 받은메일함으로 돌려보낸 경우, 받은메일함 목록 캐시(5분)를 지워야 열었을 때 바로 보인다
+    if (realOp === 'unspam' || realOp === 'unarchive') delete _gmailCache[email + '|inbox'];
 
     // ── 서버에는 백그라운드로 요청 (실패 시에만 알림+새로고침) ──
     try {
@@ -18524,7 +18529,7 @@ if ('serviceWorker' in navigator) {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83a2 2 0 0 0-1.41-.58H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .58 1.41l9.59 9.59a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1"/></svg>폴더지정
             </button>
             <button class="em-detail-action-btn" data-label="보관" onclick="archiveCurrentEmail()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="4" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>보관
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="4" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>${_currentFolder === 'archive' ? '받은메일함으로' : '보관'}
             </button>
             <button class="em-detail-action-btn" data-label="수신거부" onclick="blockCurrentSender()" title="이 주소에서 오는 메일을 앞으로 받지 않음(휴지통으로)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>수신거부
@@ -18680,20 +18685,23 @@ if ('serviceWorker' in navigator) {
   };
 
   // 상세보기에서 지금 보고 있는 메일 하나를 보관 — 삭제 없이 받은편지함에서만 뺀다
+  // (보관함에서 열었으면 반대로 받은메일함으로 돌려보낸다)
   window.archiveCurrentEmail = async function() {
     const msg = _currentGmailDetailMsg;
     if (!msg || !msg.id) return;
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
+    const toInbox = _currentFolder === 'archive';
     try {
-      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'archive', ids: msg.id });
+      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: toInbox ? 'unarchive' : 'archive', ids: msg.id });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
-      if (data.status !== 'ok') { alert('보관 실패: ' + (data.message||'')); return; }
+      if (data.status !== 'ok') { alert((toInbox ? '이동 실패: ' : '보관 실패: ') + (data.message||'')); return; }
     } catch(e) {
-      alert('보관 오류: ' + e.message);
+      alert((toInbox ? '이동 오류: ' : '보관 오류: ') + e.message);
       return;
     }
+    if (toInbox) { delete _gmailCache[email + '|inbox']; showToast('받은메일함으로 옮겼습니다'); }
     _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id);
     const cacheKey = email + '|' + _currentFolder;
     if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();

@@ -238,7 +238,9 @@ async function gmailBatchModify(p) {
     if (op === 'read') removeLabelIds = ['UNREAD'];
     else if (op === 'unread') addLabelIds = ['UNREAD'];
     else if (op === 'spam') addLabelIds = ['SPAM'];
-    else if (op === 'unspam') removeLabelIds = ['SPAM'];
+    // 스팸해제는 Gmail "스팸 아님"과 같게 받은편지함으로 돌려놓는다(SPAM만 떼면 어느 폴더에도
+    // 안 속해 보관함에만 보이게 됨).
+    else if (op === 'unspam') { removeLabelIds = ['SPAM']; addLabelIds = ['INBOX']; }
     else if (op === 'archive') removeLabelIds = ['INBOX']; // 받은편지함에서만 뺌(삭제 아님)
     else if (op === 'unarchive') addLabelIds = ['INBOX'];
     else return { status: 'error', message: '알 수 없는 작업: ' + op };
