@@ -8884,6 +8884,393 @@ function csDateInputValue(val) {
         </div>
       </div>
 
+      <!-- ▼▼▼ [임시] 시공일정/시공예정상황 엑셀 가져오기 (2026-09-29) — 더 이상 필요 없으면 이 ▼▼▼ ~ ▲▲▲ 사이를 통째로 지우면 끝 ▼▼▼ -->
+      <div style="border:1px dashed var(--brand);border-radius:10px;padding:18px;">
+        <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;margin-bottom:0;" onclick="toggleAdminGroup('xlsImportGroup')">
+          <svg id="xlsImportGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <span style="font-size:13px;font-weight:800;color:var(--brand);margin-left:8px;">시공일정 엑셀 가져오기 <span style="font-size:11px;font-weight:600;color:#999;">(임시)</span></span>
+        </div>
+        <div id="xlsImportGroupWrap" style="display:none;margin-top:14px;">
+          <div style="font-size:11.5px;color:#888;line-height:1.7;margin-bottom:12px;">
+            시공일정표(월별, 주 단위 시트) / 시공예정상황 엑셀을 선택하면 종류를 자동으로 구분해서 읽습니다. 여러 파일을 한 번에 선택할 수 있습니다.<br>
+            <b style="color:#c0392b;">반영하면 해당 표의 기존 내용이 전부 지워지고 선택한 파일 내용으로 교체됩니다.</b>
+            시공일정표는 남겨둘 달의 파일(예: 9월 + 10월)을 <b>모두 함께</b> 선택하세요. 올리지 않은 종류(예: 예정상황 파일을 안 고르면 시공예정상황)는 건드리지 않습니다.
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <input type="file" id="xlsImportInput" accept=".xlsx" multiple style="display:none;" onchange="xlsImportOnFiles(this)">
+            <button class="admin-btn" onclick="document.getElementById('xlsImportInput').click()">엑셀 파일 선택</button>
+            <button class="admin-btn primary" id="xlsImportRunBtn" onclick="xlsImportRun()" disabled style="opacity:.5;">반영하기</button>
+          </div>
+          <div id="xlsImportPreview" style="font-size:12px;color:#555;margin-top:12px;line-height:1.7;word-break:break-all;"></div>
+          <div id="xlsImportProgress" style="font-size:12px;color:#888;margin-top:8px;"></div>
+        </div>
+      </div>
+<script>
+// ── 엑셀 파싱 공용 로직 (ExcelJS Workbook 객체를 받아 Firestore에 넣을 문서 배열을 만든다) ──
+// 시공일정표: 주 단위 시트, 헤더 1~3행, A열 일자("9/4\n(금)\n휴무자메모"), 합계행은 A열에 날짜가 없어 자동 제외.
+//   값: B~H, J, M / 평·시공평수·반품수량(I,K,L)은 앱이 계산하므로 값은 버리고 색·병합만 반영.
+//   일자칸 색/메모는 scheduleDayNotes로(일정이 없는 날도 반영). fontColorMap은 넣지 않음(앱 기본 컬럼색과 동일).
+// 시공예정상황: 첫 시트, col1=No(무시) col2=상담날짜 col3=예정일정 col4=담당 ... col9=특이사항.
+var _xiSchedCols = { 2:'manager', 3:'company', 4:'site', 5:'suppliedMaterial', 6:'stockMaterial', 7:'m2', 8:'boxQty', 9:'py', 10:'installBox', 11:'installPy', 12:'returnQty', 13:'team' };
+var _xiSchedValueFields = ['manager','company','site','suppliedMaterial','stockMaterial','m2','boxQty','installBox','team'];
+var _xiSchedNumFields = { m2:1, boxQty:1, installBox:1 };
+var _xiForecastCols = { consultDate:2, scheduledDate:3, manager:4, company:5, site:6, suppliedMaterial:7, stockMaterial:8, note:9 };
+
+// 워크북 테마 색(lt1,dk1,lt2,dk2,accent1~6,hlink,folHlink 순). 못 읽으면 오피스 기본 테마.
+function _xiThemeColors(wb) {
+  var def = ['FFFFFF','000000','EEECE1','1F497D','4F81BD','C0504D','9BBB59','8064A2','4BACC6','F79646','0000FF','800080'];
+  try {
+    var xml = String((wb._themes || {}).theme1 || '');
+    var m = xml.match(/<a:clrScheme[\s\S]*?<\/a:clrScheme>/);
+    if (!m) return def;
+    var get = function (tag) {
+      var r = new RegExp('<a:' + tag + '>([\\s\\S]*?)</a:' + tag + '>').exec(m[0]);
+      if (!r) return null;
+      var v = /srgbClr val="([0-9A-Fa-f]{6})"/.exec(r[1]) || /lastClr="([0-9A-Fa-f]{6})"/.exec(r[1]);
+      return v ? v[1].toUpperCase() : null;
+    };
+    var tags = ['lt1','dk1','lt2','dk2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink'];
+    return tags.map(function (t, i) { return get(t) || def[i]; });
+  } catch (e) { return def; }
+}
+// 엑셀의 tint 공식(HLS 명도 보정)
+function _xiApplyTint(hex, tint) {
+  if (!tint) return hex;
+  var r = parseInt(hex.slice(0,2),16)/255, g = parseInt(hex.slice(2,4),16)/255, b = parseInt(hex.slice(4,6),16)/255;
+  var max = Math.max(r,g,b), min = Math.min(r,g,b), l = (max+min)/2, h = 0, s = 0, d = max-min;
+  if (d) {
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+    h = max === r ? (g-b)/d + (g < b ? 6 : 0) : max === g ? (b-r)/d + 2 : (r-g)/d + 4;
+    h /= 6;
+  }
+  l = tint < 0 ? l*(1+tint) : l*(1-tint) + tint;
+  var hue = function (p, q, t) { if (t<0) t+=1; if (t>1) t-=1; if (t<1/6) return p+(q-p)*6*t; if (t<1/2) return q; if (t<2/3) return p+(q-p)*(2/3-t)*6; return p; };
+  var rr, gg, bb;
+  if (!s) { rr = gg = bb = l; } else {
+    var q = l < 0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+    rr = hue(p,q,h+1/3); gg = hue(p,q,h); bb = hue(p,q,h-1/3);
+  }
+  var to = function (x) { return ('0' + Math.round(x*255).toString(16)).slice(-2); };
+  return (to(rr)+to(gg)+to(bb)).toUpperCase();
+}
+// 셀 채우기 → '#RRGGBB' (흰색/없음은 null). 이 엑셀들이 쓰는 테마+틴트 3종은 앱 팔레트 값으로 고정 매핑.
+function _xiMakeFill(wb) {
+  var theme = _xiThemeColors(wb);
+  return function (cell) {
+    var f = cell && cell.fill;
+    if (!f || f.type !== 'pattern' || f.pattern !== 'solid' || !f.fgColor) return null;
+    var c = f.fgColor, hex = null;
+    if (c.argb) hex = String(c.argb).slice(-6).toUpperCase();
+    else if (c.theme !== undefined) {
+      var t = c.tint || 0;
+      if (c.theme === 7 && Math.abs(t - 0.5999938962981048) < 1e-6) hex = 'CCC0DA';
+      else if (c.theme === 6 && Math.abs(t - 0.7999816888943144) < 1e-6) hex = 'EBF1DE';
+      else if (c.theme === 9 && Math.abs(t - 0.5999938962981048) < 1e-6) hex = 'FCD5B4';
+      else if (theme[c.theme]) hex = _xiApplyTint(theme[c.theme], t);
+    }
+    if (!hex || hex === 'FFFFFF') return null;
+    return '#' + hex;
+  };
+}
+function _xiCellText(v) {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) return v;
+  if (typeof v === 'object') {
+    if (v.richText) return v.richText.map(function (r) { return r.text; }).join('');
+    if (v.result !== undefined) return _xiCellText(v.result);
+    if (v.text !== undefined) return String(v.text);
+    return '';
+  }
+  return v;
+}
+function _xiYmd(d) {
+  return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth()+1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+}
+// 병합 범위 목록 {top,left,bottom,right}
+function _xiMerges(ws) {
+  var out = [];
+  var ms = (ws.model && ws.model.merges) || [];
+  ms.forEach(function (s) {
+    var m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(s);
+    if (!m) return;
+    var col = function (L) { var n = 0; for (var i = 0; i < L.length; i++) n = n*26 + (L.charCodeAt(i)-64); return n; };
+    out.push({ top: +m[2], left: col(m[1]), bottom: +m[4], right: col(m[3]), ref: s });
+  });
+  return out;
+}
+// 워크북 종류 판별: 'schedule' | 'forecast' | null
+function xiDetectKind(wb) {
+  for (var i = 0; i < wb.worksheets.length; i++) {
+    var ws = wb.worksheets[i], txt = '';
+    for (var r = 1; r <= Math.min(10, ws.rowCount); r++) {
+      ws.getRow(r).eachCell(function (c) { txt += ' ' + String(_xiCellText(c.value)).replace(/\s+/g, ''); });
+    }
+    if (/상담/.test(txt) && /예정/.test(txt)) return 'forecast';
+    if (/일자/.test(txt) && /시공팀/.test(txt)) return 'schedule';
+  }
+  return null;
+}
+// 파일명에서 연도("26년")/월("9월") 추출 — 연말·연초 넘어가는 주도 맞는 연도로 넣기 위함
+function _xiYearMonthFromName(name) {
+  var y = /(\d{2,4})\s*년/.exec(name || ''), m = /(\d{1,2})\s*월/.exec(name || '');
+  var year = y ? (+y[1] < 100 ? 2000 + (+y[1]) : +y[1]) : new Date().getFullYear();
+  return { year: year, month: m ? +m[1] : null };
+}
+
+function xiParseSchedule(wb, fileName, startOrder) {
+  var fill = _xiMakeFill(wb), ym = _xiYearMonthFromName(fileName);
+  var order = startOrder, jobs = [], dayInfo = {}, sheets = [];
+  var toDate = function (mo, da) {
+    var y = ym.year;
+    if (ym.month) { if (mo - ym.month > 6) y--; else if (ym.month - mo > 6) y++; }
+    return y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + da).slice(-2);
+  };
+  var parseDay = function (v) {
+    var t = _xiCellText(v);
+    if (t instanceof Date) return { date: toDate(t.getUTCMonth()+1, t.getUTCDate()), note: '' };
+    var s = String(t).trim(), m = s.match(/^(\d{1,2})\/(\d{1,2})/);
+    if (!m) return null;
+    var lines = s.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+    var rest = lines.slice(1).filter(function (l) { return !/^\(.\)$/.test(l); });
+    return { date: toDate(+m[1], +m[2]), note: rest.join('\n') };
+  };
+  wb.worksheets.forEach(function (ws) {
+    var mergeOf = {};
+    _xiMerges(ws).forEach(function (g) {
+      if (g.top <= 3) return;
+      var l = Math.max(g.left, 2);
+      if (l > g.right || (g.bottom === g.top && g.right === l)) return;
+      var id = ws.name + '!' + g.top + ':' + l;
+      for (var r = g.top; r <= g.bottom; r++) for (var c = l; c <= g.right; c++) mergeOf[r + ':' + c] = id;
+    });
+    var n = 0;
+    for (var r = 4; r <= ws.rowCount; r++) {
+      var a = ws.getCell(r, 1), dayCell = a.isMerged ? a.master : a;
+      var d = parseDay(dayCell.value);
+      if (!d) continue;
+      var prev = dayInfo[d.date] || { color: '', note: '' };
+      dayInfo[d.date] = { color: prev.color || fill(dayCell) || '', note: prev.note || d.note || '' };
+      var en = { date: d.date }, hl = {}, mm = {}, has = false;
+      Object.keys(_xiSchedCols).forEach(function (c) {
+        var field = _xiSchedCols[c], cell = ws.getCell(r, +c);
+        var isSlave = cell.isMerged && cell.master.address !== cell.address;
+        var h = fill(cell.isMerged ? cell.master : cell);
+        if (h) hl[field] = h;
+        if (mergeOf[r + ':' + c]) mm[field] = mergeOf[r + ':' + c];
+        if (_xiSchedValueFields.indexOf(field) < 0) return;
+        var v = isSlave ? '' : _xiCellText(cell.value);
+        if (v instanceof Date) v = (v.getUTCMonth()+1) + '/' + v.getUTCDate();
+        if (_xiSchedNumFields[field]) {
+          var num = (v === '' || v === null) ? 0 : parseFloat(String(v).replace(/,/g, ''));
+          en[field] = isNaN(num) ? 0 : num;
+          if (en[field]) has = true;
+        } else {
+          en[field] = String(v == null ? '' : v).trim();
+          if (en[field]) has = true;
+        }
+      });
+      if (!has) continue;
+      if (Object.keys(hl).length) en.highlightMap = hl;
+      if (Object.keys(mm).length) en.mergeMap = mm;
+      en.order = order++;
+      jobs.push(en); n++;
+    }
+    sheets.push(ws.name + ' ' + n + '건');
+  });
+  return { jobs: jobs, dayInfo: dayInfo, nextOrder: order, sheets: sheets };
+}
+
+function xiParseForecast(wb) {
+  var fill = _xiMakeFill(wb), ws = wb.worksheets[0], entries = [], order = 1;
+  var fields = Object.keys(_xiForecastCols), rowMerge = {};
+  var colField = {}; fields.forEach(function (f) { colField[_xiForecastCols[f]] = f; });
+  _xiMerges(ws).forEach(function (g) {
+    if (g.left !== g.right || g.bottom === g.top || !colField[g.left]) return;
+    for (var r = g.top; r <= g.bottom; r++) { rowMerge[r] = rowMerge[r] || {}; rowMerge[r][colField[g.left]] = g.ref; }
+  });
+  var text = function (cell) {
+    var t = _xiCellText(cell.value);
+    if (t instanceof Date) return _xiYmd(t);
+    return String(t == null ? '' : t).trim();
+  };
+  for (var r = 1; r <= ws.rowCount; r++) {
+    var row = ws.getRow(r), manager = text(row.getCell(_xiForecastCols.manager));
+    if (!manager || manager === '담당' || manager === '시공 일정 예정') continue;
+    if (!text(row.getCell(_xiForecastCols.company))) continue;
+    var doc = { order: order++ }, hl = {};
+    fields.forEach(function (f) {
+      var cell = row.getCell(_xiForecastCols[f]), t = text(cell);
+      if (t !== '') doc[f] = t;
+      var h = fill(cell);
+      if (h) hl[f] = h;
+    });
+    if (Object.keys(hl).length) doc.highlightMap = hl;
+    if (rowMerge[r]) doc.mergeMap = rowMerge[r];
+    entries.push(doc);
+  }
+  return { entries: entries };
+}
+
+
+// ── 화면/업로드 처리 ──
+(function(){
+  var parsed = null; // { schedFiles:[], forecastFile, jobs, days:[[date,{color,note}]], forecast, warnings:[] }
+  var esc = function(s){ return window._escHtml(s); };
+  function loadExcelJS() {
+    if (window.ExcelJS) return Promise.resolve();
+    return new Promise(function(resolve, reject){
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+      s.onload = function(){ resolve(); };
+      s.onerror = function(){ reject(new Error('엑셀 읽기 라이브러리를 불러오지 못했습니다(인터넷 연결 확인).')); };
+      document.head.appendChild(s);
+    });
+  }
+  function setRunEnabled(on) {
+    var b = document.getElementById('xlsImportRunBtn');
+    if (b) { b.disabled = !on; b.style.opacity = on ? '1' : '.5'; }
+  }
+  window.xlsImportOnFiles = async function(input) {
+    var files = Array.prototype.slice.call(input.files || []);
+    input.value = '';
+    var prev = document.getElementById('xlsImportPreview');
+    var prog = document.getElementById('xlsImportProgress');
+    parsed = null; setRunEnabled(false);
+    prog.textContent = '';
+    if (!files.length) { prev.innerHTML = ''; return; }
+    prev.innerHTML = '파일 읽는 중...';
+    try {
+      await loadExcelJS();
+      var books = [];
+      for (var i = 0; i < files.length; i++) {
+        var wb = new window.ExcelJS.Workbook();
+        try { await wb.xlsx.load(await files[i].arrayBuffer()); }
+        catch (e) { books.push({ name: files[i].name, kind: null, err: '엑셀(.xlsx) 파일을 열 수 없음' }); continue; }
+        books.push({ name: files[i].name, wb: wb, kind: xiDetectKind(wb) });
+      }
+      // 시공일정표는 파일명의 연/월 순서대로(같은 날짜가 겹치면 뒤 달 파일의 일자칸 정보가 우선)
+      var sched = books.filter(function(b){ return b.kind === 'schedule'; }).sort(function(a, b){
+        var x = _xiYearMonthFromName(a.name), y = _xiYearMonthFromName(b.name);
+        return (x.year * 100 + (x.month || 0)) - (y.year * 100 + (y.month || 0));
+      });
+      var fcs = books.filter(function(b){ return b.kind === 'forecast'; });
+      var html = '', warnings = [];
+      var result = { schedFiles: [], forecastFile: null, jobs: [], days: [], forecast: null, warnings: warnings };
+
+      var order = Date.now(), dayMap = {}, dateFile = {};
+      sched.forEach(function(b){
+        var r = xiParseSchedule(b.wb, b.name, order);
+        order = r.nextOrder;
+        r.jobs.forEach(function(j){
+          if (dateFile[j.date] && dateFile[j.date] !== b.name && warnings.indexOf(j.date) < 0) warnings.push(j.date);
+          dateFile[j.date] = b.name;
+        });
+        result.jobs = result.jobs.concat(r.jobs);
+        Object.keys(r.dayInfo).forEach(function(d){ dayMap[d] = r.dayInfo[d]; });
+        result.schedFiles.push(b.name);
+        var ds = r.jobs.map(function(j){ return j.date; }).sort();
+        html += '<div>📅 <b>' + esc(b.name) + '</b> → 시공일정표 · ' + r.jobs.length + '건'
+          + (ds.length ? ' (' + ds[0] + ' ~ ' + ds[ds.length - 1] + ')' : '')
+          + '<br><span style="color:#999;font-size:11px;">' + esc(r.sheets.join(' / ')) + '</span></div>';
+      });
+      result.days = Object.keys(dayMap).sort().filter(function(d){ return dayMap[d].color || dayMap[d].note; })
+        .map(function(d){ return [d, dayMap[d]]; });
+
+      if (fcs.length > 1) {
+        html += '<div style="color:#c0392b;">⚠ 시공예정상황 파일이 ' + fcs.length + '개입니다. 하나만 선택해주세요: ' + esc(fcs.map(function(b){ return b.name; }).join(', ')) + '</div>';
+      } else if (fcs.length === 1) {
+        var fr = xiParseForecast(fcs[0].wb);
+        result.forecast = fr.entries; result.forecastFile = fcs[0].name;
+        html += '<div>📋 <b>' + esc(fcs[0].name) + '</b> → 시공예정상황 · ' + fr.entries.length + '건</div>';
+      }
+      books.filter(function(b){ return !b.kind; }).forEach(function(b){
+        html += '<div style="color:#c0392b;">✖ <b>' + esc(b.name) + '</b> — ' + esc(b.err || '시공일정표/시공예정상황 형식이 아니라서 제외') + '</div>';
+      });
+      if (warnings.length) {
+        html += '<div style="color:#d35400;">⚠ 여러 파일에 같은 날짜의 일정이 있습니다(그대로 올리면 중복 표시됨): ' + esc(warnings.join(', ')) + '</div>';
+      }
+      if (result.schedFiles.length) {
+        var colored = result.jobs.filter(function(j){ return j.highlightMap; }).length;
+        html += '<div style="margin-top:6px;color:#333;">▶ 반영 시: <b>시공일정 ' + result.jobs.length + '건</b>(색 있는 행 ' + colored + ') + <b>일자칸 색/메모 ' + result.days.length + '일</b>로 전체 교체</div>';
+      }
+      if (result.forecast) {
+        html += '<div style="color:#333;">▶ 반영 시: <b>시공예정상황 ' + result.forecast.length + '건</b>으로 전체 교체</div>';
+      }
+      prev.innerHTML = html || '읽을 수 있는 파일이 없습니다.';
+      var ok = (result.schedFiles.length && result.jobs.length) || (result.forecast && result.forecast.length);
+      if (fcs.length > 1) ok = false;
+      if (ok) { parsed = result; setRunEnabled(true); }
+    } catch (e) {
+      prev.innerHTML = '<span style="color:#c0392b;">오류: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  // 기존 문서를 먼저 읽어두고 → 새 문서를 다 쓴 다음 → 기존 문서를 지운다(중간에 실패해도 표가 통째로 비지 않게).
+  // fixedIds: 문서ID를 직접 정하는 경우(scheduleDayNotes = 날짜) — 같은 ID는 덮어쓰기라 삭제 대상에서 뺀다.
+  async function replaceCollection(name, items, fixedIds) {
+    var FB = window.FB;
+    var oldSnap = await FB.getDocs(FB.collection(FB.db, name));
+    var now = Date.now(), keep = {};
+    for (var i = 0; i < items.length; i += 400) {
+      var b = FB.writeBatch(FB.db);
+      items.slice(i, i + 400).forEach(function(it){
+        var ref = fixedIds ? FB.doc(FB.db, name, it.id) : FB.doc(FB.collection(FB.db, name));
+        if (fixedIds) keep[it.id] = 1;
+        b.set(ref, Object.assign({}, it.data, { updatedAtMs: now }));
+      });
+      await b.commit();
+    }
+    var olds = oldSnap.docs.filter(function(d){ return !keep[d.id]; });
+    for (var k = 0; k < olds.length; k += 400) {
+      var b2 = FB.writeBatch(FB.db);
+      olds.slice(k, k + 400).forEach(function(d){ b2.delete(d.ref); });
+      await b2.commit();
+    }
+    return { written: items.length, removed: oldSnap.size };
+  }
+
+  window.xlsImportRun = async function() {
+    if (!parsed) return;
+    var p = parsed, msg = '다음 내용으로 기존 데이터를 전부 교체합니다. 되돌릴 수 없습니다.\n\n';
+    if (p.schedFiles.length) msg += '· 시공일정표: ' + p.jobs.length + '건 + 일자칸 색/메모 ' + p.days.length + '일\n   (' + p.schedFiles.join(', ') + ')\n';
+    if (p.forecast) msg += '· 시공예정상황: ' + p.forecast.length + '건\n   (' + p.forecastFile + ')\n';
+    msg += '\n계속할까요?';
+    if (!await appConfirm(msg)) return;
+    var prog = document.getElementById('xlsImportProgress');
+    var set = function(t, color){ prog.style.color = color || '#888'; prog.textContent = t; };
+    setRunEnabled(false);
+    try {
+      await window.fbEnsureAuth();
+      var done = [], u = window._currentUser;
+      var log = async function(text){ try { await _scheduleSaveHistory(text, (u && u.name) || '', (u && u.title) || ''); } catch(e) {} };
+      if (p.schedFiles.length) {
+        set('시공일정 반영 중...');
+        var r1 = await replaceCollection('constructionSchedule', p.jobs.map(function(j){ return { data: j }; }), false);
+        set('일자칸 색/메모 반영 중...');
+        var r2 = await replaceCollection('scheduleDayNotes', p.days.map(function(d){ return { id: d[0], data: { color: d[1].color || '', text: d[1].note || '' } }; }), true);
+        done.push('시공일정 ' + r1.written + '건(기존 ' + r1.removed + '건 교체), 일자칸 ' + r2.written + '일');
+        await log('[시공일정] 엑셀 일괄 가져오기: ' + esc(p.schedFiles.join(', ')) + ' → ' + r1.written + '건 (기존 ' + r1.removed + '건 교체)');
+      }
+      if (p.forecast) {
+        set('시공예정상황 반영 중...');
+        var r3 = await replaceCollection('constructionForecast', p.forecast.map(function(e){ return { data: e }; }), false);
+        done.push('시공예정상황 ' + r3.written + '건(기존 ' + r3.removed + '건 교체)');
+        await log('[시공예정상황] 엑셀 일괄 가져오기: ' + esc(p.forecastFile) + ' → ' + r3.written + '건 (기존 ' + r3.removed + '건 교체)');
+      }
+      // 시공일정표 탭을 이미 열어둔 상태면 새 데이터로 다시 불러온다
+      var frame = document.getElementById('scheduleFrame');
+      if (frame && frame.dataset.loaded === '1') frame.srcdoc = frame.srcdoc;
+      parsed = null;
+      set('✔ 완료: ' + done.join(' / '), '#1a7a45');
+    } catch (e) {
+      set('오류: ' + e.message + ' (다시 시도해주세요)', '#c0392b');
+      setRunEnabled(true);
+    }
+  };
+})();
+</script>
+      <!-- ▲▲▲ [임시] 시공일정/시공예정상황 엑셀 가져오기 끝 ▲▲▲ -->
+
     </div>
   </div>
 
