@@ -15236,6 +15236,11 @@ window._ivDeleteFolder = async function(id) {
     _ivRenderVaultBody();
 };
 
+// 전화번호(010-1234-5678 등)가 하이픈에서 줄바꿈돼 두 줄로 쪼개지지 않게 한 덩어리로 묶는다.
+function _ivNoBreakPhone(s) {
+    return String(s || '').replace(/\d{2,4}-\d{3,4}-\d{4}/g, m => `<span style="white-space:nowrap;">${m}</span>`);
+}
+
 function _ivRenderQuoteRow(q, flags, locationLabel) {
     const canManage = q.authorId === flags.id || flags.viewAll;
     // 4단계는 순서 없는 독립 저장칸 — "현재 단계" 개념 없이 데이터가 저장된 단계만 진하게 표시.
@@ -15245,10 +15250,11 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
             return `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:${has ? 'var(--brand)' : '#f7f7f7'};color:${has ? '#fff' : '#ccc'};">${IV_STAGE_LABELS[s]}</span>`;
           }).join(' ')
         : `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#eee;color:#555;">${q.category || ''}</span>`;
-    const displayTitle = q.fileName || q.companyName || '(파일명 미입력)';
+    const displayTitle = _ivNoBreakPhone(q.fileName || q.companyName || '(파일명 미입력)');
+    const companyLine = _ivNoBreakPhone(q.companyName);
     const subtitle = locationLabel
-        ? `${q.companyName || ''} · ${q.authorName || ''} · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${locationLabel} · ${stageStrip}`
-        : `${q.companyName || ''} · ${q.authorName || ''} · ${stageStrip}`;
+        ? `${companyLine} · ${q.authorName || ''} · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${locationLabel} · ${stageStrip}`
+        : `${companyLine} · ${q.authorName || ''} · ${stageStrip}`;
     return `
       <div draggable="true" ondragstart="_ivTreeDragStart(event,'${q.id}')" style="border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:${q.completed ? '#f2f9f4' : '#fff'};cursor:grab;">
         <div style="cursor:pointer;flex:1;min-width:160px;" onclick="_ivBrowseOpenQuote('${q.id}')">
