@@ -17808,6 +17808,21 @@ if ('serviceWorker' in navigator) {
   let _gmailNextToken = '';   // 현재 폴더의 다음 페이지 토큰
   let _gmailLoadingMore = false;
   let _currentDraft = null;
+  // 마지막으로 실제 조회한 검색어(검색창에 입력만 하고 Enter 안 누른 글자와 구분) — 캐시 키·더보기·새로고침 기준
+  let _emQuery = '';
+  // 요청 순번: 폴더를 빠르게 바꾸거나 메일을 연달아 열 때, 늦게 도착한 이전 응답이 현재 화면을 덮어쓰지 않게 한다
+  let _emListSeq = 0;
+  let _emDetailSeq = 0;
+  // 임시보관함에서 이어서 쓰는 중인 메일의 id(없으면 새 메일)
+  let _emEditingDraftId = null;
+  function _emCacheKey(email, folder, q) { return email + '|' + folder + (q ? '|q=' + q : ''); }
+  // 목록을 직접 고친 뒤(삭제·보관·읽음) 캐시 반영 — 검색 중이면 검색 결과 캐시만 고치고,
+  // 폴더 전체 캐시는 지운다(검색 결과로 폴더 전체 목록을 덮어쓰면 검색을 지웠을 때 몇 개만 보이던 버그).
+  function _emSyncListCache(email) {
+    const key = _emCacheKey(email, _currentFolder, _emQuery);
+    if (_gmailCache[key]) { _gmailCache[key].items = _allEmailItems.slice(); _gmailCache[key].nextPageToken = _gmailNextToken; }
+    if (_emQuery) delete _gmailCache[_emCacheKey(email, _currentFolder, '')];
+  }
 
   // ── 폴더 전환 ──
   window.setEmailFolder = function(folder, el) {
@@ -17820,6 +17835,7 @@ if ('serviceWorker' in navigator) {
     document.getElementById('emFolderTitle').textContent = FOLDER_LABELS[folder] || (customLabel ? customLabel.name : folder);
     const sel = document.getElementById('emFolderSelectMobile'); if (sel) sel.value = folder;
     const si = document.getElementById('emSearchInput'); if (si) si.value = '';
+    _emQuery = '';
     // 일괄 작업 바: Gmail 폴더(받은/스팸/휴지통/커스텀 라벨)는 읽음/안읽음/스팸/삭제 전부,
     // 보낸메일함/임시보관함(로컬 저장)은 전체선택+삭제만 표시
     const bulk = document.getElementById('emBulkBar');
@@ -17894,7 +17910,7 @@ if ('serviceWorker' in navigator) {
           <span>${_emEsc(l.name)}</span>
           <span style="margin-left:auto;display:flex;align-items:center;gap:6px;">
             <span class="em-label-unread" data-labelid="${l.id}" style="display:none;background:var(--brand);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;min-width:18px;text-align:center;"></span>
-            <span style="color:#ccc;padding:2px 4px;cursor:pointer;" onclick="event.stopPropagation();deleteEmailLabel('${l.id}','${_emEsc(l.name)}')" title="폴더 삭제">✕</span>
+            <span style="color:#ccc;padding:2px 4px;cursor:pointer;" onclick="event.stopPropagation();deleteEmailLabel('${l.id}')" title="폴더 삭제">✕</span>
           </span>
         </div>
       `).join('');
@@ -17940,7 +17956,9 @@ if ('serviceWorker' in navigator) {
   };
 
   // ── 폴더(라벨) 삭제 ──
-  window.deleteEmailLabel = async function(labelId, name) {
+  window.deleteEmailLabel = async function(labelId) {
+    // 이름에 따옴표가 있으면 onclick 문자열이 깨져서, 이름은 인자로 받지 않고 id로 찾는다
+    const name = ((_emailLabels || []).find(l => l.id === labelId) || {}).name || '';
     if (!await appConfirm(`"${name}" 폴더를 삭제하시겠습니까?\n(이 폴더로 분류됐던 메일은 삭제되지 않고, 폴더 지정만 없어집니다.)`)) return;
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
@@ -17969,7 +17987,7 @@ if ('serviceWorker' in navigator) {
       pop.innerHTML = `<div style="font-size:12px;color:#999;padding:8px;text-align:center;">만든 폴더가 없습니다.<br>사이드바에서 "새 폴더"로 먼저 만들어주세요.</div>`;
     } else {
       pop.innerHTML = _emailLabels.map(l => `
-        <div onclick="_applyLabelToCurrentMessage('${l.id}','${_emEsc(l.name)}')" style="padding:8px 10px;font-size:13px;border-radius:6px;cursor:pointer;">${_emEsc(l.name)}</div>
+        <div onclick="_applyLabelToCurrentMessage('${l.id}')" style="padding:8px 10px;font-size:13px;border-radius:6px;cursor:pointer;">${_emEsc(l.name)}</div>
       `).join('');
     }
     document.body.appendChild(pop);
@@ -17981,7 +17999,8 @@ if ('serviceWorker' in navigator) {
   };
 
   // ── 선택한 폴더(라벨)를 현재 보고 있는 메일에 적용 + 자동분류(필터) 확인 ──
-  window._applyLabelToCurrentMessage = async function(labelId, labelName) {
+  window._applyLabelToCurrentMessage = async function(labelId) {
+    const labelName = ((_emailLabels || []).find(l => l.id === labelId) || {}).name || '';
     const pop = document.getElementById('emLabelPickerPopover');
     if (pop) pop.remove();
     const msg = _currentGmailDetailMsg;
@@ -18091,7 +18110,9 @@ if ('serviceWorker' in navigator) {
       return;
     }
     q = (q || '').trim();
-    const cacheKey = email + '|' + folder + (q ? '|q=' + q : '');
+    _emQuery = q;
+    const seq = ++_emListSeq;
+    const cacheKey = _emCacheKey(email, folder, q);
     const cached = _gmailCache[cacheKey];
     const isFresh = cached && (Date.now() - cached.at) < _GMAIL_CACHE_MS;
     if (!forceRefresh && isFresh) {
@@ -18116,6 +18137,8 @@ if ('serviceWorker' in navigator) {
     if (folder === 'inbox' && !q && typeof refreshInboxUnread === 'function') refreshInboxUnread();
     try {
       const { msgs, nextPageToken } = await _gmailFetchPage(email, folder, '', q);
+      _gmailCache[cacheKey] = { items: msgs.slice(), nextPageToken, at: Date.now() };
+      if (seq !== _emListSeq) return; // 그사이 다른 폴더/검색으로 바뀜 — 화면은 건드리지 않음
       _allEmailItems = msgs;
       _gmailNextToken = nextPageToken;
       _gmailCache[cacheKey] = { items: msgs.slice(), nextPageToken, at: Date.now() };
@@ -18123,6 +18146,7 @@ if ('serviceWorker' in navigator) {
       _appendMoreButton();
       _maybeOpenPendingMail();
     } catch (e) {
+      if (seq !== _emListSeq) return;
       if (!cached) {
         listEl.innerHTML = `<div class="em-empty"><p>메일 조회 오류<br><span style="font-size:11px;color:#aaa;">${_emEsc(e.message||'')}</span></p></div>`;
       } else {
@@ -18140,14 +18164,14 @@ if ('serviceWorker' in navigator) {
     if (btn) { btn.textContent = '불러오는 중...'; btn.disabled = true; }
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
-    const q = ((document.getElementById('emSearchInput')||{}).value || '').trim();
+    const q = _emQuery, seq = _emListSeq;
     try {
       const { msgs, nextPageToken } = await _gmailFetchPage(email, _currentFolder, _gmailNextToken, q);
+      if (seq !== _emListSeq) return;
       _allEmailItems = _allEmailItems.concat(msgs);
       _gmailNextToken = nextPageToken;
       // 캐시 갱신 (쌓인 전체 + 토큰)
-      const cacheKey = email + '|' + _currentFolder + (q ? '|q=' + q : '');
-      _gmailCache[cacheKey] = { items: _allEmailItems.slice(), nextPageToken, at: Date.now() };
+      _gmailCache[_emCacheKey(email, _currentFolder, q)] = { items: _allEmailItems.slice(), nextPageToken, at: Date.now() };
       _renderGmailList(_allEmailItems, _currentFolder);
       _appendMoreButton();
     } catch (e) {
@@ -18176,13 +18200,13 @@ if ('serviceWorker' in navigator) {
   window.gmailRefresh = function() {
     const isGmailFolder = window.USE_GMAIL_API && (['inbox','spam','trash','archive'].includes(_currentFolder) || (_emailLabels||[]).some(l => l.id === _currentFolder));
     if (isGmailFolder) {
-      _fetchGmailAndRender(_currentFolder, true);
+      _fetchGmailAndRender(_currentFolder, true, _emQuery);
     } else {
       renderEmailList();
     }
   };
 
-  function _emEsc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  function _emEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   // 메일 본문 iframe은 sandbox="allow-same-origin"만 걸려있어 팝업/새창 열기(allow-popups)가
   // 막혀있다 — 이메일 안 링크는 대부분 target="_blank"라 그냥 두면 클릭해도 아무 반응이 없다.
   // iframe 자체 권한은 그대로 최소한으로 유지하고(스크립트 실행 불가 등 보안 유지), 대신 부모
@@ -18198,6 +18222,7 @@ if ('serviceWorker' in navigator) {
         const href = a.getAttribute('href') || '';
         if (!href || href.indexOf('#') === 0 || href.indexOf('mailto:') === 0) return;
         e.preventDefault();
+        if (!/^https?:\/\//i.test(href)) return; // javascript: 등 http(s)가 아닌 링크는 열지 않음
         window.open(href, '_blank', 'noopener,noreferrer');
       });
     } catch(e) { /* 접근 실패 시 조용히 무시 */ }
@@ -18320,10 +18345,11 @@ if ('serviceWorker' in navigator) {
   async function _gmailBackfill(email) {
     if (_gmailLoadingMore || !_gmailNextToken) return;
     _gmailLoadingMore = true;
-    const q = ((document.getElementById('emSearchInput')||{}).value || '').trim();
+    const q = _emQuery, seq = _emListSeq;
     try {
       while (_allEmailItems.length < 20 && _gmailNextToken) {
         const { msgs, nextPageToken } = await _gmailFetchPage(email, _currentFolder, _gmailNextToken, q);
+        if (seq !== _emListSeq) return;
         // 이미 목록에 있는 id는 제외하고 추가
         const have = new Set(_allEmailItems.map(m => m.gmailId));
         const add = msgs.filter(m => !have.has(m.gmailId));
@@ -18335,8 +18361,7 @@ if ('serviceWorker' in navigator) {
       _appendMoreButton();
       const cntEl = document.getElementById('emMailCount');
       if (cntEl) cntEl.textContent = _allEmailItems.length ? `전체메일 ${_allEmailItems.length}` : '';
-      const cacheKey = email + '|' + _currentFolder + (q ? '|q=' + q : '');
-      if (_gmailCache[cacheKey]) { _gmailCache[cacheKey].items = _allEmailItems.slice(); _gmailCache[cacheKey].nextPageToken = _gmailNextToken; }
+      _emSyncListCache(email);
     } catch(e) {
       // 보충 실패는 조용히 무시 (다음 새로고침에 정상화)
     } finally {
@@ -18415,8 +18440,8 @@ if ('serviceWorker' in navigator) {
       _emUpdateBulkState();
     }
     // 캐시도 갱신된 목록으로 반영
-    const cacheKey = email + '|' + _currentFolder;
-    if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    const cacheKey = _emCacheKey(email, _currentFolder, _emQuery);
+    _emSyncListCache(email);
     // 받은메일함으로 돌려보낸 경우, 받은메일함 목록 캐시(5분)를 지워야 열었을 때 바로 보인다
     if (realOp === 'unspam' || realOp === 'unarchive') delete _gmailCache[email + '|inbox'];
 
@@ -18428,7 +18453,7 @@ if ('serviceWorker' in navigator) {
       if (data.status !== 'ok') {
         alert('작업 실패: ' + (data.message||'') + '\n목록을 새로고침합니다.');
         delete _gmailCache[cacheKey];
-        _fetchGmailAndRender(_currentFolder, true);
+        _fetchGmailAndRender(_currentFolder, true, _emQuery);
       } else {
         // 읽음/삭제 등으로 안읽은 수가 바뀌었을 수 있으니 갱신
         if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
@@ -18436,7 +18461,7 @@ if ('serviceWorker' in navigator) {
     } catch(e) {
       alert('작업 오류: ' + e.message + '\n목록을 새로고침합니다.');
       delete _gmailCache[cacheKey];
-      _fetchGmailAndRender(_currentFolder, true);
+      _fetchGmailAndRender(_currentFolder, true, _emQuery);
     }
   };
 
@@ -18475,10 +18500,12 @@ if ('serviceWorker' in navigator) {
       dp.style.display = 'flex'; dp.classList.add('open');
       dp.innerHTML = '<div style="padding:30px;text-align:center;color:#aaa;">본문을 불러오는 중...</div>';
     }
+    const dseq = ++_emDetailSeq;
     try {
       const params = new URLSearchParams({ action: 'getGmailMessage', email, id: m.gmailId });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
+      if (dseq !== _emDetailSeq) return; // 그사이 목록으로 돌아갔거나 다른 메일을 열었음
       if (data.status !== 'ok') {
         if (dp) dp.innerHTML = `<div style="padding:30px;text-align:center;color:#c0392b;">본문 조회 실패: ${_emEsc(data.message||'')}<br><button onclick="backToEmailList()" style="margin-top:16px;background:none;border:1px solid #ddd;border-radius:8px;padding:8px 20px;cursor:pointer;">목록으로</button></div>`;
         return;
@@ -18487,6 +18514,7 @@ if ('serviceWorker' in navigator) {
       // ★ 본문을 열람하면 안읽은 메일은 자동으로 읽음 처리
       if (m.unread) _emAutoMarkRead(m, email);
     } catch(e) {
+      if (dseq !== _emDetailSeq) return;
       if (dp) dp.innerHTML = `<div style="padding:30px;text-align:center;color:#c0392b;">오류: ${_emEsc(e.message||'')}<br><button onclick="backToEmailList()" style="margin-top:16px;background:none;border:1px solid #ddd;border-radius:8px;padding:8px 20px;cursor:pointer;">목록으로</button></div>`;
     }
   };
@@ -18495,8 +18523,8 @@ if ('serviceWorker' in navigator) {
   async function _emAutoMarkRead(m, email) {
     m.unread = false;
     _renderGmailList(_allEmailItems, _currentFolder);
-    const cacheKey = email + '|' + _currentFolder;
-    if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    const cacheKey = _emCacheKey(email, _currentFolder, _emQuery);
+    _emSyncListCache(email);
     try {
       const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'read', ids: m.gmailId });
       await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
@@ -18676,8 +18704,8 @@ if ('serviceWorker' in navigator) {
     }
     // 목록에서도 제거하고 목록 화면으로 복귀
     _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id);
-    const cacheKey = email + '|' + _currentFolder;
-    if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    const cacheKey = _emCacheKey(email, _currentFolder, _emQuery);
+    _emSyncListCache(email);
     backToEmailList();
     _renderGmailList(_allEmailItems, _currentFolder);
     _appendMoreButton();
@@ -18703,8 +18731,8 @@ if ('serviceWorker' in navigator) {
     }
     if (toInbox) { delete _gmailCache[email + '|inbox']; showToast('받은메일함으로 옮겼습니다'); }
     _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id);
-    const cacheKey = email + '|' + _currentFolder;
-    if (_gmailCache[cacheKey]) _gmailCache[cacheKey].items = _allEmailItems.slice();
+    const cacheKey = _emCacheKey(email, _currentFolder, _emQuery);
+    _emSyncListCache(email);
     backToEmailList();
     _renderGmailList(_allEmailItems, _currentFolder);
     _appendMoreButton();
@@ -18776,19 +18804,23 @@ if ('serviceWorker' in navigator) {
       const data = await res.json();
       if (data.status !== 'ok') { ov.innerHTML = box(`<div style="padding:20px;text-align:center;color:#c0392b;font-size:13px;">조회 실패: ${_emEsc(data.message||'')}</div>`); return; }
       const items = data.items || [];
+      window._emBlockedItems = items;
       const note = '<div style="font-size:11.5px;color:#999;margin-bottom:10px;">아래 주소에서 온 메일은 받은메일함 대신 휴지통으로 갑니다(휴지통은 30일 후 자동 삭제).</div>';
       ov.innerHTML = box(note + (items.length
-        ? items.map(it => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f3f3f3;">
+        ? items.map((it, i) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f3f3f3;">
             <span style="font-size:13px;word-break:break-all;">${_emEsc(it.from)}</span>
-            <button type="button" class="secondary" style="font-size:11px;padding:4px 10px;flex-shrink:0;" onclick="_emUnblockSender('${_emEsc(it.id)}','${_emEsc(it.from)}')">해제</button>
+            <button type="button" class="secondary" style="font-size:11px;padding:4px 10px;flex-shrink:0;" onclick="_emUnblockSender(${i})">해제</button>
           </div>`).join('')
         : '<div style="padding:16px;text-align:center;color:#999;font-size:13px;">수신거부한 주소가 없습니다.</div>'));
     } catch(e) {
       ov.innerHTML = box(`<div style="padding:20px;text-align:center;color:#c0392b;font-size:13px;">오류: ${_emEsc(e.message||'')}</div>`);
     }
   };
-  window._emUnblockSender = async function(filterId, fromAddr) {
-    if (!await appConfirm(`${fromAddr} 수신거부를 해제할까요?\n(앞으로 이 주소의 메일이 다시 받은메일함으로 들어옵니다)`)) return;
+  window._emUnblockSender = async function(i) {
+    const it = (window._emBlockedItems || [])[i];
+    if (!it) return;
+    const filterId = it.id, fromAddr = it.from;
+    if (!await appConfirm(`${fromAddr} 수신거부를 해제할까요?\n(앞으로 이 주소의 메일이 다시 받은메일함으로 들어옵니다.\n이미 휴지통으로 옮겨진 메일은 자동으로 돌아오지 않습니다.)`)) return;
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
     try {
@@ -18802,6 +18834,7 @@ if ('serviceWorker' in navigator) {
   };
 
   window.backToEmailList = function() {
+    _emDetailSeq++;
     const dp = document.getElementById('emDetailPanel');
     if (dp) { dp.classList.remove('open'); dp.style.display = 'none'; }
     document.getElementById('emListView').style.display = 'flex';
@@ -18826,7 +18859,7 @@ if ('serviceWorker' in navigator) {
     } else {
       // 받은메일함/스팸/휴지통: Gmail API 연동 시 실제 조회, 미연동 시 빈 상태
       if (window.USE_GMAIL_API) {
-        _fetchGmailAndRender(_currentFolder);
+        _fetchGmailAndRender(_currentFolder, false, _emQuery);
         return; // 비동기 조회 후 별도 렌더
       }
       items = [];
@@ -18901,6 +18934,11 @@ if ('serviceWorker' in navigator) {
   window.openEmailDetail = function(idx) {
     const m = _allEmailItems[idx];
     if (!m) return;
+    // 임시보관함은 보기 전용 화면 대신 바로 이어서 쓰기(예전엔 다시 편집할 방법이 없었음)
+    if (_currentFolder === 'draft') {
+      openEmailCompose({ draftId: m.id || m.savedAt, from: m.from, to: m.to, cc: m.cc, subject: m.subject, body: m.body });
+      return;
+    }
     document.getElementById('emListView').style.display = 'none';
     const dp = document.getElementById('emDetailPanel');
     if (!dp) return;
@@ -18945,13 +18983,16 @@ if ('serviceWorker' in navigator) {
     const successView = document.getElementById('emSendSuccessView');
     if (formWrap) formWrap.style.display = '';
     if (successView) successView.style.display = 'none';
+    ['emailTo','emailCc','emailSubject','emailBody'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const aiEl = document.getElementById('emAiPrompt'); if (aiEl) aiEl.value = '';
+    _emEditingDraftId = (prefill && prefill.draftId) || null;
     if (prefill) {
       if (prefill.to) document.getElementById('emailTo').value = prefill.to;
+      if (prefill.cc) document.getElementById('emailCc').value = prefill.cc;
       if (prefill.subject) document.getElementById('emailSubject').value = prefill.subject;
       if (prefill.body) document.getElementById('emailBody').value = prefill.body;
-    } else {
-      ['emailTo','emailCc','emailSubject','emailBody'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-      document.getElementById('emAiPrompt').value = '';
+      const fromSel = document.getElementById('emailFrom');
+      if (prefill.from && fromSel && Array.from(fromSel.options).some(o => o.value === prefill.from)) fromSel.value = prefill.from;
     }
     _emailAttachments = [];
     renderEmailAttachList();
@@ -19010,10 +19051,17 @@ if ('serviceWorker' in navigator) {
   // ── 답장 / 전달 ──
   //   ★ 받은메일함(Gmail 연동) 상세는 _renderGmailDetail이 화면을 통째로 새로 그려서
   //     emDetailSubject 등 고정 id가 사라진다 — 그때는 _currentGmailDetailMsg를 대신 쓴다.
+  // ★ 보안: 예전엔 document.createElement('div').innerHTML = 메일HTML 로 텍스트를 뽑았는데, 문서에 붙지
+  //   않은 div라도 <img src=x onerror=...> 는 로드·실행돼서 받은 메일 속 코드가 ERP 권한으로 돌 수 있었다.
+  //   DOMParser 문서는 스크립트·이미지 로드를 하지 않으므로 안전하다.
   function _emStripHtml(html) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html || '';
-    return tmp.textContent || tmp.innerText || '';
+    try {
+      const doc = new DOMParser().parseFromString(html || '', 'text/html');
+      doc.querySelectorAll('script,style,head').forEach(n => n.remove());
+      doc.querySelectorAll('br').forEach(n => n.replaceWith('\n'));
+      doc.querySelectorAll('p,div,tr,li,h1,h2,h3,h4').forEach(n => n.append('\n'));
+      return (doc.body ? doc.body.textContent : '').replace(/\n{3,}/g, '\n\n').trim();
+    } catch (e) { return ''; }
   }
   function _emExtractEmail(str) {
     const m = String(str || '').match(/<([^>]+)>/);
@@ -19058,7 +19106,35 @@ if ('serviceWorker' in navigator) {
       subject: subj.startsWith('Fwd:') ? subj : 'Fwd: ' + subj,
       body: '\n\n------- 전달된 메일 -------\n' + body
     });
+    if (_currentGmailDetailMsg && (_currentGmailDetailMsg.attachments || []).length) _emAttachOriginalFiles(_currentGmailDetailMsg);
   };
+
+  // 전달할 때 원본 메일의 첨부파일을 받아 새 메일 첨부 목록에 넣는다(예전엔 본문만 전달되고 첨부가 빠졌음).
+  // 발송 요청 한 번에 실리므로 합계 20MB를 넘는 첨부는 건너뛴다.
+  async function _emAttachOriginalFiles(msg) {
+    const user = window._currentUser;
+    const email = user && user.email ? user.email : '';
+    const msgEl = document.getElementById('emAttachMsg');
+    let total = 0, skipped = 0;
+    for (const att of msg.attachments) {
+      if (total + (att.size || 0) > 20 * 1024 * 1024) { skipped++; continue; }
+      if (msgEl) msgEl.textContent = `원본 첨부 불러오는 중... (${att.filename})`;
+      try {
+        const params = new URLSearchParams({ action: 'getGmailAttachment', email, id: msg.id, attachmentId: att.attachmentId });
+        const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
+        const data = await res.json();
+        if (data.status !== 'ok') { skipped++; continue; }
+        const mimeType = att.mimeType || 'application/octet-stream';
+        _emailAttachments.push({ name: att.filename || 'attachment', mimeType, size: att.size || 0, base64: 'data:' + mimeType + ';base64,' + data.data });
+        total += att.size || 0;
+        renderEmailAttachList();
+      } catch(e) { skipped++; }
+    }
+    if (msgEl) {
+      msgEl.textContent = skipped ? `원본 첨부 중 ${skipped}개는 붙이지 못했습니다(용량 초과 또는 오류)` : '✔ 원본 첨부파일을 붙였습니다';
+      setTimeout(() => { msgEl.textContent = ''; }, 4000);
+    }
+  }
 
   // ── 발송 완료 안내 화면 표시 ──
   function _showEmailSendSuccess(to, subject) {
@@ -19111,6 +19187,16 @@ if ('serviceWorker' in navigator) {
       if (data.status === 'ok') {
         if (msgEl) { msgEl.textContent = '발송 완료!'; msgEl.style.color='#1a7a45'; }
         saveEmailLog({ from, to, cc, subject, body, sentAt: new Date().toISOString() });
+        // 임시보관함에서 이어 쓴 메일이면 보낸 뒤 임시저장본 삭제
+        if (_emEditingDraftId) {
+          try {
+            const dkey = 'baram_email_draft_' + ((window._currentUser && window._currentUser.id) || 'guest');
+            const drafts = JSON.parse(localStorage.getItem(dkey) || '[]').filter(d => (d.id || d.savedAt) !== _emEditingDraftId);
+            localStorage.setItem(dkey, JSON.stringify(drafts));
+          } catch(e) {}
+          _emEditingDraftId = null;
+          updateDraftCount();
+        }
         _emailAttachments = [];
         renderEmailAttachList();
         _showEmailSendSuccess(to, subject);
@@ -19134,15 +19220,19 @@ if ('serviceWorker' in navigator) {
       body:    document.getElementById('emailBody').value.trim(),
       savedAt: new Date().toISOString()
     };
+    // 같은 메일을 다시 저장하면 새로 쌓지 않고 기존 것을 교체(옛 임시저장은 id가 없어 savedAt으로 식별)
+    draft.id = _emEditingDraftId || ('d' + Date.now());
+    _emEditingDraftId = draft.id;
     const key = 'baram_email_draft_' + ((window._currentUser && window._currentUser.id) || 'guest');
     try {
-      const drafts = JSON.parse(localStorage.getItem(key) || '[]');
+      let drafts = JSON.parse(localStorage.getItem(key) || '[]');
+      drafts = drafts.filter(d => (d.id || d.savedAt) !== draft.id);
       drafts.unshift(draft);
       if (drafts.length > 20) drafts.length = 20;
       localStorage.setItem(key, JSON.stringify(drafts));
     } catch(e) {}
     const msgEl = document.getElementById('emComposeMsg');
-    if (msgEl) { msgEl.textContent = '임시저장 완료'; msgEl.style.color='#1a7a45'; }
+    if (msgEl) { msgEl.textContent = _emailAttachments.length ? '임시저장 완료 (첨부파일은 저장되지 않습니다)' : '임시저장 완료'; msgEl.style.color='#1a7a45'; }
     updateDraftCount();
     setTimeout(() => { if (msgEl) msgEl.textContent = ''; }, 2000);
   };
@@ -19207,8 +19297,6 @@ if ('serviceWorker' in navigator) {
     const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     if (target.getTime() === today.getTime()) return '오늘 ' + formatKorDate(d);
     if (target.getTime() === yesterday.getTime()) return '어제 ' + formatKorDate(d);
-    const diff = (today - target) / 86400000;
-    if (diff < 7) return '지난주';
     return formatKorDate(d);
   }
 
