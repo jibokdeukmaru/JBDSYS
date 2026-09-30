@@ -186,6 +186,8 @@ async function getGmailMessage(p) {
     const body = extractBody(m.payload);
     const attachments = extractAttachments(m.payload);
     if (body.html) body.html = await inlineCidImages(gmail, id, m.payload, body.html);
+    // 헤더 이름 대소문자가 메일마다 달라서(Message-ID / Message-Id 등) 대소문자 무시하고 찾는다
+    const hv = (name) => { const k = Object.keys(h).find((x) => x.toLowerCase() === name.toLowerCase()); return k ? h[k] : ''; };
     return {
       status: 'ok',
       message: {
@@ -193,6 +195,8 @@ async function getGmailMessage(p) {
         subject: h.Subject || '(제목없음)', date: h.Date || '',
         body: body.html || body.text || '', isHtml: !!body.html,
         attachments,
+        // ★ (2026-09-30) 답장이 같은 대화(스레드)로 이어지고 회신 주소로 가도록
+        threadId: m.threadId || '', messageId: hv('Message-ID'), references: hv('References'), replyTo: hv('Reply-To'),
       },
     };
   } catch (err) {
@@ -514,6 +518,13 @@ async function sendEmailFromERP(p) {
   headerLines.push('To: ' + to);
   if (cc) headerLines.push('Cc: ' + cc);
   headerLines.push('Subject: ' + mimeEncodeHeader(subject));
+  // ★ (2026-09-30) 답장 스레드 연결 — In-Reply-To/References 헤더(+ 아래 threadId)가 있어야 받는 쪽에서도 같은 대화로 묶인다.
+  //   헤더 주입 방지를 위해 줄바꿈 제거.
+  const inReplyTo = String(p.inReplyTo || '').replace(/[\r\n]+/g, ' ').trim();
+  const references = String(p.references || '').replace(/[\r\n]+/g, ' ').trim();
+  const threadId = String(p.threadId || '').trim();
+  if (inReplyTo) headerLines.push('In-Reply-To: ' + inReplyTo);
+  if (references) headerLines.push('References: ' + references);
   headerLines.push('MIME-Version: 1.0');
   headerLines.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
 
@@ -551,7 +562,13 @@ async function sendEmailFromERP(p) {
   //   From을 그대로 인정한다(꺼져있으면 Gmail이 본인 주소로 되돌리거나 거부할 수 있음).
   const gmail = gmailClientFor(senderEmail);
   try {
-    await gmail.users.messages.send({ userId: 'me', requestBody: { raw: rawEncoded } });
+    try {
+      await gmail.users.messages.send({ userId: 'me', requestBody: threadId ? { raw: rawEncoded, threadId } : { raw: rawEncoded } });
+    } catch (e) {
+      // 스레드 ID가 이 메일함 것이 아니면(공유주소 등) Gmail이 거부할 수 있다 — 스레드 없이 한 번 더 보낸다
+      if (!threadId) throw e;
+      await gmail.users.messages.send({ userId: 'me', requestBody: { raw: rawEncoded } });
+    }
     return { status: 'ok' };
   } catch (err) {
     return { status: 'error', message: (err.errors && err.errors[0] && err.errors[0].message) || err.message };
