@@ -18597,9 +18597,11 @@ if ('serviceWorker' in navigator) {
             <button class="em-detail-action-btn" data-label="폴더지정" onclick="openLabelPicker(event)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83a2 2 0 0 0-1.41-.58H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .58 1.41l9.59 9.59a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1"/></svg>폴더지정
             </button>
-            ${_currentFolder === 'spam' ? `<button class="em-detail-action-btn" data-label="스팸 아님" onclick="unspamCurrentEmail()" title="스팸이 아닌 메일 — 받은메일함으로 옮김" style="color:#1a7a45;border-color:#b7dcc4;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>스팸 아님
-            </button>` : ''}
+            ${_currentFolder === 'spam' ? `<button class="em-detail-action-btn" data-label="스팸해제" onclick="unspamCurrentEmail()" title="스팸이 아닌 메일 — 받은메일함으로 옮김" style="color:#1a7a45;border-color:#b7dcc4;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>스팸해제
+            </button>` : `<button class="em-detail-action-btn" data-label="스팸" onclick="spamCurrentEmail()" title="스팸으로 신고 — 스팸메일함으로 옮김">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>스팸
+            </button>`}
             <button class="em-detail-action-btn" data-label="보관" onclick="archiveCurrentEmail()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="4" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>${_currentFolder === 'archive' ? '받은메일함으로' : '보관'}
             </button>
@@ -18759,22 +18761,27 @@ if ('serviceWorker' in navigator) {
   // 상세보기에서 지금 보고 있는 메일 하나를 보관 — 삭제 없이 받은편지함에서만 뺀다
   // (보관함에서 열었으면 반대로 받은메일함으로 돌려보낸다)
   // 스팸메일함에서 연 메일을 "스팸 아님" 처리 — 스팸 표시를 떼고 받은메일함으로 옮긴다(목록의 "스팸해제"와 같은 동작)
-  window.unspamCurrentEmail = async function() {
+  // 본문 화면의 "스팸"/"스팸해제" 버튼 — 목록의 스팸/스팸해제 버튼과 같은 동작(현재 폴더 목록에서 빠짐)
+  window.spamCurrentEmail = function() { return _emSpamToggleCurrent('spam'); };
+  window.unspamCurrentEmail = function() { return _emSpamToggleCurrent('unspam'); };
+  async function _emSpamToggleCurrent(op) {
     const msg = _currentGmailDetailMsg;
     if (!msg || !msg.id) return;
     const user = window._currentUser;
     const email = user && user.email ? user.email : '';
+    const label = op === 'spam' ? '스팸 처리' : '스팸 해제';
     try {
-      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: 'unspam', ids: msg.id });
+      const params = new URLSearchParams({ action: 'gmailBatchModify', email, op, ids: msg.id });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
       const data = await res.json();
-      if (data.status !== 'ok') { alert('스팸 해제 실패: ' + (data.message||'')); return; }
+      if (data.status !== 'ok') { alert(label + ' 실패: ' + (data.message||'')); return; }
     } catch(e) {
-      alert('스팸 해제 오류: ' + e.message);
+      alert(label + ' 오류: ' + e.message);
       return;
     }
-    delete _gmailCache[email + '|inbox']; // 받은메일함을 열면 방금 옮긴 메일이 바로 보이게
-    showToast('받은메일함으로 옮겼습니다');
+    // 옮겨간 폴더를 열면 방금 옮긴 메일이 바로 보이게 캐시 삭제
+    delete _gmailCache[email + '|' + (op === 'spam' ? 'spam' : 'inbox')];
+    showToast(op === 'spam' ? '스팸메일함으로 옮겼습니다' : '받은메일함으로 옮겼습니다');
     _allEmailItems = _allEmailItems.filter(m => m.gmailId !== msg.id);
     const cacheKey = _emCacheKey(email, _currentFolder, _emQuery);
     _emSyncListCache(email);
@@ -18782,7 +18789,7 @@ if ('serviceWorker' in navigator) {
     _renderGmailList(_allEmailItems, _currentFolder);
     _appendMoreButton();
     if (typeof refreshInboxUnread === 'function') refreshInboxUnread();
-  };
+  }
 
   window.archiveCurrentEmail = async function() {
     const msg = _currentGmailDetailMsg;
