@@ -1786,15 +1786,66 @@ window.fetchEmployeesFS = async function() {
     return img.thumbnailLink || imageUrl(img.id, img.mimeType);
   }
 
-  async function fetchFolder(folderId) {
-    if (state.foldersCache[folderId]) return state.foldersCache[folderId];
+  // ★ (2026-09-30 속도) 폴더 목록을 브라우저에 30분 보관 — 갤러리 탭을 다시 열거나 새로고침해도 즉시 보여주고,
+  //   서버 최신값은 뒤에서 받아 조용히 교체한다. 구글 썸네일 링크는 몇 시간 뒤 만료될 수 있어 30분으로 제한
+  //   (만료돼도 아래 원본 대체 로직이 있음). 저장 실패(용량·사생활 모드)는 무시.
+  const GAL_STORE_KEY = 'galFolderCache_v1', GAL_STORE_MS = 30 * 60 * 1000;
+  function galStoreRead() { try { return JSON.parse(localStorage.getItem(GAL_STORE_KEY) || '{}'); } catch (e) { return {}; } }
+  function galStoreWrite(folderId, data) {
+    try {
+      const all = galStoreRead();
+      all[folderId] = { at: Date.now(), folders: data.folders, images: data.images, folderName: data.folderName || '' };
+      const ids = Object.keys(all).sort((a, b) => all[b].at - all[a].at);
+      ids.slice(60).forEach(id => delete all[id]); // 최근 60개 폴더만
+      localStorage.setItem(GAL_STORE_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+  async function fetchFolderFromServer(folderId) {
     const params = new URLSearchParams({ action: 'listFolder', folderId, _appKey: window.GALLERY_API_KEY });
     const res = await fetchWithRetry(`${window.GALLERY_API_URL}?${params}`);
     const data = await res.json();
-    if (data.status !== 'ok') { showToast('갤러리 목록을 불러오지 못했습니다: ' + (data.message || '')); return { folders: [], images: [] }; }
-    if (folderId === state.rootId && data.folderName) state.rootName = data.folderName;
-    state.foldersCache[folderId] = { folders: data.folders || [], images: data.images || [] };
-    return state.foldersCache[folderId];
+    if (data.status !== 'ok') throw new Error(data.message || '');
+    const entry = { folders: data.folders || [], images: data.images || [], folderName: data.folderName || '' };
+    galStoreWrite(folderId, entry);
+    return entry;
+  }
+  async function fetchFolder(folderId, silent) {
+    if (state.foldersCache[folderId]) return state.foldersCache[folderId];
+    const stored = galStoreRead()[folderId];
+    if (stored && Date.now() - stored.at < GAL_STORE_MS) {
+      if (folderId === state.rootId && stored.folderName) state.rootName = stored.folderName;
+      state.foldersCache[folderId] = { folders: stored.folders || [], images: stored.images || [] };
+      // 뒤에서 최신화 — 하위 폴더 구성이 바뀌었으면 트리만 다시 그린다(보고 있는 사진은 건드리지 않음)
+      fetchFolderFromServer(folderId).then(fresh => {
+        const before = JSON.stringify(state.foldersCache[folderId].folders);
+        state.foldersCache[folderId] = { folders: fresh.folders, images: fresh.images };
+        if (JSON.stringify(fresh.folders) !== before) renderTree();
+      }).catch(() => {});
+      return state.foldersCache[folderId];
+    }
+    try {
+      const entry = await fetchFolderFromServer(folderId);
+      if (folderId === state.rootId && entry.folderName) state.rootName = entry.folderName;
+      state.foldersCache[folderId] = { folders: entry.folders, images: entry.images };
+      return state.foldersCache[folderId];
+    } catch (e) {
+      if (!silent) showToast('갤러리 목록을 불러오지 못했습니다: ' + (e.message || ''));
+      return { folders: [], images: [] };
+    }
+  }
+  // ★ (2026-09-30 속도) 폴더를 열면 그 하위 폴더 목록(최대 8개)을 뒤에서 하나씩 미리 받아둔다 — 다음 단계를 펼칠 때 즉시 표시
+  let _galPrefetching = false;
+  async function prefetchChildren(folderId) {
+    if (_galPrefetching) return;
+    const cache = state.foldersCache[folderId];
+    if (!cache) return;
+    _galPrefetching = true;
+    try {
+      for (const f of cache.folders.slice(0, 8)) {
+        if (!state.foldersCache[f.id]) await fetchFolder(f.id, true); // 미리받기 실패는 조용히(클릭 시 다시 시도)
+      }
+    } catch (e) {} finally { _galPrefetching = false; }
+    renderTree();
   }
 
   window._galInit = async function() {
@@ -1804,6 +1855,7 @@ window.fetchEmployeesFS = async function() {
     state.treeExpanded[state.rootId] = true;
     await fetchFolder(state.rootId);
     renderTree();
+    prefetchChildren(state.rootId);
   };
 
   function renderNode(id, name, depth) {
@@ -1841,6 +1893,7 @@ window.fetchEmployeesFS = async function() {
       await fetchFolder(id);
       renderTree();
     }
+    if (willOpen) prefetchChildren(id);
   };
 
   window._galSelectFolder = async function(id) {
@@ -1851,6 +1904,7 @@ window.fetchEmployeesFS = async function() {
     renderTree();
     const folder = await fetchFolder(id);
     renderTree();
+    prefetchChildren(id);
     if (folder.images.length > 0) {
       state.current = { folderId: id, images: folder.images, index: 0 };
       renderGallery();
@@ -1868,9 +1922,9 @@ window.fetchEmployeesFS = async function() {
     if (!state.current) return;
     const { images, index } = state.current;
     if (images.length < 2) return;
-    [1, -1].forEach(dir => {
+    [1, -1, 2, -2].forEach(dir => {
       const im = images[(index + dir + images.length) % images.length];
-      if (im) new Image().src = previewUrl(im);
+      if (im && im.thumbnailLink) new Image().src = im.thumbnailLink;
     });
   }
 
@@ -1899,7 +1953,12 @@ window.fetchEmployeesFS = async function() {
     if (galImgEl) {
       galImgEl.addEventListener('error', function onErr() {
         galImgEl.removeEventListener('error', onErr);
-        galImgEl.src = imageUrl(img.id, img.mimeType);
+        // (2026-09-30) 갤러리 서버가 로그인 직원만 허용하게 바뀌어 <img src>로 원본을 직접 못 부른다 —
+        //   토큰이 붙는 fetch로 받아서 표시한다.
+        fetch(imageUrl(img.id, img.mimeType))
+          .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+          .then(b => { if (document.getElementById('galImg') === galImgEl) galImgEl.src = URL.createObjectURL(b); })
+          .catch(() => {});
       }, { once: true });
     }
     prefetchAdjacent();
@@ -3848,7 +3907,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         var gUrl = typeof input === 'string' ? input : (input && input.url) || '';
         // 문자 서버(send-sms)·로그인 서버(auth-api)·휴가 서버(leave-api)도 같은 방식으로 로그인 직원만 허용하므로
         // 토큰을 같이 보낸다 — 단, 로그인 전에 쓰는 기능(로그인/아이디 찾기/비밀번호 찾기 문자)은 제외
-        var _needTok = gUrl.indexOf(GMAIL_CF_URL) === 0 || gUrl.indexOf(SMS_CF_URL) === 0 || gUrl.indexOf(LEAVE_API_URL) === 0
+        var _needTok = gUrl.indexOf(GMAIL_CF_URL) === 0 || gUrl.indexOf(SMS_CF_URL) === 0 || gUrl.indexOf(LEAVE_API_URL) === 0 || gUrl.indexOf(GALLERY_API_URL) === 0
           || (gUrl.indexOf(AUTH_API_URL) === 0 && !/[?&]action=(login|findIdByNamePhone|resetPasswordBySms)(&|$)/.test(gUrl));
         if (_needTok) {
           var ensure = (typeof window.fbEnsureAuth === 'function') ? window.fbEnsureAuth() : Promise.resolve();

@@ -7,6 +7,8 @@
 //   import/export + functions-framework의 명시적 registration(functions.http)을 쓴다.
 import functions from '@google-cloud/functions-framework';
 import { google } from 'googleapis';
+import admin from 'firebase-admin';
+if (!admin.apps.length) admin.initializeApp();
 
 const SA_EMAIL = process.env.GMAIL_SA_EMAIL;
 const SA_KEY = (process.env.GMAIL_SA_KEY || '').replace(/\\n/g, '\n');
@@ -15,13 +17,47 @@ const INTERNAL_KEY = process.env.INTERNAL_API_KEY;
 // 드라이브의 다른 폴더를 훑어보는 걸 막기 위해, 매 요청마다 이 루트 밑인지 확인한다.
 const ROOT_FOLDER_ID = process.env.GALLERY_ROOT_FOLDER_ID;
 
+// ★ (2026-09-30 속도) 예전엔 요청마다 JWT를 새로 만들어 구글 인증(토큰 교환)을 매번 다시 받았다 —
+//   같은 서버 인스턴스 안에서는 클라이언트를 재사용한다(JWT가 액세스 토큰을 보관·자동 갱신).
+let _drive = null;
 function driveClient() {
+  if (_drive) return _drive;
   const jwt = new google.auth.JWT({
     email: SA_EMAIL,
     key: SA_KEY,
     scopes: ['https://www.googleapis.com/auth/drive.readonly'],
   });
-  return google.drive({ version: 'v3', auth: jwt });
+  _drive = google.drive({ version: 'v3', auth: jwt });
+  return _drive;
+}
+
+// ★ (2026-09-30 속도) 폴더 목록을 5분간 기억 — 같은 폴더를 여러 직원이 열거나 다시 열 때 드라이브 조회 생략
+const FOLDER_CACHE_MS = 5 * 60 * 1000;
+const _folderCache = new Map(); // folderId -> { at, data }
+let _rootName = null;
+
+// ★ (2026-09-30 보안) 예전엔 공개된 공유키(_appKey)만 있으면 외부인도 제품 사진 폴더를 열람·원본 다운로드할 수 있었다.
+//   이제 ERP 로그인 때 발급된 Firebase 로그인 토큰(_idToken)으로 "직원"인지 확인한다(익명·퇴사자 거부).
+const _callerCache = new Map(); // idToken -> until(ms)
+async function isEmployee(req) {
+  const authHeader = String((req.get && req.get('Authorization')) || '');
+  const idToken = String((req.query && req.query._idToken) || (req.body && req.body._idToken) || '').trim()
+    || (authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : '');
+  if (!idToken) return false;
+  const hit = _callerCache.get(idToken);
+  if (hit && hit > Date.now()) return true;
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const snap = await admin.firestore().collection('employees').doc(String(decoded.uid)).get();
+    if (!snap.exists) return false;
+    const emp = snap.data() || {};
+    if (emp.leaveDate && String(emp.leaveDate) <= new Date().toISOString().slice(0, 10)) return false;
+    if (_callerCache.size > 500) _callerCache.clear();
+    _callerCache.set(idToken, Math.min(decoded.exp * 1000, Date.now() + 10 * 60 * 1000));
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 const IMAGE_MIME_PREFIX = 'image/';
@@ -105,6 +141,9 @@ functions.http('driveGallery', async (req, res) => {
   if (key !== INTERNAL_KEY) {
     return res.status(403).json({ status: 'error', message: '인증 실패' });
   }
+  if (!(await isEmployee(req))) {
+    return res.status(401).json({ status: 'error', message: '로그인 정보를 확인할 수 없습니다. 로그아웃 후 다시 로그인해 주세요.' });
+  }
   if (!ROOT_FOLDER_ID) {
     return res.status(500).json({ status: 'error', message: 'GALLERY_ROOT_FOLDER_ID 환경변수 누락' });
   }
@@ -118,15 +157,24 @@ functions.http('driveGallery', async (req, res) => {
       if (!(await isWithinRoot(drive, folderId))) {
         return res.status(403).json({ status: 'error', message: '허용되지 않은 폴더입니다' });
       }
-      const { folders, images } = await listFolder(drive, folderId);
+      let cached = _folderCache.get(folderId);
+      if (!cached || Date.now() - cached.at > FOLDER_CACHE_MS) {
+        cached = { at: Date.now(), data: await listFolder(drive, folderId) };
+        if (_folderCache.size > 300) _folderCache.clear();
+        _folderCache.set(folderId, cached);
+      }
+      const { folders, images } = cached.data;
       // 트리 좌측 최상단 루트 라벨은 프론트에서 이름을 알 방법이 없어서(자신을 가리키는
       // 폴더ID만 상수로 갖고 있음), 루트 폴더 자신의 이름을 함께 내려준다. 프론트는 이
       // 필드를 루트 요청일 때만 실제로 사용하므로, 비루트 폴더에서는 매 클릭마다 이름 조회
       // API를 추가로 태우지 않는다.
       let folderName;
       if (folderId === ROOT_FOLDER_ID) {
-        const selfMeta = await drive.files.get({ fileId: folderId, fields: 'name', supportsAllDrives: true });
-        folderName = selfMeta.data.name;
+        if (!_rootName) {
+          const selfMeta = await drive.files.get({ fileId: folderId, fields: 'name', supportsAllDrives: true });
+          _rootName = selfMeta.data.name;
+        }
+        folderName = _rootName;
       }
       return res.json({ status: 'ok', folderName, folders, images });
     }
