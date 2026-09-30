@@ -18097,6 +18097,14 @@ if ('serviceWorker' in navigator) {
       document.querySelectorAll('.em-label-unread').forEach(el => applyBadge(el, counts[el.dataset.labelid] || 0));
     } catch(e) { /* 조용히 무시 */ }
   };
+  // ★ (2026-09-30 속도) 메일 열기·읽음처리·삭제마다 폴더별 안읽음 개수를 전부 다시 조회하던 것을
+  //   1.2초 동안 모아서 한 번만 조회한다(연달아 메일을 열 때 서버 호출이 겹치던 문제).
+  const _emRefreshBadgesNow = window.refreshFolderUnreadBadges;
+  let _emBadgeTimer = null;
+  window.refreshFolderUnreadBadges = function() {
+    clearTimeout(_emBadgeTimer);
+    _emBadgeTimer = setTimeout(_emRefreshBadgesNow, 1200);
+  };
   // 구 함수명 호환(다른 곳에서 이 이름으로 호출 중)
   window.refreshInboxUnread = window.refreshFolderUnreadBadges;
 
@@ -18521,7 +18529,17 @@ if ('serviceWorker' in navigator) {
     const dp = document.getElementById('emDetailPanel');
     if (dp) {
       dp.style.display = 'flex'; dp.classList.add('open');
-      dp.innerHTML = '<div style="padding:30px;text-align:center;color:#aaa;">본문을 불러오는 중...</div>';
+      // ★ (2026-09-30 속도) 본문이 올 때까지 빈 화면이던 것 — 목록에 있는 정보로 머리부분을 먼저 그린다
+      dp.innerHTML = `<div style="padding:20px 24px;border-bottom:1px solid #eee;">
+          <div style="margin-bottom:12px;"><button onclick="backToEmailList()" style="background:none;border:none;color:var(--brand);font-size:13px;cursor:pointer;">← 목록으로</button></div>
+          <div style="font-size:18px;font-weight:800;color:#222;margin-bottom:12px;">${_emEsc(m.subject || '(제목없음)')}</div>
+          <div style="font-size:12.5px;color:#555;line-height:1.8;">
+            <div><b>보낸사람:</b> ${_emEsc(m.from || '')}</div>
+            <div><b>받는사람:</b> ${_emEsc(m.to || '')}</div>
+            <div style="color:#999;">${m.sentAt ? _emEsc(formatMailTime(new Date(m.sentAt))) : ''}</div>
+          </div>
+        </div>
+        <div style="padding:30px;text-align:center;color:#aaa;">본문을 불러오는 중...</div>`;
     }
     const dseq = ++_emDetailSeq;
     try {

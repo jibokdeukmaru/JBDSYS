@@ -15,9 +15,18 @@ const SCOPES = [
   'https://www.googleapis.com/auth/gmail.settings.basic',
 ];
 
+// ★ (2026-09-30 속도) 예전엔 요청마다 JWT를 새로 만들어 매번 구글 인증(토큰 교환)을 다시 받았다 —
+//   같은 서버 인스턴스 안에서는 메일함별 클라이언트를 재사용한다(JWT가 액세스 토큰을 보관·자동 갱신).
+const _gmailClients = new Map();
 function gmailClientFor(email) {
-  const jwt = new google.auth.JWT({ email: SA_EMAIL, key: SA_KEY, scopes: SCOPES, subject: email });
-  return google.gmail({ version: 'v1', auth: jwt });
+  const key = String(email || '').trim().toLowerCase();
+  let client = _gmailClients.get(key);
+  if (!client) {
+    const jwt = new google.auth.JWT({ email: SA_EMAIL, key: SA_KEY, scopes: SCOPES, subject: email });
+    client = google.gmail({ version: 'v1', auth: jwt });
+    _gmailClients.set(key, client);
+  }
+  return client;
 }
 
 function labelForFolder(folder) {
@@ -91,16 +100,15 @@ function base64UrlToStd(s) {
 // 안 하면 인라인 이미지가 브라우저에서 깨진 아이콘으로만 보인다.
 async function inlineCidImages(gmail, messageId, payload, html) {
   if (!html || html.indexOf('cid:') === -1) return html;
-  const parts = extractInlineImageParts(payload);
-  for (const part of parts) {
-    const marker = 'cid:' + part.cid;
-    if (html.indexOf(marker) === -1) continue;
+  // ★ (2026-09-30 속도) 이미지를 하나씩 순서대로 받던 것을 동시에 받는다(이미지 많은 메일이 느리던 문제)
+  const parts = extractInlineImageParts(payload).filter((part) => html.indexOf('cid:' + part.cid) !== -1);
+  const results = await Promise.all(parts.map(async (part) => {
     try {
       const attRes = await gmail.users.messages.attachments.get({ userId: 'me', messageId, id: part.attachmentId });
-      const dataUri = 'data:' + part.mimeType + ';base64,' + base64UrlToStd(attRes.data.data);
-      html = html.split(marker).join(dataUri);
-    } catch (e) { /* 개별 이미지 변환 실패는 무시하고 나머지는 계속 진행 */ }
-  }
+      return ['cid:' + part.cid, 'data:' + part.mimeType + ';base64,' + base64UrlToStd(attRes.data.data)];
+    } catch (e) { return null; } // 개별 이미지 변환 실패는 무시하고 나머지는 계속 진행
+  }));
+  results.forEach((r) => { if (r) html = html.split(r[0]).join(r[1]); });
   return html;
 }
 
@@ -554,10 +562,15 @@ async function sendEmailFromERP(p) {
 //   그 키는 웹페이지 소스에 그대로 들어있어 누구나 볼 수 있으므로, 이제는 ERP 로그인 때 발급되는
 //   Firebase 로그인 토큰(_idToken)을 검증해서 "로그인한 직원 본인 메일함"만 허용한다.
 //   토큰의 email 클레임(auth-api가 발급 시 넣음)을 쓰고, 없으면 employees/{uid}에서 조회한다.
+// 같은 토큰으로 연달아 오는 요청(목록→본문→읽음처리 등)은 검증 결과를 재사용(토큰 만료 시각까지, 최대 10분)
+const _callerCache = new Map(); // idToken -> { email, until }
+const _uidEmailCache = new Map(); // uid -> { email, until }
 async function resolveCallerEmail(params, req) {
   const authHeader = String((req.get && req.get('Authorization')) || '');
   const idToken = String(params._idToken || '').trim() || (authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : '');
   if (!idToken) return { error: '로그인 정보가 없습니다. 페이지를 새로고침(Ctrl+F5)한 뒤 다시 시도해 주세요.' };
+  const hit = _callerCache.get(idToken);
+  if (hit && hit.until > Date.now()) return { email: hit.email };
   let decoded;
   try {
     decoded = await admin.auth().verifyIdToken(idToken);
@@ -566,12 +579,19 @@ async function resolveCallerEmail(params, req) {
   }
   let email = String(decoded.email || '').trim().toLowerCase();
   if (!email && decoded.uid) {
-    try {
-      const snap = await admin.firestore().collection('employees').doc(decoded.uid).get();
-      email = String((snap.exists && snap.data().email) || '').trim().toLowerCase();
-    } catch (e) { /* 조회 실패 시 아래에서 거부 */ }
+    const u = _uidEmailCache.get(decoded.uid);
+    if (u && u.until > Date.now()) email = u.email;
+    else {
+      try {
+        const snap = await admin.firestore().collection('employees').doc(decoded.uid).get();
+        email = String((snap.exists && snap.data().email) || '').trim().toLowerCase();
+        if (email) _uidEmailCache.set(decoded.uid, { email, until: Date.now() + 10 * 60 * 1000 });
+      } catch (e) { /* 조회 실패 시 아래에서 거부 */ }
+    }
   }
   if (!email) return { error: '직원 계정으로 로그인되어 있지 않습니다. 로그아웃 후 다시 로그인해 주세요.' };
+  if (_callerCache.size > 500) _callerCache.clear();
+  _callerCache.set(idToken, { email, until: Math.min(decoded.exp * 1000, Date.now() + 10 * 60 * 1000) });
   return { email };
 }
 
