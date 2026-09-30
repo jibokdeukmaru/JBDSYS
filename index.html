@@ -3841,12 +3841,13 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           }
         }
       } catch (e) { /* 패치 실패해도 원래 요청은 그대로 진행 */ }
-      // ★ (2026-09-30 보안) 메일 서버(gmail-api)는 이제 공유 비밀키만으로는 안 열어주고, 로그인한 직원 본인
+      // ★ (2026-09-30 보안) 메일 서버(gmail-api)·문자 서버(send-sms)는 이제 공유 비밀키만으로는 안 열어주고, 로그인한 직원 본인
       //   메일함인지 Firebase 로그인 토큰으로 확인한다 — 메일 요청에는 토큰(_idToken)을 같이 실어 보낸다.
       //   (서버를 새 버전으로 재배포하기 전에도 이 값은 그냥 무시되므로 먼저 배포해도 안전)
       try {
         var gUrl = typeof input === 'string' ? input : (input && input.url) || '';
-        if (gUrl.indexOf(GMAIL_CF_URL) === 0) {
+        // 문자 서버(send-sms)도 같은 방식으로 로그인 직원만 허용하므로 토큰을 같이 보낸다
+        if (gUrl.indexOf(GMAIL_CF_URL) === 0 || gUrl.indexOf(SMS_CF_URL) === 0) {
           var ensure = (typeof window.fbEnsureAuth === 'function') ? window.fbEnsureAuth() : Promise.resolve();
           return Promise.resolve(ensure).catch(function () {}).then(function () {
             var u = window.FB && window.FB.auth && window.FB.auth.currentUser;

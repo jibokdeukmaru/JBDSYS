@@ -236,6 +236,8 @@ async function resetPasswordBySms(p) {
     const smsRes = await fetch(SMS_CF_URL + '?' + new URLSearchParams({
       receiver: emp.phone,
       msg: `[지복득마루] 임시 비밀번호는 ${newPw} 입니다. 로그인 후 비밀번호를 변경해주세요.`,
+      // ★ (2026-09-30) 문자 서버는 이제 서버 전용 키(SERVER_API_KEY)로 호출해야 한다 — 예전 공유키는 전환 후 차단됨
+      _serverKey: process.env.SERVER_API_KEY || '',
       _appKey: process.env.INTERNAL_API_KEY || ''
     }));
     const smsData = await smsRes.json();
