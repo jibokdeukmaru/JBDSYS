@@ -1533,7 +1533,8 @@ window.fetchEmployeesFS = async function() {
       <span id="personalCalTitle" style="font-size:15px;font-weight:800;min-width:100px;text-align:center;"></span>
       <button type="button" onclick="personalCalMove(1)" class="notice-year-nav-btn" title="다음 달"><svg width="13" height="15" viewBox="0 0 13 15" fill="#333"><polygon points="0 0 0 15 13 7.5"></polygon></svg></button>
     </div>
-    <div style="font-size:11px;color:#999;margin-bottom:12px;">이 달력은 본인만 볼 수 있으며 다른 직원에게 공유되지 않습니다.</div>
+    <div style="font-size:11px;color:#999;margin-bottom:4px;">이 달력은 본인만 볼 수 있으며 다른 직원에게 공유되지 않습니다.</div>
+    <div id="personalCalLegend" style="font-size:11px;color:#e74c3c;font-weight:700;margin-bottom:12px;"></div>
     <div id="personalCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
   </div>
 </section>
@@ -1602,7 +1603,18 @@ window.fetchEmployeesFS = async function() {
     const lastDate = new Date(_pcalYear, _pcalMonth + 1, 0).getDate();
     const now = new Date();
     const todayKey = _pcalDateKey(now.getFullYear(), now.getMonth(), now.getDate());
-    let html = days.map(d => '<div style="text-align:center;font-size:11px;font-weight:700;color:#aaa;padding:4px 0;">' + d + '</div>').join('');
+    let html = days.map((d, i) => '<div style="text-align:center;font-size:11px;font-weight:700;color:' + (i === 0 ? '#e74c3c' : '#aaa') + ';padding:4px 0;">' + d + '</div>').join('');
+    // ★ (2026-09-30) 빨간날 = 일요일 · 공휴일 · 내 팀이 쉬는 주의 월/토.
+    //   A/B팀은 격주로 한 팀이 월~토 근무, 다른 팀은 그 주 월·토 휴무 — 근무조 계산은 휴가 탭의 weekDutyTeam을 그대로 사용.
+    const myTeam = (window._currentUser && window._currentUser.team) || '';
+    const hasTeam = (myTeam === 'A' || myTeam === 'B') && typeof window.weekDutyTeam === 'function';
+    const legendEl = document.getElementById('personalCalLegend');
+    if (legendEl) legendEl.textContent = '빨간 날: 일요일 · 공휴일' + (hasTeam ? ' · 내 휴무일(' + myTeam + '팀)' : '');
+    const isRedDay = (y, m, d, holidayName) => {
+      const dt = new Date(y, m, d), dow = dt.getDay();
+      if (dow === 0 || holidayName) return true;
+      return hasTeam && (dow === 1 || dow === 6) && window.weekDutyTeam(dt) !== myTeam;
+    };
     for (let i = 0; i < firstDay; i++) html += '<div></div>';
     // 예약관리 탭의 공휴일 관리와 같은 소스(전역 holidayMap, settings/holidays) — 별도 조회 없이 재사용.
     const _pcalHolidays = window.holidayMap || {};
@@ -1612,6 +1624,7 @@ window.fetchEmployeesFS = async function() {
       const holidayName = _pcalHolidays[key] || '';
       const isToday = key === todayKey;
       const isSelected = key === _pcalSelectedDate;
+      const isRed = isRedDay(_pcalYear, _pcalMonth, d, holidayName);
       // 오늘/이후 날짜는 내용이 많을수록(출고 건수 등) 실무에서 중요하게 보는 칸이라
       // 3줄 제한을 풀어 전부 보이게 하고, 지난 날짜는 지금처럼 3줄로 압축해둔다.
       const isFuture = key >= todayKey;
@@ -1619,9 +1632,9 @@ window.fetchEmployeesFS = async function() {
         ? 'font-size:10px;margin-top:3px;line-height:1.3;white-space:pre-line;'
         : 'font-size:10px;margin-top:3px;line-height:1.3;white-space:pre-line;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;';
       html += '<div onclick="openPersonalCalNote(\'' + key + '\')" style="cursor:pointer;padding:6px 4px;border-radius:8px;min-height:64px;text-align:left;'
-        + 'background:' + (isSelected ? 'var(--brand)' : (note ? 'var(--cream)' : 'transparent')) + ';'
+        + 'background:' + (isSelected ? 'var(--brand)' : (note ? 'var(--cream)' : (isRed ? '#FFF1F1' : 'transparent'))) + ';'
         + 'border:1px solid ' + (isToday ? 'var(--brand)' : (note ? 'var(--border)' : '#f0f0f0')) + ';">'
-        + '<div style="font-size:12px;font-weight:700;' + (isSelected ? 'color:#fff;' : 'color:#333;') + '">' + d + '</div>'
+        + '<div style="font-size:12px;font-weight:700;' + (isSelected ? 'color:#fff;' : (isRed ? 'color:#e74c3c;' : 'color:#333;')) + '">' + d + '</div>'
         + (holidayName ? '<div style="font-size:9px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + (isSelected ? '#ffd6d6' : '#e74c3c') + ';">' + _pcalEsc(holidayName) + '</div>' : '')
         + (note ? '<div style="' + notePreviewStyle + (isSelected ? 'color:#fff;' : 'color:#888;') + '">' + _pcalEsc(note) + '</div>' : '')
         + '</div>';
@@ -16318,6 +16331,8 @@ if ('serviceWorker' in navigator) {
     const sameAsAnchor = (((weeksDiff % 2) + 2) % 2) === 0;
     return sameAsAnchor ? _TEAM_ANCHOR_TEAM : (_TEAM_ANCHOR_TEAM === 'A' ? 'B' : 'A');
   }
+  // 개인달력 등 다른 화면에서도 같은 근무조 계산을 쓰도록 노출(계산식 중복 방지)
+  window.weekDutyTeam = weekDutyTeam;
   // 물류팀은 하남(물류창고) 소속, 나머지 부서는 쇼룸 소속 — A/B 조 표시할 때 어디 근무자인지
   // 구분해서 붙여준다.
   function _teamLocationLabel(emp) { return emp.dept === '물류' ? '(하남)' : '(쇼룸)'; }
