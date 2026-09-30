@@ -23,6 +23,29 @@ async function getEmployee(id) {
   return snap.exists ? snap.data() : null;
 }
 
+
+// ★ (2026-09-30 보안) 예전엔 이 함수 키(_appKey)만 맞으면 요청에 적힌 아이디/권한을 그대로 믿었다.
+//   그 키는 ERP 웹페이지 소스에 공개돼 있어 외부인이 남의 비밀번호 초기화·관리자 승격·휴가 승인 등을
+//   할 수 있었다. 이제 ERP 로그인 때 발급된 Firebase 로그인 토큰(_idToken)으로 "요청한 직원"을 확인하고,
+//   아이디·권한은 요청값이 아니라 Firestore employees/{uid}의 최신값을 쓴다.
+async function getCaller(params, req) {
+  const authHeader = String((req.get && req.get('Authorization')) || '');
+  const idToken = String(params._idToken || '').trim() || (authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : '');
+  if (!idToken) return null;
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const snap = await admin.firestore().collection('employees').doc(String(decoded.uid)).get();
+    if (!snap.exists) return null; // 익명 로그인 등 직원이 아닌 토큰
+    const emp = snap.data() || {};
+    if (emp.leaveDate && String(emp.leaveDate) <= new Date().toISOString().slice(0, 10)) return null; // 퇴사자
+    return Object.assign({}, emp, { id: String(decoded.uid) });
+  } catch (e) {
+    return null;
+  }
+}
+const NEED_LOGIN = { status: 'error', message: '로그인 정보를 확인할 수 없습니다. 로그아웃 후 다시 로그인해 주세요.' };
+const NO_PERMISSION = { status: 'error', message: '권한이 없습니다.' };
+
 async function createNotification(n) {
   try {
     await db.collection('notifications').add({
@@ -285,6 +308,27 @@ exports.leaveApi = async (req, res) => {
   }
 
   const action = params.action;
+  // 모든 기능은 로그인한 직원만. 아이디·권한은 요청값 대신 확인된 직원 정보로 덮어쓴다.
+  const caller = await getCaller(params, req);
+  if (!caller) return res.status(401).json(NEED_LOGIN);
+  const canManageLeave = caller.role === 'admin' || !!caller.leaveManagerEditor;
+  if (action === 'applyLeave') {
+    params.id = caller.id;
+    params.name = caller.name || params.name;
+    params.dept = caller.dept || params.dept || '';
+    params.isHead = caller.isHead ? 'true' : 'false';
+    params.isManager = caller.isManager ? 'true' : 'false';
+  } else if (action === 'adminCreateLeave') {
+    if (!canManageLeave) return res.status(403).json(NO_PERMISSION);
+  } else if (action === 'getLeaves') {
+    // 전체 조회(role=admin)는 관리자·연차관리 권한자만, 그 외엔 본인/본인이 결재자인 건만
+    if (params.role === 'admin' && canManageLeave) { delete params.id; }
+    else { params.id = caller.id; params.role = caller.role === 'admin' ? 'admin' : 'staff'; }
+  } else if (action === 'approveLeave') {
+    params.approverId = caller.id;
+  } else if (['cancelLeave', 'requestChangeLeave', 'requestCancelLeave'].indexOf(action) !== -1) {
+    params.id = caller.id;
+  }
   try {
     let result;
     switch (action) {

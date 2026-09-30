@@ -3846,8 +3846,11 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       //   (서버를 새 버전으로 재배포하기 전에도 이 값은 그냥 무시되므로 먼저 배포해도 안전)
       try {
         var gUrl = typeof input === 'string' ? input : (input && input.url) || '';
-        // 문자 서버(send-sms)도 같은 방식으로 로그인 직원만 허용하므로 토큰을 같이 보낸다
-        if (gUrl.indexOf(GMAIL_CF_URL) === 0 || gUrl.indexOf(SMS_CF_URL) === 0) {
+        // 문자 서버(send-sms)·로그인 서버(auth-api)·휴가 서버(leave-api)도 같은 방식으로 로그인 직원만 허용하므로
+        // 토큰을 같이 보낸다 — 단, 로그인 전에 쓰는 기능(로그인/아이디 찾기/비밀번호 찾기 문자)은 제외
+        var _needTok = gUrl.indexOf(GMAIL_CF_URL) === 0 || gUrl.indexOf(SMS_CF_URL) === 0 || gUrl.indexOf(LEAVE_API_URL) === 0
+          || (gUrl.indexOf(AUTH_API_URL) === 0 && !/[?&]action=(login|findIdByNamePhone|resetPasswordBySms)(&|$)/.test(gUrl));
+        if (_needTok) {
           var ensure = (typeof window.fbEnsureAuth === 'function') ? window.fbEnsureAuth() : Promise.resolve();
           return Promise.resolve(ensure).catch(function () {}).then(function () {
             var u = window.FB && window.FB.auth && window.FB.auth.currentUser;

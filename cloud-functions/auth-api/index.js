@@ -29,6 +29,29 @@ function hashPassword(pw) {
 // 문자발송 Cloud Function (reserve-script sendSmsViaErp와 동일 엔드포인트/파라미터)
 const SMS_CF_URL = 'https://sendsms-qk3y5nxsda-du.a.run.app';
 
+
+// ★ (2026-09-30 보안) 예전엔 이 함수 키(_appKey)만 맞으면 요청에 적힌 아이디/권한을 그대로 믿었다.
+//   그 키는 ERP 웹페이지 소스에 공개돼 있어 외부인이 남의 비밀번호 초기화·관리자 승격·휴가 승인 등을
+//   할 수 있었다. 이제 ERP 로그인 때 발급된 Firebase 로그인 토큰(_idToken)으로 "요청한 직원"을 확인하고,
+//   아이디·권한은 요청값이 아니라 Firestore employees/{uid}의 최신값을 쓴다.
+async function getCaller(params, req) {
+  const authHeader = String((req.get && req.get('Authorization')) || '');
+  const idToken = String(params._idToken || '').trim() || (authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : '');
+  if (!idToken) return null;
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const snap = await admin.firestore().collection('employees').doc(String(decoded.uid)).get();
+    if (!snap.exists) return null; // 익명 로그인 등 직원이 아닌 토큰
+    const emp = snap.data() || {};
+    if (emp.leaveDate && String(emp.leaveDate) <= new Date().toISOString().slice(0, 10)) return null; // 퇴사자
+    return Object.assign({}, emp, { id: String(decoded.uid) });
+  } catch (e) {
+    return null;
+  }
+}
+const NEED_LOGIN = { status: 'error', message: '로그인 정보를 확인할 수 없습니다. 로그아웃 후 다시 로그인해 주세요.' };
+const NO_PERMISSION = { status: 'error', message: '권한이 없습니다.' };
+
 function toBool(v) {
   return v === true || v === 'true';
 }
@@ -277,6 +300,27 @@ exports.authApi = async (req, res) => {
   }
 
   const action = params.action;
+  // 로그인 전에 쓰는 기능(로그인/아이디 찾기/비밀번호 찾기 문자)만 토큰 없이 허용
+  const PUBLIC_ACTIONS = ['login', 'findIdByNamePhone', 'resetPasswordBySms'];
+  if (PUBLIC_ACTIONS.indexOf(action) === -1) {
+    const caller = await getCaller(params, req);
+    if (!caller) return res.status(401).json(NEED_LOGIN);
+    const isAdmin = caller.role === 'admin';
+    const targetId = String(params.id || '').trim();
+    if (action === 'changePassword' || action === 'saveMyHomeTab') {
+      // 본인 것만
+      if (targetId !== caller.id) return res.status(403).json(NO_PERMISSION);
+    } else if (action === 'updateEmployeeInfo' && !isAdmin) {
+      // 연차관리 권한자는 사용연차/조정연차만 수정 가능(연차관리 탭)
+      if (!caller.leaveManagerEditor) return res.status(403).json(NO_PERMISSION);
+      Object.keys(params).forEach((k) => {
+        if (['id', 'usedLeave', 'annualLeave', 'action', '_appKey', '_idToken'].indexOf(k) === -1) delete params[k];
+      });
+    } else if (!isAdmin) {
+      // addEmployee / updateEmployee / updateEmployeeLeave / resetPassword 등은 관리자만
+      return res.status(403).json(NO_PERMISSION);
+    }
+  }
   try {
     let result;
     switch (action) {
