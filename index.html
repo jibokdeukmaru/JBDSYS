@@ -646,6 +646,8 @@ window.fetchEmployeesFS = async function() {
   .quick-preview { position:fixed; display:none; width:300px; max-height:260px; overflow:auto; padding:14px; border:1px solid #ddd; border-radius:12px; background:#fff; box-shadow:0 10px 30px rgba(0,0,0,.18); font-size:12px; line-height:1.6; color:#333; white-space:pre-wrap; z-index:99990; }
   #quickPreviewBackdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99989; }
   #quickPreviewBackdrop.show { display:block; }
+  /* 미리보기는 보기 전용(띄울 때 이미 복사됨) — 길게 눌러도 텍스트 선택/편집 메뉴가 뜨지 않게 */
+  .quick-preview { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   .quick-preview-trigger:last-child .quick-preview { left:auto; right:0; }
   .pill { display:inline-flex; align-items:center; min-height:42px; padding:0 12px; border-radius:999px; font-size:12px; color:#444; }
   .meta-box { white-space:normal; line-height:1.45; }
@@ -13104,13 +13106,21 @@ function initApp() {
         document.getElementById('quickPreviewBackdrop').classList.remove('show');
       }
     });
+    // ★ 모바일: 미리보기를 닫으려고 바깥(어두운 배경)이나 미리보기 자체를 터치하면, 예전엔 touchstart에서
+    //   배경부터 치워버려서 같은 터치의 클릭이 그 밑의 문자 입력칸(#copyText)에 떨어져 키보드/텍스트
+    //   편집 메뉴가 떴다. 이제 닫는 터치는 기본동작을 막아 아래로 전달되지 않게 한다. (내용은 띄울 때
+    //   이미 복사됐으므로 미리보기 자체를 터치해도 그냥 닫는다.)
     document.addEventListener('touchstart', (e) => {
-      if (!e.target.closest('.quick-preview-trigger') && !e.target.closest('.quick-preview') && activePreview) {
+      if (!activePreview) return;
+      const onBackdrop = e.target.id === 'quickPreviewBackdrop';
+      const onPreview = !!e.target.closest('.quick-preview');
+      if (onBackdrop || onPreview || !e.target.closest('.quick-preview-trigger')) {
+        if (onBackdrop || onPreview) e.preventDefault();
         activePreview.style.display = 'none';
         activePreview = null;
         document.getElementById('quickPreviewBackdrop').classList.remove('show');
       }
-    });
+    }, { passive: false });
 
     window.addEventListener('scroll', () => {
       if (activePreview) {
