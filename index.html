@@ -17456,7 +17456,10 @@ if ('serviceWorker' in navigator) {
   .em-compose-field { display:flex; align-items:center; border-bottom:1px solid var(--cream); padding:0 16px; flex-shrink:0; }
   .em-compose-field label { width:70px; font-size:12px; font-weight:700; color:var(--muted); flex-shrink:0; }
   .em-compose-field input, .em-compose-field select { flex:1; border:none; outline:none; font-size:13px; padding:11px 0; background:transparent; color:#222; font-family:inherit; }
-  .em-compose-body { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+  .em-compose-body { flex:1; min-height:140px; overflow:hidden; display:flex; flex-direction:column; }
+  /* 첨부가 많아지면 목록만 따로 스크롤 (폼 전체가 overflow:hidden이라 아래가 잘리고 스크롤도 안 되던 문제) */
+  #emAttachList { max-height:30vh; min-height:64px; flex:0 1 auto; overflow-y:auto; overscroll-behavior:contain; }
+  #emAttachList:empty { display:none !important; }
   .em-compose-body textarea { flex:1; border:none; outline:none; padding:16px; font-size:13px; line-height:1.8; resize:none; font-family:inherit; color:#333; background:#fff; }
   .em-compose-ai-bar { background:var(--surface-tint); border-top:1px solid var(--cream); padding:10px 16px; display:flex; align-items:center; gap:10px; flex-shrink:0; }
   .em-compose-ai-input { flex:1; border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:12px; outline:none; font-family:inherit; background:#fff; }
