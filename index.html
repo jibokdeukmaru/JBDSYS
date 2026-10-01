@@ -10201,18 +10201,32 @@ function xiParseForecast(wb) {
 
         // ★ 실제 신청내역 중 확정된 것 — 이미 지난 건은 "사용"에 자동 합산, 아직 안 지난 건은
         //   "예정"으로 반영한다 (휴가신청 탭의 updateLeaveBalance()와 동일한 방식).
+        // ★ 2026-10-01: 내정보에만 차감이 빠져 "부여연차 그대로"로 보이던 문제 수정.
+        //   (1) u는 로그인 때 저장해둔 사본(localStorage)이라, 그 뒤 관리자가 입력한 사용연차(usedLeave)/
+        //       조정연차가 안 들어있을 수 있다 → 다른 화면처럼 Firestore 직원 원본을 다시 읽어 계산한다.
+        //   (2) 새로고침 직후엔 Firebase 로그인 복원 전이라 휴가서버(getLeaves)가 401로 실패할 수 있는데,
+        //       예전엔 조용히 포기했다 → 실패하면 잠시 뒤 몇 번 다시 시도한다.
         (async () => {
-          try {
-            const data = await window._leaveApiCall('getLeaves', { id: u.id, role: u.role || 'staff' });
-            if (data.status === 'ok') {
-              const todayStr = new Date().toISOString().slice(0,10);
-              const isDeduct = t => { const s = String(t||''); return s.indexOf('건강검진') === -1 && s.indexOf('출산') === -1; };
-              const myConfirmed = (data.rows||[]).filter(r => String(r.id) === String(u.id) && r.status === '확정' && isDeduct(r.leaveType));
-              const pastUsed = myConfirmed.filter(r => String(r.endDate||'') < todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
-              const scheduledDays = myConfirmed.filter(r => String(r.endDate||'') >= todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
-              _renderLeaveSegments(pastUsed, scheduledDays);
-            }
-          } catch(e) { /* 실패 시 수동값 기준으로 유지 */ }
+          const todayStr = new Date().toISOString().slice(0,10);
+          const isDeduct = t => { const s = String(t||''); return s.indexOf('건강검진') === -1 && s.indexOf('출산') === -1; };
+          const freshEmp = (typeof window.fetchEmployeesFS === 'function')
+            ? window.fetchEmployeesFS().then(d => (d && d.status === 'ok' && (d.rows||[]).find(r => String(r.id) === String(u.id))) || null).catch(() => null)
+            : Promise.resolve(null);
+          let rows = null;
+          for (let attempt = 0; attempt < 4 && !rows; attempt++) {
+            if (attempt) await new Promise(r => setTimeout(r, 1500 * attempt));
+            try {
+              const data = await window._leaveApiCall('getLeaves', { id: u.id, role: u.role || 'staff' });
+              if (data && data.status === 'ok') rows = data.rows || [];
+            } catch(e) { /* 재시도 */ }
+          }
+          const me = await freshEmp;
+          if (me) { u.usedLeave = me.usedLeave; u.annualLeave = me.annualLeave; u.joinDate = me.joinDate; u.leaveDate = me.leaveDate; }
+          if (!rows) { _renderLeaveSegments(0, 0); return; } // 휴가내역은 못 받았어도 최신 직원정보 기준으로는 갱신
+          const myConfirmed = rows.filter(r => String(r.id) === String(u.id) && r.status === '확정' && isDeduct(r.leaveType));
+          const pastUsed = myConfirmed.filter(r => String(r.endDate||'') < todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
+          const scheduledDays = myConfirmed.filter(r => String(r.endDate||'') >= todayStr).reduce((s, r) => s + (parseFloat(r.days||0) || 0), 0);
+          _renderLeaveSegments(pastUsed, scheduledDays);
         })();
     }
 
