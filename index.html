@@ -3555,62 +3555,105 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 </section>
 
 
-<!-- ==================== 평면도 면적분석 탭 ==================== -->
+<!-- ==================== 도면 면적분석 탭 (CAD: DWG/DXF) ==================== -->
 <section id="floorplanTab" class="tab-panel" style="display:none;">
-  <div class="card" style="max-width:540px; margin:0 auto;">
-    <h2 style="margin-bottom:16px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M21.3 8.7 8.7 21.3a1 1 0 0 1-1.4 0l-4.6-4.6a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4Z"/><path d="m7.5 10.5 2 2M10.5 7.5l2 2M13.5 4.5l2 2M4.5 13.5l2 2"/></svg>평면도 면적 분석</h2>
-    <p style="font-size:13px; color:#888; margin-bottom:20px; line-height:1.6;">
-      평면도 이미지 또는 PDF를 업로드하면 AI가 분석하여<br>원목마루 시공 정물량(로스율 제외)을 추정해드립니다.
-    </p>
+  <style>
+    #floorplanTab .fpc-card { max-width:1280px; margin:0 auto; }
+    #floorplanTab .fpc-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+    #floorplanTab .fpc-head h2 { margin:0; }
+    #floorplanTab .fpc-desc { font-size:12.5px; color:#888; line-height:1.6; margin:0 0 14px; }
+    #floorplanTab .fpc-drop { border:2px dashed var(--border,#ccc); border-radius:14px; padding:34px 20px; text-align:center; cursor:pointer; background:var(--cream,#fafafa); transition:border-color .2s; }
+    #floorplanTab .fpc-drop.over { border-color:var(--brand); }
+    #floorplanTab .fpc-drop b { font-size:14px; color:#555; }
+    #floorplanTab .fpc-drop div { font-size:12px; color:#999; margin-top:6px; }
+    #floorplanTab .fpc-work { display:none; }
+    #floorplanTab .fpc-bar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+    #floorplanTab .fpc-bar .fpc-file { font-size:12.5px; font-weight:700; color:#333; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:auto; }
+    #floorplanTab .fpc-btn { min-height:32px; padding:0 12px; border:1px solid var(--border,#ddd); border-radius:8px; background:#fff; color:#444; font-size:12.5px; font-weight:700; cursor:pointer; }
+    #floorplanTab .fpc-btn.on { background:var(--brand); border-color:var(--brand); color:#fff; }
+    #floorplanTab .fpc-btn.primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+    #floorplanTab .fpc-bar select { height:32px; padding:0 8px; border-radius:8px; font-size:12.5px; width:auto; }
+    #floorplanTab .fpc-main { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:12px; }
+    #floorplanTab .fpc-canvas-wrap { position:relative; height:min(68vh,720px); min-height:360px; border:1px solid var(--border,#ddd); border-radius:12px; overflow:hidden; background:#fff; touch-action:none; }
+    #floorplanTab canvas { display:block; width:100%; height:100%; cursor:crosshair; }
+    #floorplanTab .fpc-hint { position:absolute; left:10px; bottom:10px; right:10px; font-size:12px; color:#555; background:rgba(255,255,255,.92); border:1px solid #eee; border-radius:8px; padding:6px 10px; pointer-events:none; line-height:1.5; }
+    #floorplanTab .fpc-draw-ctl { position:absolute; top:10px; right:10px; display:none; gap:6px; }
+    #floorplanTab .fpc-busy { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(255,255,255,.75); font-size:13px; color:#555; font-weight:700; }
+    #floorplanTab .fpc-side { display:flex; flex-direction:column; gap:10px; min-width:0; }
+    #floorplanTab .fpc-box { border:1px solid var(--border,#ddd); border-radius:12px; background:#fff; padding:12px; }
+    #floorplanTab .fpc-box h4 { margin:0 0 8px; font-size:12.5px; color:#666; }
+    #floorplanTab .fpc-items { display:flex; flex-direction:column; gap:6px; max-height:300px; overflow:auto; }
+    #floorplanTab .fpc-item { display:grid; grid-template-columns:12px minmax(0,1fr) auto 26px 22px; align-items:center; gap:6px; font-size:12.5px; }
+    #floorplanTab .fpc-item .dot { width:10px; height:10px; border-radius:3px; }
+    #floorplanTab .fpc-item input { height:28px; padding:0 6px; font-size:12.5px; border-radius:6px; min-width:0; }
+    #floorplanTab .fpc-item .ar { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1.25; }
+    #floorplanTab .fpc-item .ar small { color:#999; font-size:11px; display:block; }
+    #floorplanTab .fpc-item button { min-height:26px; height:26px; padding:0; border:1px solid #ddd; border-radius:6px; background:#fff; color:#555; font-size:13px; font-weight:800; cursor:pointer; }
+    #floorplanTab .fpc-item button.minus { color:#c0392b; border-color:#e8b4ae; }
+    #floorplanTab .fpc-empty { font-size:12px; color:#aaa; text-align:center; padding:14px 0; }
+    #floorplanTab .fpc-total { display:flex; justify-content:space-between; align-items:baseline; border-top:1px solid #eee; margin-top:10px; padding-top:10px; }
+    #floorplanTab .fpc-total b { font-size:20px; color:var(--brand-dark,#333); font-variant-numeric:tabular-nums; }
+    #floorplanTab .fpc-total span { font-size:12.5px; color:#666; }
+    #floorplanTab .fpc-layers { max-height:220px; overflow:auto; display:flex; flex-direction:column; gap:3px; font-size:12px; }
+    #floorplanTab .fpc-layers label { display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #floorplanTab .fpc-layers label small { color:#aaa; }
+    #floorplanTab .fpc-opt { display:flex; align-items:center; gap:6px; font-size:12px; color:#555; margin-top:6px; }
+    @media (max-width: 900px) {
+      #floorplanTab .fpc-main { grid-template-columns:1fr; }
+      #floorplanTab .fpc-canvas-wrap { height:58vh; }
+    }
+  </style>
+  <div class="card fpc-card">
+    <div class="fpc-head">
+      <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h7v12M14 3v8h7"/></svg>도면 면적분석</h2>
+    </div>
+    <p class="fpc-desc">업체에서 받은 CAD 도면(DWG·DXF)을 올리면 방을 클릭해서 바닥면적을 잽니다. 결과는 ㎡·평으로 합산되고 견적 계산기로 바로 보낼 수 있습니다.</p>
 
-    <!-- 업로드 영역 -->
-    <div id="fpDropZone" style="border:2px dashed #ccc; border-radius:14px; padding:32px 20px; text-align:center; cursor:pointer; background:#fafafa; transition:border-color .2s; margin-bottom:16px;">
-      <div style="font-size:32px; margin-bottom:8px;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex-shrink:0;"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></div>
-      <div style="font-size:14px; color:#555; font-weight:600;">클릭하거나 파일을 여기에 드래그하세요</div>
-      <div style="font-size:12px; color:#aaa; margin-top:6px;">JPG, PNG, PDF 지원</div>
-      <input type="file" id="fpFileInput" accept="image/*,application/pdf" style="display:none;">
+    <div id="fpcDrop" class="fpc-drop">
+      <b>클릭하거나 CAD 파일을 여기에 끌어다 놓으세요</b>
+      <div>DWG, DXF 지원 · 파일은 서버로 올라가지 않고 이 화면 안에서만 읽습니다</div>
+      <input type="file" id="fpcFile" style="display:none;"><!-- accept 지정 시 안드로이드 파일 선택기에서 dwg가 회색 처리되는 경우가 있어 전체 허용 후 코드에서 확장자 확인 -->
     </div>
 
-    <!-- 미리보기 -->
-    <div id="fpPreviewWrap" style="display:none; margin-bottom:16px; text-align:center;">
-      <img id="fpPreviewImg" style="max-width:100%; max-height:300px; border-radius:10px; border:1px solid #eee;">
-      <div id="fpFileName" style="font-size:12px; color:#aaa; margin-top:6px;"></div>
-    </div>
-
-    <!-- 추가 정보 입력 -->
-    <div style="background:#f9f9f9; border:1px solid #eee; border-radius:12px; padding:14px; margin-bottom:16px;">
-      <div style="font-size:12px; color:#666; font-weight:700; margin-bottom:10px;">추가 정보 (선택사항)</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div>
-          <div style="font-size:11px; color:#999; margin-bottom:4px;">전용면적 (m²)</div>
-          <input type="number" id="fpAreaInput" placeholder="예: 114.5" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px;">
+    <div id="fpcWork" class="fpc-work">
+      <div class="fpc-bar">
+        <span class="fpc-file" id="fpcFileName"></span>
+        <button type="button" class="fpc-btn on" data-fpc-mode="fill" title="방 안쪽을 클릭하면 벽으로 둘러싸인 면적을 자동으로 잡습니다">영역 클릭</button>
+        <button type="button" class="fpc-btn" data-fpc-mode="poly" title="모서리를 차례로 클릭해서 직접 그립니다">직접 그리기</button>
+        <button type="button" class="fpc-btn" data-fpc-mode="wall" title="문 등 뚫린 곳을 선으로 막습니다 (두 점 클릭)">막기 선</button>
+        <select id="fpcUnit" title="도면 단위"></select>
+        <button type="button" class="fpc-btn" id="fpcFit">전체 보기</button>
+        <button type="button" class="fpc-btn" id="fpcNew">다른 파일</button>
+      </div>
+      <div class="fpc-main">
+        <div class="fpc-canvas-wrap" id="fpcWrap">
+          <canvas id="fpcCanvas"></canvas>
+          <div class="fpc-draw-ctl" id="fpcDrawCtl">
+            <button type="button" class="fpc-btn" id="fpcUndo">한 점 취소</button>
+            <button type="button" class="fpc-btn" id="fpcCancel">그리기 취소</button>
+            <button type="button" class="fpc-btn primary" id="fpcDone">완료</button>
+          </div>
+          <div class="fpc-hint" id="fpcHint"></div>
+          <div class="fpc-busy" id="fpcBusy">도면을 읽는 중입니다...</div>
         </div>
-        <div>
-          <div style="font-size:11px; color:#999; margin-bottom:4px;">제외 공간</div>
-          <input type="text" id="fpExcludeInput" placeholder="예: 현관,욕실,실외기실" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px;">
+        <div class="fpc-side">
+          <div class="fpc-box">
+            <h4>측정 목록</h4>
+            <div class="fpc-items" id="fpcItems"></div>
+            <div class="fpc-total"><span>합계</span><div style="text-align:right;"><b id="fpcTotalM2">0.00 ㎡</b><br><span id="fpcTotalPy">0.00 평</span></div></div>
+            <div style="display:grid; grid-template-columns:1fr auto; gap:6px; margin-top:10px;">
+              <button type="button" class="fpc-btn primary" id="fpcSend" style="min-height:38px;">견적 계산기로 보내기</button>
+              <button type="button" class="fpc-btn" id="fpcClear" style="min-height:38px;">비우기</button>
+            </div>
+          </div>
+          <div class="fpc-box">
+            <h4>레이어 <small style="font-weight:400;color:#aaa;">가구·치수 레이어를 끄면 영역이 더 잘 잡힙니다</small></h4>
+            <div class="fpc-layers" id="fpcLayers"></div>
+            <label class="fpc-opt"><input type="checkbox" id="fpcHoles" checked> 방 안의 가구·기둥 자리도 면적에 포함</label>
+            <label class="fpc-opt"><input type="checkbox" id="fpcTexts" checked> 글자 표시</label>
+          </div>
         </div>
       </div>
-    </div>
-
-    <button type="button" id="fpAnalyzeBtn" style="width:100%; padding:14px; background:#111; color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; opacity:0.4; pointer-events:none;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>AI 면적 분석 시작
-    </button>
-
-    <!-- 결과 영역 -->
-    <div id="fpResultWrap" style="display:none; margin-top:20px;">
-      <div style="background:#FAF4EC; border:1px solid var(--border); border-radius:14px; padding:20px;">
-        <div style="font-size:13px; font-weight:700; color:var(--brand); margin-bottom:12px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;flex-shrink:0;"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="13" width="3" height="5"/></svg>분석 결과</div>
-        <div id="fpResultText" style="font-size:14px; color:#333; line-height:1.8; white-space:pre-wrap;"></div>
-      </div>
-      <div style="margin-top:12px; font-size:11px; color:#aaa; text-align:center; line-height:1.6;">
-        ※ AI 추정값으로 실측 후 확인이 필요합니다.<br>현장 상황에 따라 실제 면적과 차이가 있을 수 있습니다.
-      </div>
-    </div>
-
-    <!-- 로딩 -->
-    <div id="fpLoading" style="display:none; text-align:center; padding:30px 0;">
-      <div style="font-size:24px; animation: spin 1s linear infinite; display:inline-block;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.5"></path></svg></div>
-      <div style="font-size:13px; color:#888; margin-top:10px;">평면도를 분석 중입니다...</div>
     </div>
   </div>
 </section>
@@ -15875,124 +15918,842 @@ async function _ivRenderUnsettledView(body, flags) {
     });
 })();
 
-// ==================== 평면도 면적분석 기능 ====================
+// ==================== 도면 면적분석 (CAD: DWG/DXF) ====================
+//   업체 CAD 도면을 브라우저 안에서만 읽어(서버 업로드 없음) 방 바닥면적을 잰다.
+//   - DXF: dxf-parser / DWG: libredwg(WebAssembly, 처음 열 때 약 10MB 받아옴)
+//   - 두 형식 모두 아래 normalize 단계에서 "선(점 목록)·글자" 공통 형식으로 바꾼 뒤 그린다.
+//   - 영역 클릭: 화면 밖 캔버스에 선을 그리고 클릭한 곳부터 채우기(flood fill) → 채운 픽셀 수로 면적.
+//   - 직접 그리기: 모서리 클릭(선 끝점에 자석처럼 붙음) → 다각형 면적.
+//   - 막기 선: 문처럼 뚫린 곳을 막는 선 — 영역 클릭에만 쓰인다.
 (function() {
-    const fileInput  = document.getElementById('fpFileInput');
-    const analyzeBtn = document.getElementById('fpAnalyzeBtn');
-    const previewWrap= document.getElementById('fpPreviewWrap');
-    const previewImg = document.getElementById('fpPreviewImg');
-    const fileNameEl = document.getElementById('fpFileName');
-    const resultWrap = document.getElementById('fpResultWrap');
-    const resultText = document.getElementById('fpResultText');
-    const loadingEl  = document.getElementById('fpLoading');
-    const dropZone    = document.getElementById('fpDropZone');
+  const $ = id => document.getElementById(id);
+  const DXF_PARSER_URL = 'https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js';
+  const LIBREDWG_BASE = 'https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.7.14/';
+  const PY_M2 = 3.305785;
+  // $INSUNITS 코드 → 1단위가 몇 m인지
+  const UNIT_M = { 1: 0.0254, 2: 0.3048, 4: 0.001, 5: 0.01, 6: 1 };
+  const UNIT_LABEL = { 1: 'inch', 2: 'feet', 4: 'mm', 5: 'cm', 6: 'm' };
+  const COLORS = ['#c0392b','#2e86c1','#27ae60','#d68910','#8e44ad','#16a085','#cb4335','#2874a6','#b7950b','#6c3483'];
 
-    let currentFileData = null;
+  const drop = $('fpcDrop'), fileInput = $('fpcFile'), work = $('fpcWork');
+  const wrap = $('fpcWrap'), canvas = $('fpcCanvas'), ctx = canvas.getContext('2d');
+  if (!drop || !canvas) return;
 
-    dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--brand)'; });
-    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#ccc'; });
-    dropZone.addEventListener('drop', e => {
-        e.preventDefault();
-        dropZone.style.borderColor = '#ccc';
-        const file = e.dataTransfer.files[0];
-        if (file) handleFile(file);
+  // ── 상태 ──
+  const S = {
+    prims: [],        // { layer, pts:[x,y,x,y...], closed }
+    texts: [],        // { layer, x, y, h, rot, s }
+    layers: {},       // name → { count, off }
+    hidden: new Set(),
+    unitCode: 4, unitAuto: 4,
+    bbox: null,       // 도면 범위(이상치 제외)
+    view: { s: 1, ox: 0, oy: 0 },   // 화면px = (x*s+ox, -y*s+oy)
+    mode: 'fill',
+    draft: [],        // 그리는 중인 점들 [x,y]
+    walls: [],        // 막기 선 [[x1,y1,x2,y2]]
+    items: [],        // 측정 결과
+    seq: 0,
+    snapGrid: null, snapCell: 1,
+    paths: null,      // 레이어별 Path2D 캐시
+    hover: null,      // 마우스 위치(월드) + 스냅 여부
+    fileName: ''
+  };
+
+  // ── 외부 라이브러리 로드 ──
+  let _dxfLoading = null, _dwgLoading = null;
+  function loadDxfParser() {
+    if (window.DxfParser) return Promise.resolve(window.DxfParser);
+    if (_dxfLoading) return _dxfLoading;
+    _dxfLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = DXF_PARSER_URL;
+      s.onload = () => window.DxfParser ? resolve(window.DxfParser) : reject(new Error('DXF 해석기를 불러오지 못했습니다.'));
+      s.onerror = () => { _dxfLoading = null; reject(new Error('DXF 해석기를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.')); };
+      document.head.appendChild(s);
     });
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files[0]) handleFile(fileInput.files[0]);
-    });
+    return _dxfLoading;
+  }
+  function loadLibreDwg() {
+    if (_dwgLoading) return _dwgLoading;
+    _dwgLoading = (async () => {
+      const mod = await import(LIBREDWG_BASE + 'dist/libredwg-web.js');
+      const lib = await mod.LibreDwg.create(LIBREDWG_BASE + 'wasm');
+      return { lib, mod };
+    })();
+    _dwgLoading.catch(() => { _dwgLoading = null; });
+    return _dwgLoading;
+  }
 
-    function handleFile(file) {
-        const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf'];
-        if (!allowed.includes(file.type)) { alert('JPG, PNG, PDF 파일만 지원합니다.'); return; }
-        fileNameEl.textContent = file.name;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const dataUrl = e.target.result;
-            currentFileData = { base64: dataUrl.split(',')[1], mediaType: file.type };
-            previewImg.src = file.type === 'application/pdf'
-                ? 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" rx="14" fill="%23f44336"/><text x="50" y="58" text-anchor="middle" fill="white" font-size="24" font-family="Arial" font-weight="bold">PDF</text></svg>'
-                : dataUrl;
-            previewWrap.style.display = 'block';
-            resultWrap.style.display = 'none';
-            analyzeBtn.style.opacity = '1';
-            analyzeBtn.style.pointerEvents = 'auto';
-        };
-        reader.readAsDataURL(file);
+  // ── 파일 열기 ──
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) openFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) openFile(fileInput.files[0]); fileInput.value = ''; });
+  $('fpcNew').addEventListener('click', () => fileInput.click());
+
+  function setBusy(msg) { const b = $('fpcBusy'); b.textContent = msg || ''; b.style.display = msg ? 'flex' : 'none'; }
+  function toast(msg) { if (typeof showToast === 'function') showToast(msg); }
+
+  async function openFile(file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext !== 'dwg' && ext !== 'dxf') { setHint('DWG 또는 DXF 파일만 열 수 있습니다. (PDF·이미지 도면은 업체에 CAD 파일로 요청해 주세요)', true); showWork(false); drop.querySelector('div').textContent = 'DWG 또는 DXF 파일만 열 수 있습니다.'; return; }
+    showWork(true);
+    S.fileName = file.name;
+    $('fpcFileName').textContent = file.name;
+    setBusy(ext === 'dwg' ? 'DWG 도면을 읽는 중입니다... (처음 한 번은 변환기를 받느라 조금 걸립니다)' : 'DXF 도면을 읽는 중입니다...');
+    await new Promise(r => setTimeout(r, 30));
+    try {
+      const buf = await file.arrayBuffer();
+      let model;
+      if (ext === 'dxf') model = await readDxf(buf);
+      else model = await readDwg(buf);
+      loadModel(model);
+      setBusy('');
+    } catch (err) {
+      console.error('[도면면적] 파일 읽기 실패', err);
+      setBusy('');
+      S.prims = []; S.texts = []; S.paths = null; draw();
+      setHint('도면을 읽지 못했습니다: ' + (err && err.message ? err.message : err) + ' — 다른 버전(예: AutoCAD 2013 DWG 또는 DXF)으로 저장해서 다시 받아 보세요.', true);
     }
+  }
+  function showWork(on) { work.style.display = on ? 'block' : 'none'; drop.style.display = on ? 'none' : 'block'; if (on) requestAnimationFrame(resize); }
 
-    analyzeBtn.addEventListener('click', async () => {
-        if (!currentFileData) return;
-        const apiKey = (document.getElementById('adminGeminiKey')?.value || '').trim() || localStorage.getItem('baram_gemini_key') || '';
-        if (!apiKey) {
-            alert('API 키를 먼저 입력하고 저장해주세요.');
-            return;
-        }
-        const area    = document.getElementById('fpAreaInput').value.trim();
-        const exclude = document.getElementById('fpExcludeInput').value.trim() || '현관, 욕실, 실외기실';
-
-        analyzeBtn.disabled = true;
-        loadingEl.style.display = 'block';
-        resultWrap.style.display = 'none';
-
-        const prompt = `이 평면도를 분석해서 원목마루 시공 면적을 계산해줘.
-제외 공간: ${exclude}
-${area ? `전용면적: ${area}m²` : ''}
-
-다음 형식으로 답변해줘:
-
-【 평형 정보 】
-타입: (예: 84A, 114 등)
-전용면적: OOm²
-
-【 공간별 면적 추정 】
-거실/주방: 약 OOm²
-침실1: 약 OOm²
-침실2: 약 OOm²
-침실3: 약 OOm² (있는 경우)
-드레스룸: 약 OOm² (있는 경우)
-
-【 제외 공간 】
-${exclude}: 약 OOm²
-벽체 감안 손실: 약 OOm²
-
-【 최종 시공 정물량 】
-▶ 원목마루 시공면적: 약 OOm² (로스율 제외)
-
-【 참고사항 】
-(특이사항 간단히)
-
-도면 치수 기반으로 계산하고, 불확실한 부분은 업계 평균값으로 추정해줘.`;
-
-        try {
-            const res = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [
-                                { inline_data: { mime_type: currentFileData.mediaType, data: currentFileData.base64 } },
-                                { text: prompt }
-                            ]
-                        }]
-                    })
-                }
-            );
-            const data = await res.json();
-            if (data.error) throw new Error(data.error.message);
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '분석 결과를 가져오지 못했습니다.';
-            resultText.textContent = text;
-            resultWrap.style.display = 'block';
-        } catch(err) {
-            resultText.textContent = '오류: ' + err.message;
-            resultWrap.style.display = 'block';
-        } finally {
-            loadingEl.style.display = 'none';
-            analyzeBtn.disabled = false;
-        }
+  // ── DXF 읽기 ──
+  async function readDxf(buf) {
+    const Parser = await loadDxfParser();
+    // AutoCAD 2007(AC1021) 이전 DXF는 한글이 CP949로 저장됨 → 헤더 보고 디코딩 결정
+    const head = new TextDecoder('latin1').decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, 20000)));
+    const ver = (head.match(/\$ACADVER\s*\r?\n\s*1\s*\r?\n\s*(AC\d+)/) || [])[1] || '';
+    const cp = (head.match(/\$DWGCODEPAGE\s*\r?\n\s*3\s*\r?\n\s*(\S+)/) || [])[1] || '';
+    let text;
+    if (ver && ver < 'AC1021' && /949|KOR|JOHAB/i.test(cp || 'ANSI_949')) {
+      try { text = new TextDecoder('euc-kr').decode(buf); } catch (_) { text = new TextDecoder('utf-8').decode(buf); }
+    } else text = new TextDecoder('utf-8').decode(buf);
+    const dxf = new Parser().parseSync(text);
+    if (!dxf) throw new Error('DXF 형식이 아닙니다.');
+    const blocks = {};
+    Object.keys(dxf.blocks || {}).forEach(k => {
+      const b = dxf.blocks[k];
+      blocks[k] = { base: b.position || { x: 0, y: 0 }, entities: b.entities || [] };
     });
+    const layerTable = {};
+    const lt = dxf.tables && dxf.tables.layer && dxf.tables.layer.layers;
+    if (lt) Object.keys(lt).forEach(k => { layerTable[k] = { off: lt[k].visible === false || !!lt[k].frozen }; });
+    const h = dxf.header || {};
+    return { src: 'dxf', entities: dxf.entities || [], blocks, layerTable, insunits: h.$INSUNITS };
+  }
+
+  // ── DWG 읽기 ──
+  async function readDwg(buf) {
+    const { lib, mod } = await loadLibreDwg();
+    const data = lib.dwg_read_data(buf, mod.Dwg_File_Type ? mod.Dwg_File_Type.DWG : 0);
+    if (!data) throw new Error('DWG 파일을 해석하지 못했습니다.');
+    let db;
+    try { db = lib.convert(data); } finally { try { lib.dwg_free(data); } catch (_) {} }
+    const blocks = {};
+    ((db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries) || []).forEach(b => {
+      blocks[b.name] = { base: b.basePoint || { x: 0, y: 0 }, entities: b.entities || [] };
+    });
+    const layerTable = {};
+    ((db.tables && db.tables.LAYER && db.tables.LAYER.entries) || []).forEach(l => { layerTable[l.name] = { off: !!(l.off || l.frozen) }; });
+    const h = db.header || {};
+    return { src: 'dwg', entities: db.entities || [], blocks, layerTable, insunits: h.INSUNITS };
+  }
+
+  // ── 공통 형식으로 변환 ──
+  // 변환행렬 m = [a,b,c,d,e,f] : (x,y) → (a*x + c*y + e, b*x + d*y + f)
+  const I = [1, 0, 0, 1, 0, 0];
+  function mul(m, n) { return [m[0]*n[0] + m[2]*n[1], m[1]*n[0] + m[3]*n[1], m[0]*n[2] + m[2]*n[3], m[1]*n[2] + m[3]*n[3], m[0]*n[4] + m[2]*n[5] + m[4], m[1]*n[4] + m[3]*n[5] + m[5]]; }
+  function tr(x, y) { return [1, 0, 0, 1, x, y]; }
+  function rot(a) { const c = Math.cos(a), s = Math.sin(a); return [c, s, -s, c, 0, 0]; }
+  function scl(x, y) { return [x, 0, 0, y, 0, 0]; }
+  const P = (m, x, y) => [m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]];
+
+  function arcPts(cx, cy, r, a1, sweep) {
+    const n = Math.max(6, Math.min(256, Math.ceil(Math.abs(sweep) / (Math.PI / 36))));
+    const out = [];
+    for (let i = 0; i <= n; i++) { const a = a1 + sweep * i / n; out.push(cx + r * Math.cos(a), cy + r * Math.sin(a)); }
+    return out;
+  }
+  // 정점 목록(+bulge) → 점 목록
+  function bulgePolyline(verts, closed) {
+    const out = [];
+    const n = verts.length;
+    for (let i = 0; i < n; i++) {
+      const v = verts[i];
+      out.push(v.x, v.y);
+      const last = i === n - 1;
+      if (last && !closed) break;
+      const w = verts[(i + 1) % n];
+      const b = v.bulge || 0;
+      if (Math.abs(b) > 1e-9) {
+        const th = 4 * Math.atan(b);
+        const dx = w.x - v.x, dy = w.y - v.y, c = Math.hypot(dx, dy);
+        if (c > 1e-12) {
+          const r = c / (2 * Math.sin(th / 2));
+          const h = r * Math.cos(th / 2);
+          const cx = (v.x + w.x) / 2 - h * dy / c, cy = (v.y + w.y) / 2 + h * dx / c;
+          const a1 = Math.atan2(v.y - cy, v.x - cx);
+          const pts = arcPts(cx, cy, Math.abs(r), a1, th);
+          for (let k = 2; k < pts.length - 2; k += 2) out.push(pts[k], pts[k + 1]);
+        }
+      }
+    }
+    return out;
+  }
+  function deBoor(deg, cps, knots, weights, samples) {
+    const n = cps.length;
+    if (!knots || knots.length !== n + deg + 1 || n <= deg) { const o = []; cps.forEach(p => o.push(p.x, p.y)); return o; }
+    const out = [];
+    const t0 = knots[deg], t1 = knots[n];
+    for (let si = 0; si <= samples; si++) {
+      const t = t0 + (t1 - t0) * si / samples;
+      let k = deg; while (k < n - 1 && t >= knots[k + 1]) k++;
+      const d = [];
+      for (let j = 0; j <= deg; j++) { const p = cps[k - deg + j]; const w = weights ? (weights[k - deg + j] || 1) : 1; d.push([p.x * w, p.y * w, w]); }
+      for (let r = 1; r <= deg; r++) for (let j = deg; j >= r; j--) {
+        const i = k - deg + j; const den = knots[i + deg + 1 - r] - knots[i]; const a = den ? (t - knots[i]) / den : 0;
+        d[j] = [(1 - a) * d[j - 1][0] + a * d[j][0], (1 - a) * d[j - 1][1] + a * d[j][1], (1 - a) * d[j - 1][2] + a * d[j][2]];
+      }
+      out.push(d[deg][0] / d[deg][2], d[deg][1] / d[deg][2]);
+    }
+    return out;
+  }
+  function cleanMText(s) {
+    return String(s || '')
+      .replace(/\\[Pp]/g, ' ').replace(/\\[A-Za-z][^;\\{}]*;/g, '').replace(/\\[LlOoKk]/g, '')
+      .replace(/[{}]/g, '').replace(/\\U\+([0-9A-Fa-f]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/%%[cC]/g, 'Ø').replace(/%%[dD]/g, '°').replace(/%%[pP]/g, '±').replace(/\s+/g, ' ').trim();
+  }
+
+  function normalize(model) {
+    const prims = [], texts = [], counts = {};
+    const isDxf = model.src === 'dxf';
+    const deg = isDxf ? Math.PI / 180 : 1;   // dxf-parser는 INSERT/TEXT 회전을 도(°)로, libredwg는 라디안으로 줌
+    let budget = 400000;                     // 블록 중첩 폭주 방지
+    function add(layer, pts, closed, m) {
+      if (pts.length < 4) return;
+      const o = new Array(pts.length);
+      for (let i = 0; i < pts.length; i += 2) { const q = P(m, pts[i], pts[i + 1]); o[i] = q[0]; o[i + 1] = q[1]; }
+      prims.push({ layer, pts: o, closed: !!closed });
+      counts[layer] = (counts[layer] || 0) + 1;
+      budget--;
+    }
+    function ocs(e, m) {
+      const ex = e.extrusionDirection || (e.extrusionDirectionZ != null ? { z: e.extrusionDirectionZ } : null);
+      return ex && ex.z < 0 ? mul(m, scl(-1, 1)) : m;
+    }
+    function walk(list, m, parentLayer, depth) {
+      if (!list || depth > 12) return;
+      for (const e of list) {
+        if (budget <= 0) return;
+        if (!e || e.isVisible === false || e.inPaperSpace || e.isInPaperSpace) continue;
+        let layer = e.layer || '0';
+        if (layer === '0' && parentLayer) layer = parentLayer;   // 블록 안 0번 레이어는 삽입된 레이어를 따름
+        try { ent(e, m, layer, depth); } catch (err) { /* 개별 객체 오류는 건너뜀 */ }
+      }
+    }
+    function ent(e, m, layer, depth) {
+      switch (e.type) {
+        case 'LINE': {
+          const a = e.startPoint || (e.vertices && e.vertices[0]), b = e.endPoint || (e.vertices && e.vertices[1]);
+          if (a && b) add(layer, [a.x, a.y, b.x, b.y], false, m);
+          break;
+        }
+        case 'LWPOLYLINE': case 'POLYLINE': case 'POLYLINE2D': case 'POLYLINE3D': {
+          const vs = (e.vertices || []).filter(v => v && isFinite(v.x) && isFinite(v.y));
+          if (vs.length < 2) break;
+          // DWG의 LWPOLYLINE은 flag 512가 '닫힘'(1은 돌출방향 정보), 나머지 POLYLINE은 1이 닫힘
+          const closed = isDxf ? !!e.shape : !!((e.flag || 0) & (e.type === 'LWPOLYLINE' ? 512 : 1));
+          if (e.type === 'POLYLINE' && ((e.is3dPolygonMesh) || e.isPolyfaceMesh)) break;
+          add(layer, bulgePolyline(vs, closed), closed, ocs(e, m));
+          break;
+        }
+        case 'ARC': {
+          let a1 = e.startAngle, a2 = e.endAngle; while (a2 < a1) a2 += Math.PI * 2;
+          add(layer, arcPts(e.center.x, e.center.y, e.radius, a1, a2 - a1), false, ocs(e, m));
+          break;
+        }
+        case 'CIRCLE':
+          add(layer, arcPts(e.center.x, e.center.y, e.radius, 0, Math.PI * 2), true, ocs(e, m));
+          break;
+        case 'ELLIPSE': {
+          const c = e.center, M = e.majorAxisEndPoint, r = e.axisRatio || 1;
+          let t1 = e.startAngle || 0, t2 = e.endAngle == null ? Math.PI * 2 : e.endAngle; while (t2 <= t1) t2 += Math.PI * 2;
+          const n = Math.max(12, Math.ceil((t2 - t1) / (Math.PI / 36))); const pts = [];
+          for (let i = 0; i <= n; i++) { const t = t1 + (t2 - t1) * i / n; pts.push(c.x + Math.cos(t) * M.x - Math.sin(t) * r * M.y, c.y + Math.cos(t) * M.y + Math.sin(t) * r * M.x); }
+          add(layer, pts, Math.abs(t2 - t1 - Math.PI * 2) < 1e-6, ocs(e, m));
+          break;
+        }
+        case 'SPLINE': {
+          const cps = e.controlPoints || [];
+          let pts;
+          if (cps.length > 1) pts = deBoor(e.degree || 3, cps, e.knotValues || e.knots, e.weights, Math.min(200, cps.length * 8));
+          else { pts = []; (e.fitPoints || []).forEach(p => pts.push(p.x, p.y)); }
+          add(layer, pts, !!((e.flag || 0) & 1) || !!e.closed, m);
+          break;
+        }
+        case 'SOLID': case 'TRACE': case '3DFACE': {
+          const c = e.points || [e.corner1, e.corner2, e.corner3, e.corner4].filter(Boolean);
+          if (c.length >= 3) { const q = c.length === 4 ? [c[0], c[1], c[3], c[2]] : c; const pts = []; q.forEach(p => pts.push(p.x, p.y)); add(layer, pts, true, ocs(e, m)); }
+          break;
+        }
+        case 'HATCH': {
+          (e.boundaryPaths || []).forEach(bp => {
+            if (bp.vertices) { add(layer, bulgePolyline(bp.vertices, true), true, ocs(e, m)); return; }
+            const pts = [];
+            (bp.edges || []).forEach(ed => {
+              if (ed.type === 1 && ed.start && ed.end) pts.push(ed.start.x, ed.start.y, ed.end.x, ed.end.y);
+              else if (ed.type === 2 && ed.center) { let a1 = ed.startAngle, a2 = ed.endAngle; if (ed.isCCW === false) { a1 = -ed.startAngle; a2 = -ed.endAngle; } while (a2 < a1) a2 += Math.PI * 2; let ap = arcPts(ed.center.x, ed.center.y, ed.radius, a1, a2 - a1); if (ed.isCCW === false) { const r = []; for (let i = 0; i < ap.length; i += 2) r.push(ap[i], -ap[i + 1] + 2 * ed.center.y); ap = r; } for (let i = 0; i < ap.length; i++) pts.push(ap[i]); }
+              else if (ed.type === 4 && ed.controlPoints) { const sp = deBoor(ed.degree || 3, ed.controlPoints, ed.knots, null, 40); for (let i = 0; i < sp.length; i++) pts.push(sp[i]); }
+            });
+            if (pts.length >= 6) add(layer, pts, true, ocs(e, m));
+          });
+          break;
+        }
+        case 'TEXT': case 'ATTRIB': case 'MTEXT': {
+          const isM = e.type === 'MTEXT';
+          const p = isM ? (e.position || e.insertionPoint) : ((e.halign || e.valign) && e.endPoint ? e.endPoint : e.startPoint);
+          const s = isM ? cleanMText(e.text) : cleanMText(e.text);
+          if (!p || !s) break;
+          const q = P(m, p.x, p.y);
+          const sc = Math.hypot(m[0], m[1]);
+          const h = (isM ? (e.height || e.textHeight) : e.textHeight) || 0;
+          let r = (e.rotation || 0) * deg;
+          if (isM && e.directionVector) r = Math.atan2(e.directionVector.y, e.directionVector.x);
+          else if (isM && e.direction && (e.direction.x || e.direction.y)) r = Math.atan2(e.direction.y, e.direction.x);
+          texts.push({ layer, x: q[0], y: q[1], h: h * sc, rot: r + Math.atan2(m[1], m[0]), s, mtext: isM, attach: e.attachmentPoint || 1 });
+          counts[layer] = (counts[layer] || 0) + 1;
+          break;
+        }
+        case 'INSERT': {
+          const b = model.blocks[e.name];
+          if (!b) break;
+          const pos = e.position || e.insertionPoint || { x: 0, y: 0 };
+          const sx = e.xScale == null ? 1 : e.xScale, sy = e.yScale == null ? 1 : e.yScale;
+          const r = (e.rotation != null ? e.rotation * deg : (e.rotationAngle || 0));
+          const cols = Math.max(1, e.columnCount || 1), rows = Math.max(1, e.rowCount || 1);
+          for (let ci = 0; ci < cols; ci++) for (let ri = 0; ri < rows; ri++) {
+            let mm = mul(ocs(e, m), tr(pos.x, pos.y));
+            mm = mul(mm, rot(r));
+            if (ci || ri) mm = mul(mm, tr(ci * (e.columnSpacing || 0), ri * (e.rowSpacing || 0)));
+            mm = mul(mm, scl(sx, sy));
+            mm = mul(mm, tr(-(b.base.x || 0), -(b.base.y || 0)));
+            walk(b.entities, mm, layer, depth + 1);
+          }
+          (e.attribs || []).forEach(a => ent(Object.assign({}, a, { type: 'ATTRIB' }), m, a.layer || layer, depth));
+          break;
+        }
+        default: break;   // 치수(DIMENSION)·지시선 등은 면적과 무관해 건너뜀
+      }
+    }
+    walk(model.entities, I, '', 0);
+    return { prims, texts, counts };
+  }
+
+  // ── 모델 적재 ──
+  function loadModel(model) {
+    const { prims, texts, counts } = normalize(model);
+    if (!prims.length) throw new Error('도면 안에서 선을 찾지 못했습니다(모형 공간이 비어 있음).');
+    // 이상치(멀리 떨어진 점 하나 때문에 전체가 쪼그라드는 것) 제외한 범위: 2%~98% 분위
+    const xs = [], ys = [];
+    const step = Math.max(1, Math.floor(prims.length / 4000));
+    for (let i = 0; i < prims.length; i += step) { const p = prims[i].pts; for (let k = 0; k < p.length; k += 2) { xs.push(p[k]); ys.push(p[k + 1]); } }
+    xs.sort((a, b) => a - b); ys.sort((a, b) => a - b);
+    const q = (arr, f) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(arr.length * f)))];
+    const few = xs.length < 3000;   // 점이 적으면 이상치 제거 없이 전체 범위
+    let x0 = few ? xs[0] : q(xs, 0.01), x1 = few ? xs[xs.length - 1] : q(xs, 0.99), y0 = few ? ys[0] : q(ys, 0.01), y1 = few ? ys[ys.length - 1] : q(ys, 0.99);
+    const padX = (x1 - x0) * 0.08 || 1, padY = (y1 - y0) * 0.08 || 1;
+    x0 -= padX; x1 += padX; y0 -= padY; y1 += padY;
+    // 좌표가 원점에서 아주 멀면 캔버스 정밀도가 떨어지므로 도면 중심을 원점으로 옮긴다
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    prims.forEach(p => { for (let k = 0; k < p.pts.length; k += 2) { p.pts[k] -= cx; p.pts[k + 1] -= cy; } });
+    texts.forEach(t => { t.x -= cx; t.y -= cy; });
+    S.prims = prims; S.texts = texts;
+    S.bbox = { x0: x0 - cx, x1: x1 - cx, y0: y0 - cy, y1: y1 - cy };
+    // 레이어
+    S.layers = {}; S.hidden = new Set();
+    Object.keys(counts).sort((a, b) => a.localeCompare(b)).forEach(n => {
+      const off = !!(model.layerTable[n] && model.layerTable[n].off);
+      S.layers[n] = { count: counts[n] };
+      if (off || /^(DEFPOINTS)$/i.test(n)) S.hidden.add(n);
+    });
+    // 단위: 헤더 $INSUNITS, 없으면 도면 크기로 추정(한국 건축도면은 대부분 mm)
+    const w = Math.max(x1 - x0, y1 - y0);
+    let auto = UNIT_M[model.insunits] ? model.insunits : 0;
+    if (!auto) auto = w > 3000 ? 4 : (w > 300 ? 5 : 6);
+    S.unitAuto = auto; S.unitCode = auto;
+    buildUnitSelect();
+    S.items = []; S.walls = []; S.draft = []; S.seq = 0;
+    buildSnapGrid();
+    buildLayerList();
+    buildPaths();
+    renderItems();
+    resize(); fitView();
+    setMode('fill');
+    const nT = texts.length;
+    console.log(`[도면면적] 선 ${prims.length}개, 글자 ${nT}개, 레이어 ${Object.keys(counts).length}개, 단위 ${UNIT_LABEL[auto]}`);
+  }
+
+  function buildUnitSelect() {
+    const sel = $('fpcUnit');
+    sel.innerHTML = [4, 5, 6, 1].map(c => `<option value="${c}">단위: ${UNIT_LABEL[c]}${c === S.unitAuto ? ' (자동)' : ''}</option>`).join('');
+    sel.value = String(S.unitCode);
+  }
+  $('fpcUnit').addEventListener('change', () => { S.unitCode = Number($('fpcUnit').value) || 4; renderItems(); draw(); });
+  const unitM = () => UNIT_M[S.unitCode] || 0.001;
+
+  function buildLayerList() {
+    const box = $('fpcLayers');
+    const names = Object.keys(S.layers);
+    box.innerHTML = names.map((n, i) => `<label title="${escHtml(n)}"><input type="checkbox" data-i="${i}" ${S.hidden.has(n) ? '' : 'checked'}> ${escHtml(n)} <small>${S.layers[n].count}</small></label>`).join('') || '<div class="fpc-empty">레이어 없음</div>';
+    box.querySelectorAll('input').forEach(cb => cb.addEventListener('change', () => {
+      const n = names[Number(cb.dataset.i)];
+      if (cb.checked) S.hidden.delete(n); else S.hidden.add(n);
+      buildPaths(); draw();
+    }));
+  }
+  function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  // 레이어 숨김을 반영한 Path2D (월드 좌표)
+  function buildPaths() {
+    const p = new Path2D();
+    for (const pr of S.prims) {
+      if (S.hidden.has(pr.layer)) continue;
+      const a = pr.pts;
+      p.moveTo(a[0], a[1]);
+      for (let k = 2; k < a.length; k += 2) p.lineTo(a[k], a[k + 1]);
+      if (pr.closed) p.closePath();
+    }
+    S.paths = p;
+  }
+
+  // 스냅용 격자 색인 (끝점·꼭짓점)
+  function buildSnapGrid() {
+    const b = S.bbox; const span = Math.max(b.x1 - b.x0, b.y1 - b.y0) || 1;
+    const cell = span / 200; S.snapCell = cell;
+    const g = new Map();
+    const put = (x, y) => { const k = Math.floor(x / cell) + ',' + Math.floor(y / cell); let a = g.get(k); if (!a) g.set(k, a = []); if (a.length < 64) a.push(x, y); };
+    for (const pr of S.prims) { const a = pr.pts; if (a.length <= 8) for (let k = 0; k < a.length; k += 2) put(a[k], a[k + 1]); else { for (let k = 0; k < a.length; k += 2) put(a[k], a[k + 1]); } }
+    S.snapGrid = g;
+  }
+  function snap(wx, wy) {
+    const rad = 12 / S.view.s;  // 화면 12px
+    const cell = S.snapCell, g = S.snapGrid; if (!g) return null;
+    const r = Math.ceil(rad / cell);
+    const gx = Math.floor(wx / cell), gy = Math.floor(wy / cell);
+    let best = null, bd = rad * rad;
+    if (r > 6) return null;
+    for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) {
+      const a = g.get((gx + i) + ',' + (gy + j)); if (!a) continue;
+      for (let k = 0; k < a.length; k += 2) { const d = (a[k] - wx) ** 2 + (a[k + 1] - wy) ** 2; if (d < bd) { bd = d; best = [a[k], a[k + 1]]; } }
+    }
+    // 그리는 중이면 첫 점·막기 선 끝점도 스냅 대상
+    const extra = S.draft.slice(0, 1).concat(S.walls.flatMap(w => [[w[0], w[1]], [w[2], w[3]]]));
+    extra.forEach(p => { const d = (p[0] - wx) ** 2 + (p[1] - wy) ** 2; if (d < bd) { bd = d; best = [p[0], p[1]]; } });
+    return best;
+  }
+
+  // ── 화면 ──
+  function resize() {
+    const r = wrap.getBoundingClientRect();
+    if (!r.width) return;
+    const dpr = window.devicePixelRatio || 1;
+    const prevW = canvas._cssW || r.width, prevH = canvas._cssH || r.height;
+    canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+    canvas._cssW = r.width; canvas._cssH = r.height;
+    S.view.ox += (r.width - prevW) / 2; S.view.oy += (r.height - prevH) / 2;
+    draw();
+  }
+  window.addEventListener('resize', () => { if (work.style.display !== 'none') resize(); });
+  function fitView() {
+    const b = S.bbox; if (!b) return;
+    const W = canvas._cssW || 800, H = canvas._cssH || 600;
+    const s = Math.min(W / (b.x1 - b.x0), H / (b.y1 - b.y0));
+    S.view.s = s; S.view.ox = W / 2 - s * (b.x0 + b.x1) / 2; S.view.oy = H / 2 + s * (b.y0 + b.y1) / 2;
+    draw();
+  }
+  $('fpcFit').addEventListener('click', fitView);
+  const toScreen = (x, y) => [x * S.view.s + S.view.ox, -y * S.view.s + S.view.oy];
+  const toWorld = (sx, sy) => [(sx - S.view.ox) / S.view.s, -(sy - S.view.oy) / S.view.s];
+
+  let _raf = 0;
+  function draw() { if (document.hidden) { drawNow(); return; } if (!_raf) _raf = requestAnimationFrame(() => { _raf = 0; drawNow(); }); }
+  function drawNow() {
+    const dpr = window.devicePixelRatio || 1, v = S.view;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (!S.paths) return;
+    // 측정 영역(채우기 마스크/다각형)
+    S.items.forEach(it => {
+      ctx.setTransform(dpr * v.s, 0, 0, -dpr * v.s, dpr * v.ox, dpr * v.oy);
+      if (it.mask) {
+        ctx.save(); ctx.translate(it.mask.x0, it.mask.y1); ctx.scale(it.mask.px, -it.mask.px);
+        ctx.imageSmoothingEnabled = false; ctx.globalAlpha = it.sel ? 0.55 : 0.32; ctx.drawImage(it.mask.img, 0, 0); ctx.restore();
+      }
+      if (it.poly) {
+        ctx.beginPath(); it.poly.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+        ctx.globalAlpha = it.sel ? 0.45 : 0.25; ctx.fillStyle = it.color; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.lineWidth = 2 / v.s; ctx.strokeStyle = it.color; ctx.stroke();
+      }
+    });
+    ctx.globalAlpha = 1;
+    // 도면 선
+    ctx.setTransform(dpr * v.s, 0, 0, -dpr * v.s, dpr * v.ox, dpr * v.oy);
+    ctx.lineWidth = 1 / v.s; ctx.strokeStyle = '#3a3a3a'; ctx.lineJoin = 'round';
+    ctx.stroke(S.paths);
+    // 막기 선
+    if (S.walls.length) {
+      ctx.beginPath(); S.walls.forEach(w => { ctx.moveTo(w[0], w[1]); ctx.lineTo(w[2], w[3]); });
+      ctx.lineWidth = 3 / v.s; ctx.strokeStyle = '#e74c3c'; ctx.stroke();
+    }
+    // 글자
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if ($('fpcTexts').checked && S.texts.length) {
+      ctx.fillStyle = '#2d6aa3'; ctx.textBaseline = 'alphabetic';
+      const W = canvas._cssW, H = canvas._cssH;
+      let n = 0;
+      for (const t of S.texts) {
+        if (S.hidden.has(t.layer)) continue;
+        const hp = t.h * v.s; if (hp < 5 || hp > 400) continue;
+        const [sx, sy] = toScreen(t.x, t.y);
+        if (sx < -400 || sy < -50 || sx > W + 50 || sy > H + 50) continue;
+        if (++n > 3000) break;
+        ctx.save(); ctx.translate(sx, sy); ctx.rotate(-t.rot);
+        ctx.font = `${Math.round(hp)}px sans-serif`;
+        if (t.mtext) ctx.textBaseline = 'top'; else ctx.textBaseline = 'alphabetic';
+        ctx.fillText(t.s, 0, 0); ctx.restore();
+      }
+    }
+    // 측정 이름 라벨
+    ctx.font = '700 12px sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    S.items.forEach(it => {
+      const [sx, sy] = toScreen(it.cx, it.cy);
+      const label = `${it.name} ${(it.areaDU * unitM() ** 2).toFixed(2)}㎡`; const ly = sy + 18;
+      const w = ctx.measureText(label).width + 10;
+      ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.fillRect(sx - w / 2, ly - 10, w, 20);
+      ctx.fillStyle = it.color; ctx.fillText(label, sx, ly);
+    });
+    ctx.textAlign = 'left';
+    // 그리는 중인 선
+    if (S.draft.length || S.hover) {
+      const pts = S.draft.map(p => toScreen(p[0], p[1]));
+      if (S.hover && (S.mode === 'poly' || S.mode === 'wall')) pts.push(toScreen(S.hover.x, S.hover.y));
+      if (pts.length > 1) {
+        ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+        ctx.lineWidth = 2; ctx.strokeStyle = S.mode === 'wall' ? '#e74c3c' : '#2e86c1'; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      S.draft.forEach(p => { const [sx, sy] = toScreen(p[0], p[1]); ctx.fillStyle = '#2e86c1'; ctx.fillRect(sx - 3, sy - 3, 6, 6); });
+      if (S.hover && S.hover.snapped) { const [sx, sy] = toScreen(S.hover.x, S.hover.y); ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 2; ctx.strokeRect(sx - 6, sy - 6, 12, 12); }
+    }
+  }
+  $('fpcTexts').addEventListener('change', draw);
+
+  // ── 모드 ──
+  const HINTS = {
+    fill: '방 안쪽을 클릭하면 벽으로 둘러싸인 바닥면적을 잡습니다. 문 쪽이 뚫려 있어 안 잡히면 [막기 선]으로 막아 주세요. (휠: 확대/축소 · 끌기: 이동)',
+    poly: '방 모서리를 차례로 클릭하세요. 선 끝점에 자동으로 붙습니다. 첫 점을 다시 클릭하거나 [완료]·더블클릭·Enter로 마칩니다. (Shift: 수평/수직 고정)',
+    wall: '뚫린 곳 양 끝을 클릭해서 막기 선을 긋습니다(빨간 선). 막기 선은 영역 클릭에만 쓰입니다. 잘못 그은 선은 그 위를 다시 클릭하면 지워집니다.'
+  };
+  function setHint(msg, warn) { const h = $('fpcHint'); h.textContent = msg; h.style.color = warn ? '#c0392b' : '#555'; }
+  function setMode(m) {
+    S.mode = m; S.draft = [];
+    document.querySelectorAll('#floorplanTab [data-fpc-mode]').forEach(b => b.classList.toggle('on', b.dataset.fpcMode === m));
+    $('fpcDrawCtl').style.display = 'none';
+    setHint(HINTS[m]); draw();
+  }
+  document.querySelectorAll('#floorplanTab [data-fpc-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.fpcMode)));
+  $('fpcUndo').addEventListener('click', () => { S.draft.pop(); updDrawCtl(); draw(); });
+  $('fpcCancel').addEventListener('click', () => { S.draft = []; updDrawCtl(); draw(); });
+  $('fpcDone').addEventListener('click', finishPoly);
+  function updDrawCtl() { $('fpcDrawCtl').style.display = (S.mode === 'poly' && S.draft.length) ? 'flex' : 'none'; }
+
+  // ── 입력(마우스·터치) ──
+  const ptrs = new Map();
+  let drag = null, pinch = null;
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: S.view.s, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, ox: S.view.ox, oy: S.view.oy };
+      drag = null;
+    } else drag = { x: e.offsetX, y: e.offsetY, ox: S.view.ox, oy: S.view.oy, moved: false, btn: e.button };
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (pinch && ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y); const k = d / (pinch.d || 1);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      S.view.s = pinch.s * k;
+      S.view.ox = mx - (pinch.mx - pinch.ox) * k; S.view.oy = my - (pinch.my - pinch.oy) * k;
+      draw(); return;
+    }
+    if (drag) {
+      const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) > 5) drag.moved = true;
+      if (drag.moved) { S.view.ox = drag.ox + dx; S.view.oy = drag.oy + dy; draw(); return; }
+    }
+    if (S.mode === 'poly' || S.mode === 'wall') { S.hover = pickPoint(e.offsetX, e.offsetY, e.shiftKey); draw(); }
+  });
+  function endPtr(e) {
+    ptrs.delete(e.pointerId);
+    if (pinch) { if (ptrs.size < 2) pinch = null; drag = null; return; }
+    const d = drag; drag = null;
+    if (d && !d.moved && d.btn === 0 && e.type === 'pointerup') onTap(e.offsetX, e.offsetY, e.shiftKey);
+  }
+  canvas.addEventListener('pointerup', endPtr);
+  canvas.addEventListener('pointercancel', endPtr);
+  canvas.addEventListener('pointerleave', () => { if (S.hover) { S.hover = null; draw(); } });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const k = Math.exp(-e.deltaY * 0.0015);
+    const [wx, wy] = toWorld(e.offsetX, e.offsetY);
+    S.view.s *= k; S.view.ox = e.offsetX - wx * S.view.s; S.view.oy = e.offsetY + wy * S.view.s;
+    draw();
+  }, { passive: false });
+  canvas.addEventListener('dblclick', e => { if (S.mode === 'poly') { e.preventDefault(); finishPoly(); } });
+  document.addEventListener('keydown', e => {
+    if (work.style.display === 'none' || document.getElementById('floorplanTab').style.display === 'none') return;
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === 'Enter' && S.mode === 'poly') finishPoly();
+    else if (e.key === 'Escape') { S.draft = []; updDrawCtl(); draw(); }
+    else if (e.key === 'Backspace' && S.draft.length) { e.preventDefault(); S.draft.pop(); updDrawCtl(); draw(); }
+  });
+
+  function pickPoint(sx, sy, ortho) {
+    let [wx, wy] = toWorld(sx, sy);
+    const sp = snap(wx, wy);
+    if (sp) return { x: sp[0], y: sp[1], snapped: true };
+    const last = S.draft[S.draft.length - 1];
+    if (ortho && last) { if (Math.abs(wx - last[0]) > Math.abs(wy - last[1])) wy = last[1]; else wx = last[0]; }
+    return { x: wx, y: wy, snapped: false };
+  }
+
+  function onTap(sx, sy, shift) {
+    if (!S.paths) return;
+    if (S.mode === 'fill') { const [wx, wy] = toWorld(sx, sy); fillAt(wx, wy); return; }
+    const p = pickPoint(sx, sy, shift);
+    if (S.mode === 'wall') {
+      if (!S.draft.length) {
+        // 기존 막기 선 위를 누르면 삭제
+        const [wx, wy] = toWorld(sx, sy); const tol = 6 / S.view.s;
+        const idx = S.walls.findIndex(w => segDist(wx, wy, w) < tol);
+        if (idx >= 0) { S.walls.splice(idx, 1); draw(); return; }
+        S.draft = [[p.x, p.y]];
+      } else {
+        const a = S.draft[0];
+        if (Math.hypot(p.x - a[0], p.y - a[1]) * S.view.s > 3) S.walls.push([a[0], a[1], p.x, p.y]);
+        S.draft = [];
+      }
+      draw(); return;
+    }
+    if (S.mode === 'poly') {
+      const first = S.draft[0];
+      if (first && S.draft.length >= 3 && Math.hypot(p.x - first[0], p.y - first[1]) * S.view.s < 10) { finishPoly(); return; }
+      S.draft.push([p.x, p.y]); updDrawCtl(); draw();
+    }
+  }
+  function segDist(px, py, w) {
+    const dx = w[2] - w[0], dy = w[3] - w[1]; const L = dx * dx + dy * dy;
+    let t = L ? ((px - w[0]) * dx + (py - w[1]) * dy) / L : 0; t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (w[0] + t * dx), py - (w[1] + t * dy));
+  }
+
+  function finishPoly() {
+    if (S.mode !== 'poly') return;
+    if (S.draft.length < 3) { setHint('점을 3개 이상 찍어야 면적이 나옵니다.', true); return; }
+    const pts = S.draft.slice(); S.draft = []; updDrawCtl();
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; const c = p[0] * q[1] - q[0] * p[1]; a += c; cx += (p[0] + q[0]) * c; cy += (p[1] + q[1]) * c; }
+    const area = Math.abs(a / 2);
+    if (!area) { draw(); return; }
+    cx /= (3 * a); cy /= (3 * a);
+    addItem({ poly: pts, areaDU: area, cx, cy, name: roomNameIn(p => pointInPoly(p, pts)) || ('직접 ' + (S.items.filter(i => i.poly).length + 1)) });
+    setHint(HINTS.poly);
+  }
+  function pointInPoly(p, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      if ((yi > p[1]) !== (yj > p[1]) && p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  // 영역 안에 있는 방 이름 글자(숫자·치수 글자 제외) 찾기
+  function roomNameIn(test) {
+    let best = null;
+    for (const t of S.texts) {
+      if (S.hidden.has(t.layer)) continue;
+      const s = t.s.trim();
+      if (!s || s.length > 16 || /^[\d\s.,:;xX×*+\-=()~㎡m²MmPp평%/'"]+$/.test(s)) continue;
+      if (!test([t.x + t.h * 0.3, t.y + t.h * 0.3])) continue;
+      if (!best || t.h > best.h) best = t;
+    }
+    return best ? best.s.replace(/\s+/g, ' ').slice(0, 16) : '';
+  }
+
+  // ── 영역 클릭(채우기) ──
+  function rasterize(x0, y0, x1, y1, maxSide) {
+    const span = Math.max(x1 - x0, y1 - y0);
+    const px = span / maxSide;
+    const W = Math.max(8, Math.ceil((x1 - x0) / px)), H = Math.max(8, Math.ceil((y1 - y0) / px));
+    const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+    const c = oc.getContext('2d', { willReadFrequently: true });
+    c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+    c.setTransform(1 / px, 0, 0, -1 / px, -x0 / px, y1 / px);
+    c.lineWidth = 2 * px; c.strokeStyle = '#000'; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.stroke(S.paths);
+    if (S.walls.length) { c.beginPath(); S.walls.forEach(w => { c.moveTo(w[0], w[1]); c.lineTo(w[2], w[3]); }); c.stroke(); }
+    const d = c.getImageData(0, 0, W, H).data;
+    const wall = new Uint8Array(W * H);
+    for (let i = 0, j = 0; i < wall.length; i++, j += 4) wall[i] = d[j] < 200 ? 1 : 0;
+    return { W, H, px, x0, y1, wall };
+  }
+  // 스캔라인 채우기. 반환: 채운 칸(1) 마스크, 가장자리 닿았는지
+  function flood(R, sx, sy) {
+    const { W, H, wall } = R;
+    const m = new Uint8Array(W * H);
+    if (sx < 0 || sy < 0 || sx >= W || sy >= H) return null;
+    // 클릭 지점이 선 위면 가까운 빈칸으로
+    if (wall[sy * W + sx]) {
+      let found = false;
+      for (let r = 1; r <= 4 && !found; r++) for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r && !found; dx++) {
+        const x = sx + dx, y = sy + dy; if (x >= 0 && y >= 0 && x < W && y < H && !wall[y * W + x]) { sx = x; sy = y; found = true; }
+      }
+      if (!found) return null;
+    }
+    const st = [sx, sy]; let edge = false, n = 0;
+    let minX = W, maxX = 0, minY = H, maxY = 0;
+    while (st.length) {
+      const y = st.pop(), x0 = st.pop();
+      let x = x0;
+      while (x > 0 && !wall[y * W + x - 1] && !m[y * W + x - 1]) x--;
+      if (x === 0) edge = true;
+      let upOpen = false, dnOpen = false;
+      for (; x < W && !wall[y * W + x] && !m[y * W + x]; x++) {
+        m[y * W + x] = 1; n++;
+        if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+        if (x === W - 1 || y === 0 || y === H - 1) edge = true;
+        if (y > 0) { const k = (y - 1) * W + x; const o = !wall[k] && !m[k]; if (o && !upOpen) st.push(x, y - 1); upOpen = o; }
+        if (y < H - 1) { const k = (y + 1) * W + x; const o = !wall[k] && !m[k]; if (o && !dnOpen) st.push(x, y + 1); dnOpen = o; }
+      }
+    }
+    return { m, n, edge, minX, maxX, minY, maxY };
+  }
+
+  function fillAt(wx, wy) {
+    const b = S.bbox, v = S.view;
+    // 1차: 지금 보이는 화면 범위로 대략 채워 보고
+    const [vx0, vy1] = toWorld(0, 0), [vx1, vy0] = toWorld(canvas._cssW, canvas._cssH);
+    let R = rasterize(vx0, vy0, vx1, vy1, 1400);
+    let F = flood(R, Math.floor((wx - R.x0) / R.px), Math.floor((R.y1 - wy) / R.px));
+    if (F && F.edge) {
+      // 화면 밖까지 이어지면 도면 전체 범위로 다시
+      const big = { x0: Math.min(b.x0, vx0), y0: Math.min(b.y0, vy0), x1: Math.max(b.x1, vx1), y1: Math.max(b.y1, vy1) };
+      R = rasterize(big.x0, big.y0, big.x1, big.y1, 2400);
+      F = flood(R, Math.floor((wx - R.x0) / R.px), Math.floor((R.y1 - wy) / R.px));
+    }
+    if (!F) { setHint('선 위를 누르셨습니다. 방 안쪽 빈 곳을 눌러 주세요.', true); return; }
+    if (F.edge) { setHint('이 영역은 바깥과 이어져 있습니다(문·창 등이 뚫려 있음). [막기 선]으로 뚫린 곳을 막은 뒤 다시 눌러 주세요.', true); return; }
+    // 2차: 찾은 영역만 고해상도로 다시 → 정확도 향상
+    const pad = 6;
+    const rx0 = R.x0 + (F.minX - pad) * R.px, rx1 = R.x0 + (F.maxX + 1 + pad) * R.px;
+    const ry1 = R.y1 - (F.minY - pad) * R.px, ry0 = R.y1 - (F.maxY + 1 + pad) * R.px;
+    const R2 = rasterize(rx0, ry0, rx1, ry1, 2000);
+    let F2 = R2.px < R.px * 0.9 ? flood(R2, Math.floor((wx - R2.x0) / R2.px), Math.floor((R2.y1 - wy) / R2.px)) : null;
+    let RR = R, FF = F;
+    if (F2 && !F2.edge) { RR = R2; FF = F2; }
+    // 구멍(가구·기둥 등 안쪽 닫힌 도형) 포함 옵션: 바깥에서 들어올 수 없는 칸은 모두 영역으로
+    const W = RR.W, H = RR.H, m = FF.m;
+    if ($('fpcHoles').checked) {
+      const out = new Uint8Array(W * H); const st = [];
+      const seed = (x, y) => { const k = y * W + x; if (!m[k] && !out[k]) { out[k] = 1; st.push(k); } };
+      for (let x = 0; x < W; x++) { seed(x, 0); seed(x, H - 1); }
+      for (let y = 0; y < H; y++) { seed(0, y); seed(W - 1, y); }
+      while (st.length) { const k = st.pop(); const x = k % W, y = (k - x) / W;
+        if (x > 0) seed(x - 1, y); if (x < W - 1) seed(x + 1, y); if (y > 0) seed(x, y - 1); if (y < H - 1) seed(x, y + 1); }
+      // 바깥에서 닿지 않는 칸(구멍과 그 테두리선) → 영역에 포함
+      for (let k = 0; k < m.length; k++) if (!out[k] && !m[k]) m[k] = 2;
+    }
+    // 면적: 칸 수 + 테두리 보정(선 두께 2px의 절반만큼 안쪽으로 덜 채워지므로 둘레 칸 수만큼 더함)
+    let cnt = 0, edgeCnt = 0, sx = 0, sy = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = y * W + x; if (!m[k]) continue;
+      cnt++; sx += x; sy += y;
+      if ((x > 0 && !m[k - 1]) || (x < W - 1 && !m[k + 1]) || (y > 0 && !m[k - W]) || (y < H - 1 && !m[k + W])) edgeCnt++;
+    }
+    const areaDU = (cnt + edgeCnt * 1.0) * RR.px * RR.px;
+    // 너무 작은 영역(선 사이 틈 등)은 무시
+    if (areaDU * unitM() ** 2 < 0.05) { setHint('너무 작은 영역입니다. 방 안쪽 넓은 곳을 눌러 주세요.', true); return; }
+    // 표시용 마스크 이미지
+    const color = COLORS[S.seq % COLORS.length];
+    const img = document.createElement('canvas'); img.width = W; img.height = H;
+    const ic = img.getContext('2d'); const id = ic.createImageData(W, H);
+    const rgb = [parseInt(color.slice(1, 3), 16), parseInt(color.slice(3, 5), 16), parseInt(color.slice(5, 7), 16)];
+    for (let k = 0, j = 0; k < m.length; k++, j += 4) if (m[k]) { id.data[j] = rgb[0]; id.data[j + 1] = rgb[1]; id.data[j + 2] = rgb[2]; id.data[j + 3] = 255; }
+    ic.putImageData(id, 0, 0);
+    const cx = RR.x0 + (sx / cnt + 0.5) * RR.px, cy = RR.y1 - (sy / cnt + 0.5) * RR.px;
+    const inMask = p => { const x = Math.floor((p[0] - RR.x0) / RR.px), y = Math.floor((RR.y1 - p[1]) / RR.px); return x >= 0 && y >= 0 && x < W && y < H && !!m[y * W + x]; };
+    addItem({ mask: { img, x0: RR.x0, y1: RR.y1, px: RR.px }, areaDU, cx, cy, color, name: roomNameIn(inMask) || ('영역 ' + (S.items.filter(i => i.mask).length + 1)) });
+    setHint(HINTS.fill);
+  }
+
+  // ── 측정 목록 ──
+  function addItem(it) {
+    it.id = ++S.seq; it.sign = 1;
+    if (!it.color) it.color = COLORS[(it.id - 1) % COLORS.length];
+    S.items.push(it); renderItems(); draw();
+  }
+  function renderItems() {
+    const box = $('fpcItems'); const u2 = unitM() ** 2;
+    if (!S.items.length) box.innerHTML = '<div class="fpc-empty">방을 클릭하면 여기에 면적이 쌓입니다.</div>';
+    else box.innerHTML = S.items.map(it => {
+      const m2 = it.areaDU * u2;
+      return `<div class="fpc-item" data-id="${it.id}">
+        <span class="dot" style="background:${it.color}"></span>
+        <input type="text" value="${escHtml(it.name)}" data-act="name">
+        <span class="ar">${it.sign < 0 ? '−' : ''}${m2.toFixed(2)}㎡<small>${(m2 / PY_M2).toFixed(2)}평</small></span>
+        <button type="button" data-act="sign" class="${it.sign < 0 ? 'minus' : ''}" title="${it.sign < 0 ? '빼기(제외) → 더하기로 바꾸기' : '더하기 → 빼기(제외)로 바꾸기'}">${it.sign < 0 ? '−' : '+'}</button>
+        <button type="button" data-act="del" title="삭제">×</button>
+      </div>`;
+    }).join('');
+    const tot = S.items.reduce((s, it) => s + it.sign * it.areaDU * u2, 0);
+    $('fpcTotalM2').textContent = tot.toFixed(2) + ' ㎡';
+    $('fpcTotalPy').textContent = (tot / PY_M2).toFixed(2) + ' 평';
+  }
+  $('fpcItems').addEventListener('click', e => {
+    const row = e.target.closest('.fpc-item'); if (!row) return;
+    const it = S.items.find(i => i.id === Number(row.dataset.id)); if (!it) return;
+    const act = e.target.dataset.act;
+    if (act === 'del') { S.items = S.items.filter(i => i !== it); renderItems(); draw(); }
+    else if (act === 'sign') { it.sign = -it.sign; renderItems(); draw(); }
+  });
+  $('fpcItems').addEventListener('input', e => {
+    if (e.target.dataset.act !== 'name') return;
+    const row = e.target.closest('.fpc-item'); const it = S.items.find(i => i.id === Number(row.dataset.id));
+    if (it) { it.name = e.target.value; draw(); }
+  });
+  $('fpcItems').addEventListener('focusin', e => { const row = e.target.closest('.fpc-item'); S.items.forEach(i => i.sel = row && i.id === Number(row.dataset.id)); draw(); });
+  $('fpcItems').addEventListener('focusout', () => { S.items.forEach(i => i.sel = false); draw(); });
+  $('fpcClear').addEventListener('click', () => { S.items = []; S.walls = []; S.draft = []; renderItems(); draw(); });
+  $('fpcSend').addEventListener('click', () => {
+    const tot = S.items.reduce((s, it) => s + it.sign * it.areaDU * unitM() ** 2, 0);
+    if (!(tot > 0)) { setHint('보낼 면적이 없습니다. 먼저 방을 측정해 주세요.', true); return; }
+    if (typeof setTab !== 'function' || !$('calcAreaInput')) return;
+    setTab('calculatorTab');
+    const modeSel = $('calcInputModeSelect');
+    if (modeSel) { modeSel.value = 'sqm'; modeSel.dispatchEvent(new Event('change')); }
+    const inp = $('calcAreaInput');
+    inp.value = tot.toFixed(2); inp.dispatchEvent(new Event('input'));
+    toast(`면적 ${tot.toFixed(2)}㎡ (${(tot / PY_M2).toFixed(2)}평)를 견적 계산기에 넣었습니다`);
+  });
+
+  // 탭이 보일 때 캔버스 크기 맞추기
+  new MutationObserver(() => { if ($('floorplanTab').style.display !== 'none' && work.style.display !== 'none') requestAnimationFrame(resize); })
+    .observe($('floorplanTab'), { attributes: true, attributeFilter: ['style'] });
 })();
 
 // ==================== 유령 서비스워커 정리 ====================
