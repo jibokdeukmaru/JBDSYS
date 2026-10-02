@@ -348,6 +348,7 @@ window.fetchEmployeesFS = async function() {
         team: e.team, stockBetaEditor: e.stockBetaEditor, compatEditor: e.compatEditor, scheduleEditor: e.scheduleEditor,
         leaveManagerEditor: e.leaveManagerEditor, mailbox: e.mailbox || '',
         quoteVaultAccess: e.quoteVaultAccess, quoteVaultViewAll: e.quoteVaultViewAll,
+        empStatus: e.empStatus || '',
       });
     });
     return { status: 'ok', rows };
