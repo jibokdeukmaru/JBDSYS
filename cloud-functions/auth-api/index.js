@@ -56,6 +56,13 @@ function toBool(v) {
   return v === true || v === 'true';
 }
 
+// ★ (2026-10-02) 이메일 탭에서 볼 메일함 — 개인 구글 계정이 없는 직원에게 공용 메일함을 지정.
+//   gmail-api가 이 값을 그대로 믿고 메일함을 열어주므로, 회사 도메인 주소만 허용('' = 본인 사내 이메일).
+function cleanMailbox(v) {
+  const s = String(v || '').trim().toLowerCase();
+  return /^[a-z0-9._%+-]+@jibokdeukmaru\.com$/.test(s) ? s : '';
+}
+
 async function login(p) {
   const id = String(p.id || '').trim();
   const pw = String(p.pw || p.password || '');
@@ -85,7 +92,7 @@ async function login(p) {
     approverIds: emp.approverIds, birthday: emp.birthday, cardUrl: emp.cardUrl,
     homeTab: emp.homeTab, team: emp.team,
     stockBetaEditor: !!emp.stockBetaEditor, compatEditor: !!emp.compatEditor, scheduleEditor: !!emp.scheduleEditor,
-    leaveManagerEditor: !!emp.leaveManagerEditor,
+    leaveManagerEditor: !!emp.leaveManagerEditor, mailbox: emp.mailbox || '',
   };
 
   const claims = { role: user.role || null, email: user.email || null };
@@ -111,7 +118,7 @@ async function addEmployee(p) {
   const emp = {
     id, name: p.name || '', dept: p.dept || '', title: p.title || '',
     joinDate: p.joinDate || now, leaveDate: '', annualLeave: 0,
-    phone: p.phone || '', email: p.email || '',
+    phone: p.phone || '', email: p.email || '', mailbox: cleanMailbox(p.mailbox),
     allowedTabs: 'ALL', role: 'staff', isManager: false, isHead: false,
     usedLeave: 0, approverIds: '',
     birthday: p.birthday || '', cardUrl: p.cardUrl || '', homeTab: '',
@@ -143,6 +150,7 @@ async function updateEmployeeInfo(p) {
   if (p.annualLeave !== undefined && p.annualLeave !== '') upd.annualLeave = Number(p.annualLeave) || 0;
   if (p.phone !== undefined) upd.phone = p.phone;
   if (p.email !== undefined) upd.email = p.email;
+  if (p.mailbox !== undefined) upd.mailbox = cleanMailbox(p.mailbox);
   if (p.isManager !== undefined) upd.isManager = toBool(p.isManager);
   if (p.isHead !== undefined) upd.isHead = toBool(p.isHead);
   if (p.usedLeave !== undefined && p.usedLeave !== '') upd.usedLeave = Number(p.usedLeave) || 0;

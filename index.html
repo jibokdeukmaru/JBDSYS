@@ -346,7 +346,7 @@ window.fetchEmployeesFS = async function() {
         isManager: e.isManager, isHead: e.isHead, usedLeave: e.usedLeave,
         approverIds: e.approverIds, birthday: e.birthday, cardUrl: e.cardUrl, homeTab: e.homeTab,
         team: e.team, stockBetaEditor: e.stockBetaEditor, compatEditor: e.compatEditor, scheduleEditor: e.scheduleEditor,
-        leaveManagerEditor: e.leaveManagerEditor,
+        leaveManagerEditor: e.leaveManagerEditor, mailbox: e.mailbox || '',
         quoteVaultAccess: e.quoteVaultAccess, quoteVaultViewAll: e.quoteVaultViewAll,
       });
     });
@@ -7753,7 +7753,7 @@ function csDateInputValue(val) {
   async function _renderHomeEmails() {
     const el = document.getElementById('homeEmailList'); if (!el) return;
     // 받은메일함(Gmail 연동) 최근 3건 — 카드형 표시
-    const email = (window._currentUser && window._currentUser.email) || '';
+    const email = (window._emMailbox ? window._emMailbox(window._currentUser) : ((window._currentUser && window._currentUser.email) || ''));
     if (!email || !window.USE_GMAIL_API || typeof window._gmailFetchPage !== 'function') {
       el.innerHTML = '<div class="home-dash-empty">받은 메일이 없습니다.</div>'; return;
     }
@@ -8611,6 +8611,15 @@ function csDateInputValue(val) {
         <label style="font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px;">사내 이메일</label>
         <input id="empModalEmail" type="email"
           style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px;">이메일 탭에서 볼 메일함</label>
+        <select id="empModalMailbox"
+          style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;box-sizing:border-box;background:#fff;">
+          <option value="">본인 사내 이메일</option>
+          <option value="office@jibokdeukmaru.com">공용 메일함 (office@)</option>
+        </select>
+        <div style="font-size:11px;color:#999;margin-top:4px;">개인 구글 계정이 없는 직원은 공용 메일함을 지정하세요. 사내 이메일 칸은 그대로 두세요(알림 구분용).</div>
       </div>
       <div>
         <label style="font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:4px;">연락처</label>
@@ -9976,6 +9985,9 @@ function xiParseForecast(wb) {
       try {
         const empData = await window.fetchEmployeesFS();
         if (empData.rows) window._allEmployees = empData.rows;
+        // ★ 공용메일함 지정(mailbox)은 로그인 때 저장된 사본이 아니라 최신 직원정보로 — 관리자가 바꾸면 재로그인 없이 반영
+        const meRow = (empData.rows || []).find(r => String(r.id) === String(userData.id));
+        if (meRow) userData.mailbox = meRow.mailbox || '';
       } catch(e) {}
 
       // 개인 설정(테마/햄버거메뉴 표시·순서/화면밀도) — 다른 기기에서 로그인해도 내 설정 그대로 적용
@@ -10549,7 +10561,7 @@ function xiParseForecast(wb) {
                     style="background:#fff;border:1px solid #eee;border-radius:12px;padding:14px 16px;margin:6px 0;cursor:pointer;transition:all .1s;">
                     <div id="emp-card-${ri}" class="emp-card"
                       data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
-                      data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
+                      data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-mailbox="${r.mailbox||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
                       data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-empstatus="${r.empStatus||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
                       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                         <div>
@@ -10600,7 +10612,7 @@ function xiParseForecast(wb) {
                 const allowed = resolveAllowed(r.allowedTabs);
                 return `<tr id="emp-row-${ri}" onclick="selectEmp(${ri},\'${r.id}\')" style="cursor:pointer;"
                     data-name="${r.name||''}" data-dept="${r.dept||''}" data-title="${r.title||''}"
-                    data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
+                    data-joindate="${r.joinDate||''}" data-email="${r.email||''}" data-mailbox="${r.mailbox||''}" data-phone="${r.phone||''}" data-annualleave="${r.usedLeave||''}" data-leaveadjust="${r.annualLeave||0}"
                     data-cardurl="${r.cardUrl||''}" data-ishead="${r.isHead||false}" data-ismanager="${r.isManager||false}" data-birthday="${r.birthday||''}" data-team="${r.team||''}" data-empstatus="${r.empStatus||''}" data-stockbetaeditor="${r.stockBetaEditor||false}" data-compateditor="${r.compatEditor||false}" data-scheduleeditor="${r.scheduleEditor||false}" data-leavemanagereditor="${r.leaveManagerEditor||false}" data-quotevaultaccess="${r.quoteVaultAccess||false}" data-quotevaultviewall="${r.quoteVaultViewAll||false}">
                     <td><strong>${r.name||''}</strong></td>
                     <td style="color:#aaa;font-size:12px;">${r.id||''}</td>
@@ -10740,6 +10752,7 @@ function xiParseForecast(wb) {
           document.getElementById('empModalRank').value = src.dataset.title || '';
           document.getElementById('empModalJoinDate').value = src.dataset.joindate || '';
           document.getElementById('empModalEmail').value = src.dataset.email || '';
+          document.getElementById('empModalMailbox').value = src.dataset.mailbox || '';
           document.getElementById('empModalPhone').value = src.dataset.phone || '';
           document.getElementById('empModalBirthday').value = src.dataset.birthday || '';
           document.getElementById('empModalCardUrl').value = src.dataset.cardurl || '';
@@ -10773,6 +10786,7 @@ function xiParseForecast(wb) {
         document.getElementById('empModalQuoteVaultViewAll').checked = false;
         document.getElementById('empModalTeam').value = '';
         document.getElementById('empModalStatus').value = '';
+        document.getElementById('empModalMailbox').value = '';
         _empModalUsedLeave = 0;
         _empModalLeaveAdjust = 0;
       }
@@ -10790,6 +10804,7 @@ function xiParseForecast(wb) {
       const title = document.getElementById('empModalRank').value.trim();
       const joinDate = document.getElementById('empModalJoinDate').value;
       const email = document.getElementById('empModalEmail').value.trim();
+      const mailbox = document.getElementById('empModalMailbox').value;
       const phone = document.getElementById('empModalPhone').value.trim();
       const birthday = document.getElementById('empModalBirthday').value;
       const cardUrl  = document.getElementById('empModalCardUrl').value.trim();
@@ -10818,7 +10833,7 @@ function xiParseForecast(wb) {
         //   클라이언트측 중복 Firestore 쓰기 제거) 리팩터링 때 이 params에서 빠진 채로
         //   남아있었다 — 체크박스는 토글되는데 실제로는 저장이 안 되고 있었던 버그. 연차관리
         //   탭 권한(leaveManagerEditor) 추가하는 김에 같이 넣어서 고침.
-        const data = await window._authApiCall(action, { id: id||_selectedEmpId, name, dept, title, joinDate, email, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team, empStatus });
+        const data = await window._authApiCall(action, { id: id||_selectedEmpId, name, dept, title, joinDate, email, mailbox, phone, birthday, cardUrl, usedLeave: _empModalUsedLeave, annualLeave: _empModalLeaveAdjust, isHead, isManager, stockBetaEditor, compatEditor, scheduleEditor, leaveManagerEditor, quoteVaultAccess, quoteVaultViewAll, team, empStatus });
         if (data.status !== 'ok') { msg.style.color='#e74c3c'; msg.textContent='' + (data.message||'오류가 발생했습니다.'); return; }
 
         // 캐시 초기화
@@ -17961,6 +17976,11 @@ if ('serviceWorker' in navigator) {
     document.body.style.removeProperty('overflow');
   };
 
+  // ★ (2026-10-02) 이메일 탭이 실제로 여는 메일함 — 개인 구글 계정이 없는 직원은 관리자가 직원정보에서
+  //   공용 메일함(office@, info@·sales@ 그룹 회원)을 지정한다(mailbox). 지정 없으면 본인 사내 이메일.
+  function _emMailbox(user) { return user ? String(user.mailbox || user.email || '') : ''; }
+  window._emMailbox = _emMailbox;
+
   // allowedDepts가 없으면(info@) 부서 제한 없이 전직원 사용 가능 — sales@/rnd@는 각 팀만.
   const COMPANY_EMAILS = [
     { address: 'info@jibokdeukmaru.com', label: '대표 (info)' },
@@ -18042,10 +18062,11 @@ if ('serviceWorker' in navigator) {
     const sel = document.getElementById('emailFrom');
     if (sel) {
       sel.innerHTML = '';
-      if (user.email) {
+      const myBox = _emMailbox(user);
+      if (myBox) {
         const opt = document.createElement('option');
-        opt.value = user.email;
-        opt.textContent = user.email + ' (내 메일)';
+        opt.value = myBox;
+        opt.textContent = myBox + (user.mailbox ? ' (공용 메일함)' : ' (내 메일)');
         sel.appendChild(opt);
       }
       const isHead = !!user.isHead;
@@ -18074,7 +18095,7 @@ if ('serviceWorker' in navigator) {
   let _emailLabels = []; // [{id, name}]
   async function _loadEmailLabels() {
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     const listEl = document.getElementById('emCustomFolderList');
     if (!email || !listEl) return;
     try {
@@ -18123,7 +18144,7 @@ if ('serviceWorker' in navigator) {
     if (!name) return;
     closeNewFolderModal();
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     if (!email) return;
     try {
       const params = new URLSearchParams({ action: 'createGmailLabel', email, name });
@@ -18140,7 +18161,7 @@ if ('serviceWorker' in navigator) {
     const name = ((_emailLabels || []).find(l => l.id === labelId) || {}).name || '';
     if (!await appConfirm(`"${name}" 폴더를 삭제하시겠습니까?\n(이 폴더로 분류됐던 메일은 삭제되지 않고, 폴더 지정만 없어집니다.)`)) return;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     if (!email) return;
     try {
       const params = new URLSearchParams({ action: 'deleteGmailLabel', email, labelId });
@@ -18210,7 +18231,7 @@ if ('serviceWorker' in navigator) {
     if (pop) pop.remove();
     const msg = _currentGmailDetailMsg;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     if (!msg || !email) return;
     try {
       const params1 = new URLSearchParams({ action: 'gmailModifyLabel', email, labelId, op: 'add', ids: msg.id });
@@ -18261,7 +18282,7 @@ if ('serviceWorker' in navigator) {
   ];
   window.refreshFolderUnreadBadges = async function() {
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     if (!email) return;
     const customIds = (_emailLabels || []).map(l => l.id);
     const ids = _EM_FIXED_UNREAD_BADGES.map(x => x[0]).concat(customIds);
@@ -18317,7 +18338,7 @@ if ('serviceWorker' in navigator) {
     const listEl = document.getElementById('emMailList');
     const countEl = document.getElementById('emMailCount');
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     if (!email) {
       listEl.innerHTML = '<div class="em-empty"><p>연동된 메일 주소가 없습니다.</p></div>';
       return;
@@ -18376,7 +18397,7 @@ if ('serviceWorker' in navigator) {
     const btn = document.getElementById('emLoadMoreBtn');
     if (btn) { btn.textContent = '불러오는 중...'; btn.disabled = true; }
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     const q = _emQuery, seq = _emListSeq;
     try {
       const { msgs, nextPageToken } = await _gmailFetchPage(email, _currentFolder, _gmailNextToken, q);
@@ -18628,7 +18649,7 @@ if ('serviceWorker' in navigator) {
       }
     }
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     const idSet = new Set(ids);
 
     // ── 낙관적 갱신: 화면에서 먼저 반영 (서버 응답 기다리지 않음) ──
@@ -18707,7 +18728,7 @@ if ('serviceWorker' in navigator) {
     const m = _allEmailItems[idx];
     if (!m || !m.gmailId) return;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     // 목록·작성 패널 숨기고 상세 패널만 표시 (목록 자리를 본문이 온전히 차지)
     document.getElementById('emListView').style.display = 'none';
     const cp = document.getElementById('emComposePanel');
@@ -18854,7 +18875,7 @@ if ('serviceWorker' in navigator) {
     const att = msg && msg.attachments && msg.attachments[i];
     if (!att) return;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     const filename = att.filename || 'attachment';
     try {
       const params = new URLSearchParams({ action: 'getGmailAttachment', email, id: msg.id, attachmentId: att.attachmentId });
@@ -18921,7 +18942,7 @@ if ('serviceWorker' in navigator) {
     const inTrash = _currentFolder === 'trash';
     if (!await appConfirm(inTrash ? '이 메일을 완전히 삭제하시겠습니까?\n(복구할 수 없습니다)' : '이 메일을 휴지통으로 옮기시겠습니까?')) return;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     try {
       const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: inTrash ? 'delete' : 'trash', ids: msg.id });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
@@ -18951,7 +18972,7 @@ if ('serviceWorker' in navigator) {
     const msg = _currentGmailDetailMsg;
     if (!msg || !msg.id) return;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     const label = op === 'spam' ? '스팸 처리' : '스팸 해제';
     try {
       const params = new URLSearchParams({ action: 'gmailBatchModify', email, op, ids: msg.id });
@@ -18978,7 +18999,7 @@ if ('serviceWorker' in navigator) {
     const msg = _currentGmailDetailMsg;
     if (!msg || !msg.id) return;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     const toInbox = _currentFolder === 'archive';
     try {
       const params = new URLSearchParams({ action: 'gmailBatchModify', email, op: toInbox ? 'unarchive' : 'archive', ids: msg.id });
@@ -19004,7 +19025,7 @@ if ('serviceWorker' in navigator) {
   window.blockCurrentSender = async function() {
     const msg = _currentGmailDetailMsg;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     if (!msg || !email) return;
     const fromAddr = (_parseFromHeader(msg.from || '').email || '').toLowerCase();
     if (!fromAddr || fromAddr.indexOf('@') < 0) { alert('보낸사람 주소를 확인할 수 없습니다.'); return; }
@@ -19040,7 +19061,7 @@ if ('serviceWorker' in navigator) {
   window.openBlockedSendersModal = async function() {
     const sel = document.getElementById('emFolderSelectMobile'); if (sel) sel.value = _currentFolder;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     if (!email) return;
     let ov = document.getElementById('emBlockedModal');
     if (!ov) {
@@ -19082,7 +19103,7 @@ if ('serviceWorker' in navigator) {
     const filterId = it.id, fromAddr = it.from;
     if (!await appConfirm(`${fromAddr} 수신거부를 해제할까요?\n(앞으로 이 주소의 메일이 다시 받은메일함으로 들어옵니다.\n이미 휴지통으로 옮겨진 메일은 자동으로 돌아오지 않습니다.)`)) return;
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     try {
       const params = new URLSearchParams({ action: 'unblockSender', email, filterId });
       const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
@@ -19343,7 +19364,7 @@ if ('serviceWorker' in navigator) {
     let subj, body, toList = [], ccList = [], replyMeta = null;
     if (_currentGmailDetailMsg) {
       const m = _currentGmailDetailMsg;
-      const me = String((window._currentUser && window._currentUser.email) || '').toLowerCase();
+      const me = String(_emMailbox(window._currentUser)).toLowerCase();
       subj = m.subject || '';
       body = m.isHtml ? _emStripHtml(m.body) : (m.body || '');
       const fromAddr = _emAddrList(m.from)[0] || '';
@@ -19390,7 +19411,7 @@ if ('serviceWorker' in navigator) {
   // 발송 요청 한 번에 실리므로 합계 20MB를 넘는 첨부는 건너뛴다.
   async function _emAttachOriginalFiles(msg) {
     const user = window._currentUser;
-    const email = user && user.email ? user.email : '';
+    const email = _emMailbox(user);
     const msgEl = document.getElementById('emAttachMsg');
     let total = 0, skipped = 0;
     for (const att of msg.attachments) {
@@ -19445,7 +19466,7 @@ if ('serviceWorker' in navigator) {
       // 발신자 정보 파라미터 추가
       const senderName    = user ? (user.name  || '') : '';
       const senderTitle   = user ? (user.title || '') : '';
-      const senderEmail   = user ? (user.email || '') : '';
+      const senderEmail   = _emMailbox(user);
       const senderCardUrl = user ? (user.cardUrl || '') : '';
 
       // ★ 첨부파일(base64)은 URL 파라미터로 못 실어보내므로(용량 제한) POST로 전송.

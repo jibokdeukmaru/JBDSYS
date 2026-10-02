@@ -28,6 +28,26 @@ function gmailClientFor(email) {
   return google.gmail({ version: 'v1', auth: jwt });
 }
 
+// 이 메일함의 새 메일 알림을 받을 사람들(사내 이메일 주소 목록)
+async function recipientsFor(mailbox) {
+  const key = String(mailbox || '').trim().toLowerCase();
+  try {
+    const snap = await firestore.collection('employees').where('mailbox', '==', key).get();
+    const today = new Date().toISOString().slice(0, 10);
+    const list = [];
+    snap.forEach((d) => {
+      const e = d.data() || {};
+      const em = String(e.email || '').trim().toLowerCase();
+      if (!em || (e.leaveDate && String(e.leaveDate) <= today)) return;
+      if (list.indexOf(em) === -1) list.push(em);
+    });
+    if (list.length) return list;
+  } catch (e) {
+    console.error(`공용 메일함 수신자 조회 실패(${key}):`, e.message);
+  }
+  return [mailbox];
+}
+
 // Pub/Sub 트리거 함수 시그니처: (message, context)
 exports.gmailPushHandler = async (message) => {
   let decoded;
@@ -53,6 +73,9 @@ exports.gmailPushHandler = async (message) => {
 
   if (startHistoryId) {
     try {
+      // ★ (2026-10-02) 공용 메일함(예: office@)은 그 메일함 자체엔 사람이 없다 — 직원정보에서 이 메일함을
+      //   지정받은(mailbox) 재직 직원들 각자에게 알림을 만든다. 지정된 사람이 없으면 기존처럼 메일함 주인에게.
+      const recipients = await recipientsFor(email);
       const gmail = gmailClientFor(email);
       const hist = await gmail.users.history.list({
         userId: 'me',
@@ -72,7 +95,6 @@ exports.gmailPushHandler = async (message) => {
           // 대해 알림 문서를 중복 생성하는 문제가 있었다 — 문서 ID를 메시지마다 고정값으로
           // 만들고 create()(이미 있으면 실패)를 써서, 몇 개가 동시에 처리하든 같은 메일엔
           // 알림이 정확히 1개만 만들어지도록 한다.
-          const ref = firestore.collection('notifications').doc(email + '_' + msgId);
           let msg;
           try {
             msg = await gmail.users.messages.get({
@@ -87,41 +109,45 @@ exports.gmailPushHandler = async (message) => {
           (msg.data.payload.headers || []).forEach((hd) => { headers[hd.name] = hd.value; });
           const subject = headers.Subject || '(제목없음)';
 
-          // 같은 수신자 + 같은 제목으로 최근에 만들어진 알림이 있으면(그룹 이중배달 등으로
-          // 인한 유사중복) 이번 알림은 문서만 만들고 푸시는 생략한다. toEmail/body 둘 다
-          // 등호(==) 비교라 Firestore 복합 인덱스 없이도 쿼리 가능.
-          let suppressPush = false;
-          try {
-            const recentSnap = await firestore.collection('notifications')
-              .where('toEmail', '==', email)
-              .where('body', '==', subject)
-              .limit(5)
-              .get();
-            const cutoff = Date.now() - DUPLICATE_PUSH_WINDOW_MS;
-            suppressPush = recentSnap.docs.some((d) => (d.data().createdAtMs || 0) > cutoff);
-          } catch (e) {
-            console.error(`중복 체크 실패(${email}, ${msgId}):`, e.message);
-          }
+          for (const toEmail of recipients) {
+            const ref = firestore.collection('notifications').doc(toEmail + '_' + msgId);
 
-          try {
-            await ref.create({
-              toEmail: email,
-              type: 'mail',
-              title: '새 메일 도착',
-              body: subject,
-              relatedId: msgId,
-              createdAtMs: Date.now(),
-              read: false,
-              sent: false,
-              pushSent: suppressPush,
-            });
-            notifyCount++;
-          } catch (e) {
-            if (e.code === 6) {
-              // ALREADY_EXISTS — 동시에 처리된 다른 실행이 이미 이 메일 알림을 만들어놓음, 정상 상황
-              continue;
+            // 같은 수신자 + 같은 제목으로 최근에 만들어진 알림이 있으면(그룹 이중배달 등으로
+            // 인한 유사중복) 이번 알림은 문서만 만들고 푸시는 생략한다. toEmail/body 둘 다
+            // 등호(==) 비교라 Firestore 복합 인덱스 없이도 쿼리 가능.
+            let suppressPush = false;
+            try {
+              const recentSnap = await firestore.collection('notifications')
+                .where('toEmail', '==', toEmail)
+                .where('body', '==', subject)
+                .limit(5)
+                .get();
+              const cutoff = Date.now() - DUPLICATE_PUSH_WINDOW_MS;
+              suppressPush = recentSnap.docs.some((d) => (d.data().createdAtMs || 0) > cutoff);
+            } catch (e) {
+              console.error(`중복 체크 실패(${toEmail}, ${msgId}):`, e.message);
             }
-            throw e;
+
+            try {
+              await ref.create({
+                toEmail,
+                type: 'mail',
+                title: '새 메일 도착',
+                body: subject,
+                relatedId: msgId,
+                createdAtMs: Date.now(),
+                read: false,
+                sent: false,
+                pushSent: suppressPush,
+              });
+              notifyCount++;
+            } catch (e) {
+              if (e.code === 6) {
+                // ALREADY_EXISTS — 동시에 처리된 다른 실행이 이미 이 메일 알림을 만들어놓음, 정상 상황
+                continue;
+              }
+              throw e;
+            }
           }
         }
       }

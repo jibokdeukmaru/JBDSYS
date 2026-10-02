@@ -482,7 +482,7 @@ async function sendEmailFromERP(p) {
 
   const senderEmail = (p.senderEmail || '').trim();
   const fromInput = (p.from || '').trim();
-  const ALLOWED_SHARED = ['info@jibokdeukmaru.com', 'sales@jibokdeukmaru.com', 'rnd@jibokdeukmaru.com'];
+  const ALLOWED_SHARED = ['info@jibokdeukmaru.com', 'sales@jibokdeukmaru.com', 'rnd@jibokdeukmaru.com', 'office@jibokdeukmaru.com'];
   const fromAddr = (fromInput && (fromInput === senderEmail || ALLOWED_SHARED.indexOf(fromInput) !== -1)) ? fromInput : senderEmail;
   if (!fromAddr || !senderEmail) return { status: 'error', message: '발신자 정보가 없습니다.' };
 
@@ -587,7 +587,7 @@ async function resolveCallerEmail(params, req) {
   const idToken = String(params._idToken || '').trim() || (authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : '');
   if (!idToken) return { error: '로그인 정보가 없습니다. 페이지를 새로고침(Ctrl+F5)한 뒤 다시 시도해 주세요.' };
   const hit = _callerCache.get(idToken);
-  if (hit && hit.until > Date.now()) return { email: hit.email };
+  if (hit && hit.until > Date.now()) return { email: hit.email, mailbox: hit.mailbox };
   let decoded;
   try {
     decoded = await admin.auth().verifyIdToken(idToken);
@@ -595,21 +595,28 @@ async function resolveCallerEmail(params, req) {
     return { error: '로그인 정보가 만료되었거나 올바르지 않습니다. 로그아웃 후 다시 로그인해 주세요.' };
   }
   let email = String(decoded.email || '').trim().toLowerCase();
-  if (!email && decoded.uid) {
+  // ★ (2026-10-02) 공용 메일함 지정(employees/{uid}.mailbox) — 개인 구글 계정이 없는 직원이 관리자가
+  //   지정한 공용 메일함(예: office@)을 대신 연다. 지정은 관리자만 바꿀 수 있고(auth-api, 회사 도메인만),
+  //   바꾼 뒤 최대 5분 안에 반영된다.
+  let mailbox = '';
+  if (decoded.uid) {
     const u = _uidEmailCache.get(decoded.uid);
-    if (u && u.until > Date.now()) email = u.email;
+    if (u && u.until > Date.now()) { email = email || u.email; mailbox = u.mailbox; }
     else {
       try {
         const snap = await admin.firestore().collection('employees').doc(decoded.uid).get();
-        email = String((snap.exists && snap.data().email) || '').trim().toLowerCase();
-        if (email) _uidEmailCache.set(decoded.uid, { email, until: Date.now() + 10 * 60 * 1000 });
-      } catch (e) { /* 조회 실패 시 아래에서 거부 */ }
+        const d = (snap.exists && snap.data()) || {};
+        const empEmail = String(d.email || '').trim().toLowerCase();
+        mailbox = String(d.mailbox || '').trim().toLowerCase();
+        email = email || empEmail;
+        _uidEmailCache.set(decoded.uid, { email: empEmail, mailbox, until: Date.now() + 5 * 60 * 1000 });
+      } catch (e) { /* 조회 실패 시 토큰 email만으로 진행(아래에서 없으면 거부) */ }
     }
   }
-  if (!email) return { error: '직원 계정으로 로그인되어 있지 않습니다. 로그아웃 후 다시 로그인해 주세요.' };
+  if (!email && !mailbox) return { error: '직원 계정으로 로그인되어 있지 않습니다. 로그아웃 후 다시 로그인해 주세요.' };
   if (_callerCache.size > 500) _callerCache.clear();
-  _callerCache.set(idToken, { email, until: Math.min(decoded.exp * 1000, Date.now() + 10 * 60 * 1000) });
-  return { email };
+  _callerCache.set(idToken, { email, mailbox, until: Math.min(decoded.exp * 1000, Date.now() + 5 * 60 * 1000) });
+  return { email, mailbox };
 }
 
 exports.gmailApi = async (req, res) => {
@@ -635,8 +642,8 @@ exports.gmailApi = async (req, res) => {
   if (caller.error) return res.status(401).json({ status: 'error', message: caller.error });
   // 모든 기능은 params.email(조회/수정할 메일함), 발송은 senderEmail(보내는 사람 본인 계정)을 쓴다 — 둘 다 로그인한 본인이어야 함
   const target = String((action === 'sendEmailFromERP' ? params.senderEmail : params.email) || '').trim().toLowerCase();
-  if (target !== caller.email) {
-    return res.status(403).json({ status: 'error', message: '본인 메일함에만 접근할 수 있습니다.' });
+  if (!target || (target !== caller.email && target !== caller.mailbox)) {
+    return res.status(403).json({ status: 'error', message: '본인 메일함(또는 지정된 공용 메일함)에만 접근할 수 있습니다.' });
   }
   try {
     let result;

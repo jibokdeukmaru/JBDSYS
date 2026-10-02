@@ -2,7 +2,6 @@
 // registrations for every active employee — Gmail watch expires after max 7 days.
 const { google } = require('googleapis');
 const { Firestore } = require('@google-cloud/firestore');
-const fetch = require('node-fetch');
 
 const PROJECT_ID = 'jibokdeukmaru-erp-504904';
 const TOPIC = `projects/${PROJECT_ID}/topics/gmail-push`;
@@ -11,16 +10,25 @@ const firestore = new Firestore({ projectId: PROJECT_ID });
 const SA_EMAIL = process.env.GMAIL_SA_EMAIL;
 const SA_KEY = (process.env.GMAIL_SA_KEY || '').replace(/\\n/g, '\n');
 const INTERNAL_KEY = process.env.INTERNAL_API_KEY;
-const RESERVE_URL = process.env.RESERVE_URL; // 예: RESERVE스크립트 배포 /exec URL
 
 exports.renewWatches = async (req, res) => {
   if ((req.query && req.query._appKey) !== INTERNAL_KEY) {
     return res.status(403).send('인증 실패');
   }
   try {
-    const empRes = await fetch(`${RESERVE_URL}?action=getEmployees&_appKey=${encodeURIComponent(INTERNAL_KEY)}`);
-    const empData = await empRes.json();
-    const employees = (empData.rows || []).filter((e) => !e.leaveDate && e.email);
+    // ★ (2026-10-02) 직원 목록을 구글시트(RESERVE스크립트) 대신 Firestore employees에서 직접 읽는다 —
+    //   공용 메일함 지정(mailbox)은 Firestore에만 있다. 지정된 직원은 개인 메일함 대신 그 공용 메일함을
+    //   감시 대상으로 넣고(여러 명이 같은 메일함이면 한 번만), 지정 없으면 기존처럼 본인 사내 이메일.
+    const today = new Date().toISOString().slice(0, 10);
+    const empSnap = await firestore.collection('employees').get();
+    const boxes = new Set();
+    empSnap.forEach((d) => {
+      const e = d.data() || {};
+      if (e.leaveDate && String(e.leaveDate) <= today) return;
+      const box = String(e.mailbox || e.email || '').trim().toLowerCase();
+      if (box) boxes.add(box);
+    });
+    const employees = Array.from(boxes).map((email) => ({ email }));
 
     let ok = 0;
     for (const emp of employees) {
