@@ -619,6 +619,53 @@ async function resolveCallerEmail(params, req) {
   return { email, mailbox };
 }
 
+// ▼▼▼ (2026-10-02 임시) 개인 메일함 → 공용 메일함(office@) 1회 이전 — 이전 끝나면 삭제 ▼▼▼
+//   원본 메일을 raw 그대로 가져와 대상 메일함에 import(받은 날짜 유지, 읽음 처리, 원본은 그대로 둠).
+//   한 번 호출에 최대 25통씩 처리하고 nextPageToken을 돌려준다 — 호출하는 쪽이 토큰이 없어질 때까지 반복.
+//   이미 옮긴 메일(같은 Message-ID)은 건너뛰므로 중간에 끊겨도 처음부터 다시 돌려도 안전하다.
+async function isAdminCaller(params, req) {
+  const authHeader = String((req.get && req.get('Authorization')) || '');
+  const idToken = String(params._idToken || '').trim() || (authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : '');
+  const decoded = await admin.auth().verifyIdToken(idToken);
+  const snap = await admin.firestore().collection('employees').doc(String(decoded.uid)).get();
+  return snap.exists && (snap.data() || {}).role === 'admin';
+}
+async function migrateMailbox(p) {
+  const source = String(p.source || '').trim().toLowerCase();
+  const target = String(p.target || '').trim().toLowerCase();
+  if (!/@jibokdeukmaru\.com$/.test(source) || target !== 'office@jibokdeukmaru.com' || source === target) {
+    return { status: 'error', message: '원본은 회사 메일, 대상은 office@만 가능합니다.' };
+  }
+  const src = gmailClientFor(source);
+  const dst = gmailClientFor(target);
+  const list = await src.users.messages.list({ userId: 'me', q: p.q || '-in:spam -in:trash -in:drafts -in:chats', maxResults: 25, pageToken: p.pageToken || undefined });
+  const ids = (list.data.messages || []).map((m) => m.id);
+  const out = { status: 'ok', copied: 0, skipped: 0, failed: [], nextPageToken: list.data.nextPageToken || '', estimate: list.data.resultSizeEstimate || 0 };
+  for (const id of ids) {
+    try {
+      const meta = await src.users.messages.get({ userId: 'me', id, format: 'metadata', metadataHeaders: ['Message-ID', 'Message-Id'] });
+      const h = (meta.data.payload.headers || []).find((x) => /^message-id$/i.test(x.name));
+      const msgId = h ? String(h.value).replace(/^<|>$/g, '') : '';
+      if (msgId) {
+        const dup = await dst.users.messages.list({ userId: 'me', q: 'rfc822msgid:' + msgId, maxResults: 1 });
+        if ((dup.data.messages || []).length) { out.skipped++; continue; }
+      }
+      const raw = await src.users.messages.get({ userId: 'me', id, format: 'raw' });
+      const srcLabels = meta.data.labelIds || [];
+      const labelIds = srcLabels.indexOf('SENT') !== -1 ? ['SENT'] : ['INBOX'];
+      await dst.users.messages.import({
+        userId: 'me', internalDateSource: 'dateHeader', neverMarkSpam: true,
+        requestBody: { raw: raw.data.raw, labelIds },
+      });
+      out.copied++;
+    } catch (e) {
+      out.failed.push(id + ': ' + ((e.errors && e.errors[0] && e.errors[0].message) || e.message));
+    }
+  }
+  return out;
+}
+// ▲▲▲ (2026-10-02 임시) ▲▲▲
+
 exports.gmailApi = async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, POST');
@@ -640,6 +687,16 @@ exports.gmailApi = async (req, res) => {
   const action = params.action;
   const caller = await resolveCallerEmail(params, req);
   if (caller.error) return res.status(401).json({ status: 'error', message: caller.error });
+  // ▼▼▼ (2026-10-02 임시) 개인 메일함 → 공용 메일함 1회 이전. 이전 끝나면 이 블록과 migrateMailbox 함수 삭제 ▼▼▼
+  if (action === 'migrateMailbox') {
+    try {
+      if (!(await isAdminCaller(params, req))) return res.status(403).json({ status: 'error', message: '관리자만 사용할 수 있습니다.' });
+      return res.json(await migrateMailbox(params));
+    } catch (err) {
+      return res.status(500).json({ status: 'error', message: err.message });
+    }
+  }
+  // ▲▲▲ (2026-10-02 임시) ▲▲▲
   // 모든 기능은 params.email(조회/수정할 메일함), 발송은 senderEmail(보내는 사람 본인 계정)을 쓴다 — 둘 다 로그인한 본인이어야 함
   const target = String((action === 'sendEmailFromERP' ? params.senderEmail : params.email) || '').trim().toLowerCase();
   if (!target || (target !== caller.email && target !== caller.mailbox)) {
