@@ -6401,6 +6401,12 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     const fp1 = document.querySelector('.dw-form-page'); if (fp1) fp1.scrollTop = 0;
   };
 
+// 평형 칸 값 정리 — '평' 같은 글자만 빼고, 25+10 · 30~35 처럼 쓰는 기호는 남긴다
+//   (예전엔 숫자·점만 남겨서 상세창을 열었다 저장하면 25+10 → 2510으로 바뀌었음)
+function _csSizeClean(val) {
+  return String(val || '').replace(/[^0-9.+~,\/\-\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 function csDateInputValue(val) {
     if (!val) return '';
     const s = String(val).trim();
@@ -6676,7 +6682,7 @@ function csDateInputValue(val) {
     set('cfPhone', r.phone);
     set('cfCompany', r.company);
     set('cfAddress', r.address);
-    set('cfSize', String(r.size||'').replace(/[^0-9.]/g,''));
+    set('cfSize', _csSizeClean(r.size));
     set('cfVisitCount', String(r.visitCount||'').replace(/[^0-9]/g,''));
     set('cfWorkDate', csDateInputValue(r.workDate));
     set('cfWorkTiming', sanitizeDateVal(r.workTiming || ''));
@@ -6763,7 +6769,7 @@ function csDateInputValue(val) {
     document.getElementById('cfPhone').value = r.phone || '';
     document.getElementById('cfVisitCount').value = String(r.visitCount||'').replace(/[^0-9]/g,'');
     document.getElementById('cfAddress').value = r.address || '';
-    document.getElementById('cfSize').value = String(r.size||'').replace(/[^0-9.]/g,'');
+    document.getElementById('cfSize').value = _csSizeClean(r.size);
     document.getElementById('cfSpaceType').value = r.spaceType || '';
     document.getElementById('cfWorkDate').value = csDateInputValue(r.workDate);
     document.getElementById('cfProducts').value = r.products || '';
