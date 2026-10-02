@@ -32,13 +32,16 @@ function safeEqual(a, b) {
 }
 
 // 로그인한 직원인지 확인 — 토큰의 email 클레임(auth-api가 발급 시 넣음), 없으면 employees/{uid}
+//   (사내 이메일이 비어 있는 직원(공용 메일함 office@ 사용자)도 있으므로 email 유무가 아니라 재직 여부로 판단)
 async function isEmployeeToken(idToken) {
   if (!idToken) return false;
   try {
     const decoded = await admin.auth().verifyIdToken(idToken);
     if (decoded.email) return true;
-    const snap = await admin.firestore().collection('employees').doc(decoded.uid).get();
-    return snap.exists && !!(snap.data() || {}).email;
+    const snap = await admin.firestore().collection('employees').doc(String(decoded.uid)).get();
+    if (!snap.exists) return false;
+    const emp = snap.data() || {};
+    return !(emp.leaveDate && String(emp.leaveDate) <= new Date().toISOString().slice(0, 10));
   } catch (e) {
     return false;
   }
