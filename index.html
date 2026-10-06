@@ -14412,11 +14412,14 @@ function renderInvoice() {
     const depositDate = (document.getElementById('invDepositDate')?.value || '').trim();
     const interimDate = (document.getElementById('invInterimDate')?.value || '').trim();
 
-    const grandAfterDeduct = grandRaw - depositAmt - interimAmt;
+    // ★ 2026-10-06: 단수정리는 총액(VAT 포함)에 먼저 적용해 확정 금액을 만들고, 계약금/중도금은
+    //   그 확정 금액에서 뺀다. 예전엔 계약금/중도금을 뺀 나머지를 단수정리해서, 납부금이 들어갈
+    //   때마다 단수정리 금액이 바뀌어 처음 안내한 금액과 잔금이 맞지 않았다.
     const useAdjust = document.getElementById('invAdjustCheck')?.checked !== false;
     const adjustUnit = document.getElementById('invAdjustUnit10000')?.checked ? 100000 : 10000;
-    const grand = useAdjust ? Math.floor(grandAfterDeduct / adjustUnit) * adjustUnit : grandAfterDeduct;
-    const adjust = grand - grandAfterDeduct;
+    const roundedTotal = useAdjust ? Math.floor(grandRaw / adjustUnit) * adjustUnit : grandRaw;
+    const adjust = roundedTotal - grandRaw;
+    const grand = roundedTotal - depositAmt - interimAmt;
 
     const makeTotal = (label, val, cls='normal') => {
         const tr = document.createElement('tr');
@@ -14430,11 +14433,11 @@ function renderInvoice() {
     makeTotal('SUB TOTAL', subTotal, 'subtotal');
     makeTotal('VAT 10%', vat);
     // 계약금/중도금 차감 (금액 입력된 경우만) — 날짜가 있으면 라벨 괄호에 표시
+    if (useAdjust && adjust !== 0) makeTotal('단수정리', adjust);
     if (depositAmt > 0) makeTotal(depositDate ? `계약금 (${depositDate})` : '계약금', -depositAmt);
     if (interimAmt > 0) makeTotal(interimDate ? `중도금 (${interimDate})` : '중도금', -interimAmt);
-    if (useAdjust && adjust !== 0) makeTotal('단수정리', adjust);
     makeTotal('GRAND TOTAL', grand, 'grand');
-    // 견적서 저장소(정산서 단계 저장 시 미정산금액 계산용) — 계약금/중도금 차감 후 최종금액.
+    // 견적서 저장소(정산서 단계 저장 시 미정산금액 계산용) — 단수정리 확정 금액에서 계약금/중도금 차감 후 최종금액.
     window._invLastGrandTotal = grand;
 
     // REMARKS 단위 표시 업데이트 - 모든 제품 박스의 단위 확인 (직접입력 모드 포함)
