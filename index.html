@@ -9527,7 +9527,7 @@ function xiParseForecast(wb) {
       </div>
       <div style="margin-bottom:10px;">
         <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">시공비 (자재만 선택 시 평당가에서 차감)</label>
-        <input type="number" step="any" id="productModalInstallCost" placeholder="비워두면 품번 시리즈 기준 자동 적용 (15:5만/16-18:6만/19+:7만)" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+        <input type="number" step="any" id="productModalInstallCost" placeholder="비워두면 품번 시리즈 기준 자동 적용 (15:3.5만/16-18:4만/19+:5만)" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
       </div>
       <div style="font-size:12px;font-weight:800;color:var(--brand);margin:14px 0 6px;">소비자가</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
@@ -12253,9 +12253,9 @@ function getDefaultInstallCost(code) {
   // 앞 두 자리만 읽음 (예: '1801' → '18', '1501' → '15')
   const num = parseInt(after.slice(0, 2), 10);
   if (!Number.isFinite(num)) return null;
-  if (num <= 15) return 50000;  // 15 시리즈
-  if (num <= 18) return 60000;  // 16/17/18 시리즈
-  return 70000; // 19 시리즈 이상
+  if (num <= 15) return 35000;  // 15 시리즈
+  if (num <= 18) return 40000;  // 16/17/18 시리즈
+  return 50000; // 19 시리즈 이상
 }
 // 제품 등록/수정 시 관리자가 직접 입력한 값이 있으면 그걸 우선하고, 없으면(빈값=null)
 // 품번 시리즈 기준 기본값을 쓴다. 시리즈 패턴에도 안 맞고 직접입력도 없으면 null
