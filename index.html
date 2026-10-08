@@ -3172,8 +3172,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 .inv-total-table .grand .amount { font-weight:500; }
 .inv-total-table .grand td { height:31px; font-weight:500; color:#373130; background:#f6f3eb; }
 .inv-total-table .grand td { border-top:1px solid #e1e0e0; }
-/* GRAND TOTAL 아래: 베이지 배경에 바로 붙지 않게 여백 한 칸 띄우고 그 아래 구분선 → 계약금/중도금/잔금 */
-.inv-total-table .grand-gap td { height:6px; padding:0; line-height:0; font-size:0; border-bottom:1px solid #e1e0e0; }
 .inv-total-table .balance td { border-top:1px solid #e1e0e0; } /* 잔금 위 구분선 */
 /* REMARKS → 구분선 → CONTACT/ACCOUNT INFO 순서로 세로로 쌓는다(시안 실측 기준) —
    예전엔 CONTACT/ACCOUNT INFO 두 블록에 서로 다른 고정 margin-top(80px/140px)을 각각
@@ -14437,12 +14435,6 @@ function renderInvoice() {
     // ★ 2026-10-08: 표기 순서 변경 — 단수정리 → GRAND TOTAL(총액) → 계약금 → 중도금 → 잔금.
     //   계약금/중도금은 금액 입력된 경우만 표시(날짜가 있으면 라벨 괄호에), 둘 다 없으면 잔금 행도 생략.
     makeTotal('GRAND TOTAL', roundedTotal, 'grand');
-    if (depositAmt > 0 || interimAmt > 0) {
-        const gap = document.createElement('tr');
-        gap.className = 'grand-gap';
-        gap.innerHTML = '<td colspan="2"></td>';
-        totalBody?.appendChild(gap);
-    }
     if (depositAmt > 0) makeTotal(depositDate ? `계약금 (${depositDate})` : '계약금', depositAmt);
     if (interimAmt > 0) makeTotal(interimDate ? `중도금 (${interimDate})` : '중도금', interimAmt);
     if (depositAmt > 0 || interimAmt > 0) makeTotal('잔금', balance, 'subtotal balance');
