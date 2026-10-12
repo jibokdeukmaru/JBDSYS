@@ -3379,7 +3379,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     </div>
 
     <div class="inv-field">
-      <div class="inv-label">시공 예정일</div>
+      <div class="inv-label" id="invWorkDateLabel">시공 예정일</div>
       <input type="text" id="invWorkDate">
     </div>
 
@@ -3519,7 +3519,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         <div class="inv-meta-grid">
           <div>
             <div class="inv-meta-row"><div class="inv-meta-key">업체명</div><div class="inv-meta-val" id="pvBillTo"></div></div>
-            <div class="inv-meta-row"><div class="inv-meta-key">시공 예정일</div><div class="inv-meta-val" id="pvWorkDate"></div></div>
+            <div class="inv-meta-row"><div class="inv-meta-key" id="pvWorkDateKey">시공 예정일</div><div class="inv-meta-val" id="pvWorkDate"></div></div>
             <div class="inv-meta-row"><div class="inv-meta-key">현장주소</div><div class="inv-meta-val" id="pvSite"></div></div>
           </div>
           <div class="right-block">
@@ -14507,6 +14507,10 @@ function renderInvoice() {
     const isMaterialMode = allParties.length > 0 && allParties.some(v => v.endsWith('_material'));
 
     const isFinal = !!document.getElementById('invFinalCheck')?.checked;
+
+    // 정산서는 공사가 끝난 뒤 쓰므로 같은 날짜칸을 '시공 완료일'로 표시 (저장값은 workDate 그대로)
+    const workDateLabel = isFinal ? '시공 완료일' : '시공 예정일';
+    ['invWorkDateLabel', 'pvWorkDateKey'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = workDateLabel; });
 
     // 상단 제목 — "ESTIMATE  |  가견적서" 형식(영문 | 국문 병기). 로고는 고정폭 SVG라
     //   제목 폭에 맞춰 자간을 조정하던 예전 로직은 더 이상 필요 없다.
