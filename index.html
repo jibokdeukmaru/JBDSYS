@@ -14481,12 +14481,13 @@ function renderInvoice() {
 
     makeTotal('SUB TOTAL', subTotal, 'subtotal');
     makeTotal('VAT 10%', vat);
-    if (useAdjust && adjust !== 0) makeTotal('단수정리', adjust);
-    // ★ 2026-10-08: 표기 순서 변경 — 단수정리 → GRAND TOTAL(총액) → 계약금 → 중도금 → 잔금.
+    // ★ 2026-10-12: 표기 위치만 변경 — 계약금 → 중도금 → 단수정리 → GRAND TOTAL(총액) → 잔금.
+    //   계산은 그대로: 단수정리는 계약금/중도금과 무관하게 총액 기준, 잔금 = GRAND TOTAL − 계약금 − 중도금.
     //   계약금/중도금은 금액 입력된 경우만 표시(날짜가 있으면 라벨 괄호에), 둘 다 없으면 잔금 행도 생략.
-    makeTotal('GRAND TOTAL', roundedTotal, 'grand');
     if (depositAmt > 0) makeTotal(depositDate ? `계약금 (${depositDate})` : '계약금', depositAmt);
     if (interimAmt > 0) makeTotal(interimDate ? `중도금 (${interimDate})` : '중도금', interimAmt);
+    if (useAdjust && adjust !== 0) makeTotal('단수정리', adjust);
+    makeTotal('GRAND TOTAL', roundedTotal, 'grand');
     if (depositAmt > 0 || interimAmt > 0) makeTotal('잔금', balance, 'subtotal balance');
     // 견적서 저장소(정산서 단계 저장 시 미정산금액 계산용) — 단수정리 확정 금액에서 계약금/중도금 차감 후 잔금.
     window._invLastGrandTotal = balance;
