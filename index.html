@@ -14732,8 +14732,19 @@ function _cleanInvoiceContactPhrase(s) {
 // html2canvas 공통 onclone — 캡처용 복제 문서에서만 숫자 고정폭을 끈다(.h2c-capture CSS 주석 참고)
 window._h2cOnclone = function(doc) { doc.documentElement.classList.add('h2c-capture'); };
 
-async function saveInvoiceImage() {
+// 작성일은 저장하는 순간의 날짜로 — 이미지/PDF/저장소 저장 직전에 오늘 날짜로 바꾼다
+//   (예전 견적서를 불러와 다시 저장해도 작성일이 그날로 갱신됨. 인쇄는 저장이 아니라 그대로 둠)
+function _invStampToday() {
+    const dateEl = document.getElementById('invDate');
+    if (!dateEl) return;
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    dateEl.value = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
     renderInvoice();
+}
+
+async function saveInvoiceImage() {
+    _invStampToday();
     const el = document.getElementById('invoiceDoc');
     if (!el) return;
 
@@ -14836,7 +14847,7 @@ async function saveInvoiceImage() {
 async function saveInvoicePdf() {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     try {
-        renderInvoice();
+        _invStampToday();
         // Pretendard 웹폰트 로딩이 안 끝난 상태로 캡처되는 걸 막는다(saveInvoiceImage와 동일 이유).
         if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
         await new Promise(r => setTimeout(r, 300));
@@ -15277,6 +15288,7 @@ window.saveInvoiceToVault = async function() {
         if (!await appConfirm('이 견적서를 저장소(데이터베이스)에 등록하시겠습니까?')) return;
         const folderChoice = await _ivOpenFolderPickModal(flags.id);
         if (!folderChoice) return;
+        _invStampToday();
         const snap = _ivCollectSnapshot();
         const companyName = snap.billTo || '(업체명 미입력)';
         const now = new Date();
@@ -15304,6 +15316,7 @@ window.saveInvoiceToVault = async function() {
     }
 
     if (binding.type === 'simple') {
+        _invStampToday();
         const snap = _ivCollectSnapshot();
         await window.FB.updateDoc(_ivDoc('salesQuotes', binding.id), {
             simpleData: snap, companyName: snap.billTo || '(업체명 미입력)', updatedAt: window.FB.serverTimestamp(),
@@ -15316,6 +15329,7 @@ window.saveInvoiceToVault = async function() {
     // 단계(binding.stage)에 그대로 저장한다. 다른 단계에 저장하고 싶으면 저장 전에 그
     // 칩을 클릭해서 옮겨두면 된다.
     const targetStage = binding.stage;
+    _invStampToday();
     const snap = _ivCollectSnapshot();
     const stageData = { data: snap, savedAt: window.FB.serverTimestamp() };
     const updates = { updatedAt: window.FB.serverTimestamp(), companyName: snap.billTo || '(업체명 미입력)', stage: targetStage };
