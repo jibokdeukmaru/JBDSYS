@@ -305,8 +305,39 @@
 
   // 익명 인증(또는 복원된 기존 세션 유지) — 로그인(unlock) 시점 등에서 window.fbEnsureAuth() 호출
   let _fbAuthPromise = null;
-  function _fbSignInAnon() {
-    if (auth.currentUser) return Promise.resolve(auth.currentUser);
+  // ★ 2026-10-12: 직원 커스텀토큰 로그인이 진행 중일 때 다른 코드가 fbEnsureAuth()를 부르면
+  //   (currentUser가 잠깐 null) 익명 로그인이 끼어들어, 늦게 끝난 익명 로그인이 직원 신원을
+  //   덮어썼다 — 며칠 만의 첫 로그인에서 쇼룸상담이 permission-denied → "데이터 없음".
+  //   직원 로그인은 반드시 fbSignInEmployee()로 하고, 그동안 익명 로그인은 그걸 기다린다.
+  let _fbEmployeeSignIn = null;
+  window.fbSignInEmployee = async function(token) {
+    const run = (async () => {
+      if (!_fbAuthRestored) await window.fbEnsureAuthRestored();
+      // 이미 날아간 익명 로그인이 있으면 끝난 뒤에 직원 토큰으로 덮어쓴다(순서 보장)
+      if (_fbAuthPromise) { try { await _fbAuthPromise; } catch(_) {} }
+      let lastErr = null;
+      for (let i = 0; i < 3; i++) {
+        try {
+          const cred = await signInWithCustomToken(auth, token);
+          if (auth.currentUser && !auth.currentUser.isAnonymous) return cred.user;
+          lastErr = new Error('직원 신원 연동 확인 실패');
+        } catch(e) { lastErr = e; }
+        await new Promise(r => setTimeout(r, 700 * (i + 1)));
+      }
+      throw lastErr;
+    })();
+    _fbEmployeeSignIn = run;
+    try { return await run; } finally { if (_fbEmployeeSignIn === run) _fbEmployeeSignIn = null; }
+  };
+  window.fbEnsureAuthRestored = function() {
+    if (_fbAuthRestored) return Promise.resolve();
+    return new Promise(resolve => {
+      const iv = setInterval(() => { if (_fbAuthRestored) { clearInterval(iv); resolve(); } }, 30);
+    });
+  };
+  async function _fbSignInAnon() {
+    if (_fbEmployeeSignIn) { try { await _fbEmployeeSignIn; } catch(_) {} }
+    if (auth.currentUser) return auth.currentUser;
     if (_fbAuthPromise) return _fbAuthPromise;
     _fbAuthPromise = signInAnonymously(auth)
       .then(cred => cred.user)
@@ -5919,6 +5950,17 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     } catch(e) {
       const attempt = Number(isRetry) || 0;
       _logConsultLoadError(e, attempt ? ('retry' + attempt) : '1st');
+      // ★ 2026-10-12: 권한거부인데 Firebase 신원이 익명/없음이면 재시도해도 소용없다(직원 토큰은
+      //   비밀번호 없이 재발급 불가) — 사용자가 직접 하던 로그아웃→재로그인을 바로 안내한다.
+      if (String((e && e.code) || '') === 'permission-denied') {
+        const fu = window.FB && window.FB.auth && window.FB.auth.currentUser;
+        if ((!fu || fu.isAnonymous) && localStorage.getItem('baram_login_type') === 'user') {
+          _consultsLoading = false;
+          sessionStorage.setItem('baram_relogin_msg', '1');
+          window.logoutUser();
+          return;
+        }
+      }
       // ★ 첫 실패는 대개 인증 세션 복원이 아직 안 끝난 순간에 걸린 레이스 컨디션이라,
       //   로그아웃 후 재로그인하면 사라지곤 했다 — 그와 같은 효과(인증을 다시 확실히 맺고
       //   재조회)를 자동으로 시도해서 사용자가 직접 재로그인하지 않아도 되게 한다.
@@ -6169,7 +6211,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     document.getElementById('csCount').textContent = list.length;
 
     if (!list.length) {
-      document.getElementById('csTableBody').innerHTML = '<tr class="dw-empty-row"><td colspan="10">데이터가 없습니다.</td></tr>';
+      // 최초 조회(재시도 포함)가 아직 진행 중이면 "데이터 없음"이 아니라 로딩 중으로 표시
+      const _stillLoading = _consultsMode === 'recent' && !_consultsCache && _consultsLoading;
+      document.getElementById('csTableBody').innerHTML = `<tr class="dw-empty-row"><td colspan="10">${_stillLoading ? '불러오는 중...' : '데이터가 없습니다.'}</td></tr>`;
       return;
     }
 
@@ -9910,7 +9954,8 @@ function xiParseForecast(wb) {
         //   아니라 익명인 경우가 있었다 — 화면은 로그인 상태인데 직원 전용 데이터 쓰기가 전부
         //   "Missing or insufficient permissions"로 막힘. 비밀번호 없이는 직원 토큰을 다시 받을 수
         //   없으니, 이 상태를 발견하면 조용히 버티지 말고 다시 로그인하게 한다.
-        if (loginType === 'user' && isRestore) {
+        //   (2026-10-12) 새로 로그인한 직후에도 같은 상태가 생길 수 있어(익명 로그인 끼어듦) 복원 여부와 무관하게 검사한다.
+        if (loginType === 'user') {
             window._waitForFirebase().then(() => window.fbEnsureAuth()).then(u => {
                 if (u && u.isAnonymous && localStorage.getItem(LOGIN_TYPE_KEY) === 'user') {
                     sessionStorage.setItem('baram_relogin_msg', '1');
@@ -10342,14 +10387,19 @@ function xiParseForecast(wb) {
                 // 세션 만료로 걸어둔 Firebase 로그아웃이 아직 진행 중이면 끝난 뒤에 로그인한다(위 _expiredSignOutPromise 참고).
                 if (window._expiredSignOutPromise) { try { await window._expiredSignOutPromise; } catch(e) {} window._expiredSignOutPromise = null; }
                 try {
-                    await window.FB.signInWithCustomToken(window.FB.auth, data.token);
+                    await window.fbSignInEmployee(data.token);
                     gotFirebaseToken = true;
                 } catch(tokErr) {
-                    console.error('Firebase 로그인 연동 실패:', tokErr.message);
+                    console.error('Firebase 로그인 연동 실패:', tokErr && tokErr.message);
                 }
             }
+            if (data.status === 'ok' && !gotFirebaseToken) {
+                // ★ 2026-10-12: 예전엔 신원 연동 실패를 경고만 하고 로그인시켜서, 화면은 로그인인데
+                //   쇼룸상담 등 직원전용 데이터가 전부 권한거부("데이터 없음")로 보였다. 재시도까지
+                //   실패했으면 로그인 자체를 실패로 처리해 다시 시도하게 한다.
+                data = { status: 'error', message: '로그인 인증 연결에 실패했습니다. 잠시 후 다시 로그인해주세요.' };
+            }
             if (data.status === 'ok') {
-                if (!gotFirebaseToken) console.warn('Firebase 신원 연동 없이 로그인됨 — 개인전용 데이터 접근이 제한될 수 있습니다.');
                 localStorage.setItem(LOGIN_TYPE_KEY, 'user');
                 localStorage.setItem(USER_KEY, JSON.stringify(data.user));
                 localStorage.setItem(SESSION_KEY, String(Date.now()));
