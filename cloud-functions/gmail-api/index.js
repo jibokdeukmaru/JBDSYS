@@ -49,28 +49,59 @@ function mimeEncodeHeader(str) {
 
 // ★ (2026-09-30) 본문을 무조건 UTF-8로 읽어서 EUC-KR(ks_c_5601) 한글 메일이 깨지던 문제 —
 //   파트의 Content-Type charset을 보고 해당 인코딩으로 디코딩한다(Node 내장 TextDecoder, full ICU).
-function decodePartData(part) {
+// ★ (2026-10-13) 그래도 깨지는 메일(Gmail에선 정상) — charset이 헤더에 없거나('text/html'만), 작은따옴표로 싸여 있거나,
+//   HTML <meta>에만 적혀 있으면 UTF-8로 읽혀 한글이 �로 깨졌다. → 헤더(따옴표 무관) → 상위 파트 → HTML <meta> 순으로 찾고,
+//   그래도 UTF-8로 읽었을 때 깨진 글자(�)가 나오면 한국 메일 관례대로 EUC-KR(CP949)로 다시 읽는다(Gmail과 같은 방식).
+const CHARSET_ALIAS = {
+  'ks_c_5601-1987': 'euc-kr', 'ks_c_5601': 'euc-kr', 'ksc5601': 'euc-kr', 'ksc_5601': 'euc-kr', 'cp949': 'euc-kr',
+  'x-windows-949': 'euc-kr', 'windows-949': 'euc-kr', 'uhc': 'euc-kr', 'utf8': 'utf-8', 'unicode-1-1-utf-8': 'utf-8',
+};
+function normCharset(cs) {
+  cs = String(cs || '').trim().replace(/^["']|["']$/g, '').toLowerCase();
+  return CHARSET_ALIAS[cs] || cs;
+}
+function headerCharset(part) {
+  const ct = ((part && part.headers || []).find((h) => (h.name || '').toLowerCase() === 'content-type') || {}).value || '';
+  const m = ct.match(/charset\s*=\s*["']?([^"';\s]+)/i);
+  return m ? normCharset(m[1]) : '';
+}
+function tryDecode(buf, cs) {
+  try { return new TextDecoder(cs).decode(buf); } catch (e) { return null; }
+}
+function decodePartData(part, inheritedCs) {
   const buf = Buffer.from(part.body.data, 'base64');
-  const ct = ((part.headers || []).find((h) => (h.name || '').toLowerCase() === 'content-type') || {}).value || '';
-  const m = ct.match(/charset\s*=\s*"?([^";\s]+)/i);
-  const cs = m ? m[1].toLowerCase() : 'utf-8';
-  if (cs === 'utf-8' || cs === 'utf8' || cs === 'us-ascii') return buf.toString('utf8');
-  try { return new TextDecoder(cs).decode(buf); } catch (e) { return buf.toString('utf8'); }
+  let cs = headerCharset(part) || inheritedCs || '';
+  if (!cs && /html/i.test(part.mimeType || '')) {
+    const head = buf.slice(0, 4096).toString('latin1');
+    const mm = head.match(/<meta[^>]+charset\s*=\s*["']?([\w.:-]+)/i);
+    if (mm) cs = normCharset(mm[1]);
+  }
+  if (cs && cs !== 'utf-8' && cs !== 'us-ascii') {
+    const dec = tryDecode(buf, cs);
+    if (dec != null) return dec;
+  }
+  const utf8 = buf.toString('utf8');
+  if (utf8.includes('�')) {   // UTF-8로는 깨짐 → EUC-KR(CP949)로 읽어서 깨진 글자가 없으면 그쪽을 씀
+    const kr = tryDecode(buf, 'euc-kr');
+    if (kr != null && !kr.includes('�')) return kr;
+  }
+  return utf8;
 }
 
 function extractBody(payload) {
   const out = { html: '', text: '' };
-  function walk(part) {
+  function walk(part, inheritedCs) {
     if (!part) return;
     const mime = part.mimeType || '';
+    const cs = headerCharset(part) || inheritedCs || '';
     if (part.body && part.body.data) {
-      const decoded = decodePartData(part);
+      const decoded = decodePartData(part, inheritedCs);
       if (mime === 'text/html' && !out.html) out.html = decoded;
       else if (mime === 'text/plain' && !out.text) out.text = decoded;
     }
-    (part.parts || []).forEach(walk);
+    (part.parts || []).forEach((p) => walk(p, cs));
   }
-  walk(payload);
+  walk(payload, '');
   return out;
 }
 
