@@ -3315,6 +3315,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     transform: scale(var(--inv-print-scale, 0.853)) !important;
     transform-origin: top left !important;
   }
+  /* 화면용 베이지(#f6f3eb)는 너무 연해서 프린터에서 거의 흰색으로 나옴 → 인쇄 시에만 진하게 */
+  body.print-invoice .inv-total-table .grand td,
+  body.print-invoice .inv-corner-accent { background:#ebe3d3 !important; }
 }
 .iv-vault-btn { width:34px; height:34px; padding:0; border:1px solid #ddd; border-radius:10px; background:#fff; color:#555; cursor:pointer; align-items:center; justify-content:center; flex-shrink:0; }
 .iv-vault-btn:hover { background:#f5f5f5; }
