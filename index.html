@@ -6748,12 +6748,29 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   };
 
   // ── 명함전달 담당자 드롭다운 채우기 ──
+  //   loadStaffList()는 async라 목록 재구성이 항상 저장값 복원보다 늦게 끝난다 → 복원값을
+  //   dataset.want에 기억해두고 재구성 후 다시 선택한다. (예전엔 목록이 덮어써서 저장된
+  //   담당자가 다시 열면 '담당자 선택'으로 보였다) 퇴사·부서이동 등으로 목록에 없는 이름도 옵션으로 추가.
+  function _addCardStaffOptionIfMissing(sel, v) {
+    if (v && ![...sel.options].some(o => o.value === v)) sel.add(new Option(v, v));
+  }
+  window._setCardStaffValue = function(v) {
+    const sel = document.getElementById('cfCardStaff');
+    if (!sel) return;
+    v = v || '';
+    sel.dataset.want = v;
+    _addCardStaffOptionIfMissing(sel, v);
+    sel.value = v;
+  };
   function fillCardStaffSelect() {
     loadStaffList().then(list => {
       const sel = document.getElementById('cfCardStaff');
       if (!sel) return;
+      const want = sel.dataset.want || '';
       sel.innerHTML = '<option value="">담당자 선택</option>' +
         list.map(name => `<option value="${name}">${name}</option>`).join('');
+      _addCardStaffOptionIfMissing(sel, want);
+      sel.value = want;
     });
   }
 
@@ -6856,7 +6873,7 @@ function csDateInputValue(val) {
     document.getElementById('cfReqQuote').checked = false;
     document.getElementById('cfReqRevisit').checked = false;
     document.getElementById('cfSampleList').value = '';
-    document.getElementById('cfCardStaff').value = '';
+    window._setCardStaffValue('');
     document.getElementById('cfMemo').value = '';
     document.getElementById('cfMemo').style.height = '';
     document.getElementById('cfSampleBox').classList.remove('show');
@@ -7096,7 +7113,7 @@ function csDateInputValue(val) {
     if (sampleChecked && document.getElementById('cfSampleBox')) document.getElementById('cfSampleBox').classList.add('show');
     if (cardChecked && document.getElementById('cfCardBox')) document.getElementById('cfCardBox').classList.add('show');
     if (document.getElementById('cfSampleList')) document.getElementById('cfSampleList').value = r.sampleList || '';
-    if (document.getElementById('cfCardStaff')) document.getElementById('cfCardStaff').value = r.cardStaff || '';
+    window._setCardStaffValue(r.cardStaff);
 
     document.getElementById('cfRevisitSearchBox').style.display = 'none';
     const _inp = document.getElementById('cfRevisitInput');
@@ -7202,7 +7219,7 @@ function csDateInputValue(val) {
 
     // 샘플목록, 명함담당자 복원
     if (document.getElementById('cfSampleList')) document.getElementById('cfSampleList').value = r.sampleList || '';
-    if (document.getElementById('cfCardStaff')) document.getElementById('cfCardStaff').value = r.cardStaff || '';
+    window._setCardStaffValue(r.cardStaff);
 
     // 작성자 (직급 붙이기)
     document.getElementById('cfAuthor').textContent = attachTitle(r.counselor || '', map) || '자동입력';
