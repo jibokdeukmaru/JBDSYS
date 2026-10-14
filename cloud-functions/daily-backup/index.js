@@ -1,5 +1,6 @@
 // HTTP-triggered Cloud Function (call daily via Cloud Scheduler, 매일 20:00 KST 권장):
-// 쇼룸상담(consults)과 재고현황(stockBetaLots/stockExtraLots) Firestore 데이터를 통째로
+// 쇼룸상담(consults)과 재고현황(stockBetaLots/stockExtraLots + 부가정보 stockBetaMeta, 수정기록
+// stockBetaHistory) Firestore 데이터를 통째로
 // CSV로 떠서 구글드라이브 백업 폴더에 올린다. 데이터 유실 대비용 안전망이라, 화면용으로
 // 가공된 컬럼(downloadConsultCSV 등)이 아니라 Firestore 원본 필드를 빠짐없이 담는다.
 // 폴더 공유: GMAIL_SA_EMAIL 서비스계정 이메일을 백업용 드라이브 폴더에 "편집자"로
@@ -65,6 +66,17 @@ async function fetchCollection(name) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// stockBetaMeta처럼 문서마다 내용이 완전히 다른 경우(compatNotes는 "시트명__품번" 키가
+// 수백 개라 합집합 컬럼 방식이면 열이 폭발한다) — 문서 1개 = 1행, 내용 전체를 data 열에
+// JSON으로 그대로 담는다. 복원 시 JSON.parse만 하면 원본 그대로 돌아온다.
+function buildDocJsonCsv(rows) {
+  const lines = [['id', 'data'].map(escapeCsv).join(',')];
+  rows.forEach(({ id, ...data }) => {
+    lines.push([id, JSON.stringify(data)].map(escapeCsv).join(','));
+  });
+  return '﻿' + lines.join('\n'); // BOM: 엑셀 한글 깨짐 방지
+}
+
 async function uploadCsv(drive, filename, csvText) {
   // 서비스계정은 자체 저장용량이 0이라 "내 드라이브" 폴더엔 못 올린다(GaxiosError:
   // "Service Accounts do not have storage quota") — 반드시 공유 드라이브(Shared Drive)
@@ -120,19 +132,31 @@ exports.dailyBackup = async (req, res) => {
     const stockLots = (await fetchCollection('stockBetaLots')).map(r => ({ ...r, _source: 'stockBetaLots' }));
     const extraLots = (await fetchCollection('stockExtraLots')).map(r => ({ ...r, _source: 'stockExtraLots' }));
 
+    // 재고현황 화면이 LOT 외에 함께 쓰는 데이터 — 호환여부 메모(compatNotes), 월 목록(months),
+    // 품번 순서(productOrder/extraProductOrder), 입고현황 문구(incomingNotice) 등과 수정기록.
+    const stockMeta = await fetchCollection('stockBetaMeta');
+    const stockHistory = await fetchCollection('stockBetaHistory');
+
     const consultCsv = buildCsv(consults);
     const stockCsv = buildCsv([...stockLots, ...extraLots]);
+    const stockMetaCsv = buildDocJsonCsv(stockMeta);
+    const stockHistoryCsv = buildCsv(stockHistory);
 
     const uploaded = [];
     uploaded.push(await uploadCsv(drive, `쇼룸상담_${date}.csv`, consultCsv));
     uploaded.push(await uploadCsv(drive, `재고현황_${date}.csv`, stockCsv));
+    uploaded.push(await uploadCsv(drive, `재고현황_부가정보_${date}.csv`, stockMetaCsv));
+    uploaded.push(await uploadCsv(drive, `재고현황_수정기록_${date}.csv`, stockHistoryCsv));
 
     const deleted = await cleanupOldBackups(drive);
 
     res.json({
       status: 'ok',
       date,
-      counts: { consults: consults.length, stockBetaLots: stockLots.length, stockExtraLots: extraLots.length },
+      counts: {
+        consults: consults.length, stockBetaLots: stockLots.length, stockExtraLots: extraLots.length,
+        stockBetaMeta: stockMeta.length, stockBetaHistory: stockHistory.length,
+      },
       uploaded: uploaded.map(f => f.name),
       deletedOldBackups: deleted,
     });
