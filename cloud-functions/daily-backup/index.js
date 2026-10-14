@@ -58,7 +58,7 @@ function buildCsv(rows) {
   rows.forEach(r => {
     lines.push(keys.map(k => escapeCsv(csvValue(r[k]))).join(','));
   });
-  return '﻿' + lines.join('\n'); // BOM: 엑셀 한글 깨짐 방지
+  return '\uFEFF' + lines.join('\n'); // BOM: 엑셀 한글 깨짐 방지
 }
 
 async function fetchCollection(name) {
@@ -74,7 +74,7 @@ function buildDocJsonCsv(rows) {
   rows.forEach(({ id, ...data }) => {
     lines.push([id, JSON.stringify(data)].map(escapeCsv).join(','));
   });
-  return '﻿' + lines.join('\n'); // BOM: 엑셀 한글 깨짐 방지
+  return '\uFEFF' + lines.join('\n'); // BOM: 엑셀 한글 깨짐 방지
 }
 
 async function uploadCsv(drive, filename, csvText) {
