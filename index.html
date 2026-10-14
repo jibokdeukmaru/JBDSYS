@@ -1116,6 +1116,8 @@ window.fetchEmployeesFS = async function() {
             <a href="javascript:void(0)" onclick="openFindIdModal()" style="color:rgba(0,0,0,0.5); text-decoration:none;">아이디 찾기</a>
             <span style="color:rgba(0,0,0,0.25); margin:0 6px;">|</span>
             <a href="javascript:void(0)" onclick="openFindPwModal()" style="color:rgba(0,0,0,0.5); text-decoration:none;">비밀번호 찾기</a>
+            <span style="color:rgba(0,0,0,0.25); margin:0 6px;">|</span>
+            <a href="javascript:void(0)" onclick="openErpEmergencyRestore()" style="color:rgba(0,0,0,0.35); text-decoration:none;" title="ERP 데이터가 사라져 로그인할 수 없을 때">긴급 데이터 복구</a>
           </div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
             <div style="flex:1; height:1px; background:rgba(0,0,0,0.15);"></div>
@@ -1186,6 +1188,297 @@ window.fetchEmployeesFS = async function() {
     <div id="findPwResult" style="margin-top:14px;font-size:13px;text-align:center;"></div>
   </div>
 </div>
+
+<!-- 긴급 데이터 복구 (로그인 화면) — Firestore가 통째로 날아가 직원 정보가 없으면 로그인 자체가 안 되므로,
+     dailybackup Cloud Function의 RESTORE_KEY(GCP 콘솔에서 설정한 복구키)로 같은 복구 화면을 연다.
+     z-index는 앱 안내창(30010)보다 낮게 둬야 복구 확인창이 이 창 위에 뜬다. -->
+<div id="erpEmergencyRestoreModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:30000;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;max-height:90vh;overflow:auto;padding:26px 24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.18);box-sizing:border-box;">
+    <button type="button" onclick="closeErpEmergencyRestore()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;line-height:1;color:#999;cursor:pointer;">&times;</button>
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:800;color:#222;">긴급 데이터 복구</h3>
+    <div id="erpEmergencyKeyStep">
+      <div style="font-size:12px;color:#999;margin-bottom:16px;line-height:1.6;">ERP 데이터가 사라져 로그인할 수 없을 때만 사용합니다.<br>GCP 콘솔의 dailybackup 함수에 설정한 <b>복구키(RESTORE_KEY)</b>를 입력하세요.</div>
+      <input type="password" id="erpEmergencyKey" placeholder="복구키" autocomplete="off" style="width:100%;height:42px;padding:0 14px;font-size:13px;border:1px solid #ddd;border-radius:9px;box-sizing:border-box;margin-bottom:14px;" onkeydown="if(event.key==='Enter')submitErpEmergencyKey()">
+      <button type="button" onclick="submitErpEmergencyKey()" id="erpEmergencyKeyBtn" style="width:100%;height:42px;background:#1a1a1a;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;">확인</button>
+      <div id="erpEmergencyKeyResult" style="margin-top:14px;font-size:13px;text-align:center;color:#c0392b;"></div>
+    </div>
+    <div id="erpEmergencyRestoreBox" style="display:none;margin-top:14px;"></div>
+  </div>
+</div>
+<script>
+// ── 지복득마루ERP 백업 데이터 복구 ──
+// 백업 파일(지복득마루ERP_백업데이터_*.json.gz)은 dailybackup Cloud Function이 매일 20시에 Firestore
+// 전체를 형식까지 보존해서 구글드라이브에 올린다. 여기서는 ① 드라이브 백업 목록에서 고르거나 ② PC에 받아둔
+// 백업 파일을 올려서, 고른 데이터(컬렉션)를 백업 시점 그대로 되돌린다 — 백업 이후 수정은 사라지고, 백업
+// 이후 새로 생긴 문서는 삭제된다. 실제 Firestore 쓰기는 전부 Cloud Function(관리자 권한)이 하므로 보안
+// 규칙과 무관하게 직원정보/로그인 비밀번호까지 복구된다. 복구 직전 현재 상태는 자동으로 한 번 더 백업된다.
+(function () {
+  var BACKUP_CF_URL = 'https://dailybackup-697700684649.asia-northeast3.run.app';
+  var LABELS = {
+    employees: '직원정보', authSecrets: '로그인 비밀번호', leaves: '연차·휴가 신청내역', personalCalendar: '개인달력',
+    personalMemos: '개인메모', userPrefs: '사용자별 화면설정', consults: '쇼룸상담', consultsTrash: '쇼룸상담 휴지통',
+    stockBetaLots: '재고현황(예약/실시간)', stockExtraLots: '재고현황(바람외/장기재고)', stockBetaMeta: '재고현황 부가정보(호환여부 등)',
+    stockBetaHistory: '재고현황 수정기록', constructionSchedule: '시공일정표', constructionForecast: '시공예정상황',
+    scheduleDayNotes: '시공일정 일자메모', scheduleEditHistory: '시공일정 수정기록', reservations: '쇼룸 방문예약',
+    slots: '예약 시간대', products: '제품(단가표)', notices: '공지사항', noticeReplies: '공지 댓글', contacts: '연락처',
+    mailContacts: '메일 주소록', notifications: '알림', pushTokens: '푸시알림 기기', settings: 'ERP 설정', smsLog: '문자 발송기록',
+    wiki: '위키', wikiHistory: '위키 수정기록', infoRequests: '정보수정 신청', gmailWatchState: '메일 연동 상태',
+    salesQuotes: '영업 견적서', salesQuoteFolders: '영업 견적서 폴더'
+  };
+  // 복구 순서: 직원/로그인 정보를 먼저 살려야 중간에 끊겨도 로그인이 된다.
+  var FIRST = ['employees', 'authSecrets'];
+
+  var state = null; // { boxId, mode, key, source:'drive'|'local', fileId, backup(local), info:{backupAt,counts,current} }
+  var esc = function (s) { return window._escHtml(s); };
+
+  function fmtKst(ms, withSec) {
+    var d = new Date(ms + 9 * 3600 * 1000);
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일 ' + p(d.getUTCHours()) + '시 ' + p(d.getUTCMinutes()) + '분' + (withSec ? ' ' + p(d.getUTCSeconds()) + '초' : '');
+  }
+  function fmtSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+  function label(c) { return LABELS[c] ? LABELS[c] + ' <span style="color:#aaa;font-size:11px;">(' + esc(c) + ')</span>' : esc(c); }
+  function $(id) { return document.getElementById(id); }
+
+  async function api(params) {
+    var body = Object.assign({}, params);
+    if (state.mode === 'key') body._restoreKey = state.key;
+    else {
+      await window.fbEnsureAuth();
+      var u = window.FB && window.FB.auth && window.FB.auth.currentUser;
+      body._idToken = u ? await u.getIdToken() : '';
+    }
+    // text/plain = CORS 사전요청(preflight) 없이 바로 보냄 (gmail-api와 같은 방식)
+    var res = await fetch(BACKUP_CF_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+    var data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!data || data.status !== 'ok') throw new Error((data && data.message) || ('서버 응답 오류 (' + res.status + ')'));
+    return data;
+  }
+
+  function render() {
+    var box = $(state.boxId);
+    box.innerHTML =
+      '<div style="font-size:11.5px;color:#888;line-height:1.7;margin-bottom:12px;">매일 저녁 20시에 ERP 전체 데이터(직원정보·연차/휴가·개인달력·쇼룸상담·재고현황·시공일정 등 전부)가 <b>파일 하나</b>로 구글드라이브에 자동 백업됩니다(최근 7일 보관).<br>백업 파일을 고르면 그 시점으로 데이터를 되돌릴 수 있습니다.</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<select id="erpRsSelect" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;min-width:260px;max-width:100%;"><option value="">드라이브 백업 목록 불러오는 중...</option></select>' +
+        '<input type="file" id="erpRsFile" accept=".gz,.json" style="display:none;">' +
+        '<button class="admin-btn" id="erpRsFileBtn">PC의 백업 파일 올리기</button>' +
+      '</div>' +
+      '<div id="erpRsPreview" style="margin-top:14px;"></div>' +
+      '<div id="erpRsProgress" style="font-size:12px;color:#555;margin-top:10px;line-height:1.8;white-space:pre-wrap;"></div>';
+    $('erpRsSelect').onchange = function () { if (this.value) inspectDrive(this.value); else $('erpRsPreview').innerHTML = ''; };
+    $('erpRsFileBtn').onclick = function () { $('erpRsFile').click(); };
+    $('erpRsFile').onchange = function () { if (this.files && this.files[0]) loadLocal(this.files[0]); this.value = ''; };
+    loadList();
+  }
+
+  async function loadList() {
+    var sel = $('erpRsSelect');
+    try {
+      var r = await api({ action: 'list' });
+      if (!r.files.length) { sel.innerHTML = '<option value="">드라이브에 백업 파일이 없습니다</option>'; return; }
+      sel.innerHTML = '<option value="">— 복구할 백업 선택 (드라이브) —</option>' + r.files.map(function (f) {
+        var t = fmtKst(new Date(f.createdTime).getTime());
+        var tag = f.name.indexOf('_복구직전') !== -1 ? ' · 복구 직전 자동백업' : '';
+        return '<option value="' + esc(f.id) + '">' + esc(t + tag + ' (' + fmtSize(f.size) + ')') + '</option>';
+      }).join('');
+    } catch (e) {
+      sel.innerHTML = '<option value="">목록을 불러오지 못했습니다</option>';
+      $('erpRsProgress').innerHTML = '<span style="color:#c0392b;">⚠ ' + esc(e.message) + '</span>';
+    }
+  }
+
+  async function inspectDrive(fileId) {
+    $('erpRsPreview').innerHTML = '<div style="font-size:12px;color:#888;">백업 파일 확인 중...</div>';
+    $('erpRsProgress').textContent = '';
+    try {
+      var r = await api({ action: 'inspect', fileId: fileId });
+      state.source = 'drive'; state.fileId = fileId; state.backup = null;
+      state.info = { backupAt: r.backupAt, counts: r.counts, current: r.current };
+      renderPreview();
+    } catch (e) { $('erpRsPreview').innerHTML = '<span style="color:#c0392b;font-size:12px;">⚠ ' + esc(e.message) + '</span>'; }
+  }
+
+  async function loadLocal(file) {
+    $('erpRsSelect').value = '';
+    $('erpRsPreview').innerHTML = '<div style="font-size:12px;color:#888;">파일 읽는 중...</div>';
+    $('erpRsProgress').textContent = '';
+    try {
+      var head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+      var text = (head[0] === 0x1f && head[1] === 0x8b)
+        ? await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).text()
+        : await file.text();
+      var backup = JSON.parse(text);
+      if (!backup || backup.format !== 'jbd-erp-backup' || !backup.collections) throw new Error('지복득마루ERP 백업 파일이 아닙니다.');
+      var counts = {};
+      Object.keys(backup.collections).forEach(function (c) { counts[c] = backup.collections[c].length; });
+      var cur = await api({ action: 'counts', collections: Object.keys(counts) });
+      state.source = 'local'; state.fileId = null; state.backup = backup;
+      state.info = { backupAt: backup.backupAt, counts: counts, current: cur.current };
+      renderPreview();
+    } catch (e) {
+      $('erpRsPreview').innerHTML = '<span style="color:#c0392b;font-size:12px;">⚠ ' + esc(e.message && e.message.indexOf('JSON') !== -1 ? '파일이 손상됐거나 백업 파일이 아닙니다.' : e.message) + '</span>';
+    }
+  }
+
+  function orderedCollections() {
+    var names = Object.keys(state.info.counts).sort();
+    return FIRST.filter(function (c) { return names.indexOf(c) !== -1; }).concat(names.filter(function (c) { return FIRST.indexOf(c) === -1; }));
+  }
+
+  function warningText() {
+    return fmtKst(state.info.backupAt) + ' 백업 데이터를 기준으로 복구합니다.\n해당 시간 이후 수정된 내용은 반영되지 않으며, 이후 새로 추가된 데이터는 삭제됩니다.';
+  }
+
+  function renderPreview() {
+    var info = state.info;
+    var rows = orderedCollections().map(function (c) {
+      var cur = info.current[c];
+      var diff = (cur == null) ? '' : (cur === info.counts[c] ? '' : ' style="color:#c0392b;font-weight:700;"');
+      return '<tr><td style="text-align:center;"><input type="checkbox" class="erpRsCol" value="' + esc(c) + '" checked></td>' +
+        '<td>' + label(c) + '</td><td style="text-align:right;">' + info.counts[c].toLocaleString() + '</td>' +
+        '<td style="text-align:right;"' + diff + '>' + (cur == null ? '-' : cur.toLocaleString()) + '</td></tr>';
+    }).join('');
+    $('erpRsPreview').innerHTML =
+      '<div style="font-size:13px;font-weight:800;color:#222;margin-bottom:8px;">백업 시점: ' + esc(fmtKst(info.backupAt, true)) + '</div>' +
+      '<div style="overflow-x:auto;max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">' +
+        '<table class="admin-table" style="margin:0;"><thead><tr>' +
+          '<th style="width:44px;"><input type="checkbox" id="erpRsAll" checked title="전체 선택"></th><th>데이터</th><th style="width:90px;">백업 건수</th><th style="width:90px;">현재 건수</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '</div>' +
+      '<div style="font-size:11px;color:#999;margin-top:6px;">체크한 데이터만 복구합니다. 일부만 문제가 생겼다면 그 항목만 체크하세요. 현재 건수가 백업과 다르면 빨간색으로 표시됩니다.</div>' +
+      '<div style="margin-top:14px;padding:14px 16px;border:1px solid #f1c0b9;background:#fdf1ef;border-radius:10px;font-size:12.5px;line-height:1.75;color:#7a2a1f;">' +
+        '<b>⚠ ' + esc(warningText()).replace('\n', '<br>') + '</b><br>' +
+        '복구 직전의 현재 데이터는 드라이브에 "복구 직전 자동백업"으로 따로 저장되므로, 잘못 복구했다면 그 파일로 다시 되돌릴 수 있습니다.<br>' +
+        '복구가 끝나면 ERP를 쓰고 있는 모든 직원이 새로고침(Ctrl+F5)해야 합니다.' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;">' +
+        '<input type="text" id="erpRsConfirm" placeholder="복구 라고 입력" autocomplete="off" style="height:36px;border:1px solid #ddd;border-radius:8px;padding:0 10px;font-size:12.5px;width:150px;">' +
+        '<button class="admin-btn primary" id="erpRsRunBtn" disabled style="opacity:.5;">복구 실행</button>' +
+      '</div>';
+    var sync = function () {
+      var ok = $('erpRsConfirm').value.trim() === '복구' && document.querySelectorAll('#' + state.boxId + ' .erpRsCol:checked').length > 0;
+      $('erpRsRunBtn').disabled = !ok; $('erpRsRunBtn').style.opacity = ok ? '1' : '.5';
+    };
+    $('erpRsConfirm').oninput = sync;
+    $('erpRsAll').onchange = function () {
+      var on = this.checked;
+      document.querySelectorAll('#' + state.boxId + ' .erpRsCol').forEach(function (cb) { cb.checked = on; });
+      sync();
+    };
+    document.querySelectorAll('#' + state.boxId + ' .erpRsCol').forEach(function (cb) { cb.onchange = sync; });
+    $('erpRsRunBtn').onclick = run;
+  }
+
+  // PC 파일 복구: 요청 하나가 너무 커지지 않게(서버 한도 32MB) 문서를 약 4MB씩 나눠 보낸다.
+  function chunkDocs(docs) {
+    var out = [], cur = [], size = 0, LIMIT = 4 * 1024 * 1024;
+    docs.forEach(function (d) {
+      var s = JSON.stringify(d).length;
+      if (cur.length && size + s > LIMIT) { out.push(cur); cur = []; size = 0; }
+      cur.push(d); size += s;
+    });
+    if (cur.length) out.push(cur);
+    return out;
+  }
+
+  var running = false;
+  async function run() {
+    if (running) return;
+    var cols = orderedCollections().filter(function (c) {
+      var cb = document.querySelector('#' + state.boxId + ' .erpRsCol[value="' + CSS.escape(c) + '"]');
+      return cb && cb.checked;
+    });
+    if (!cols.length) return;
+    var ok = await appConfirm(warningText() + '\n\n선택한 ' + cols.length + '개 데이터를 복구할까요?');
+    if (!ok) return;
+    running = true;
+    var btn = $('erpRsRunBtn'); btn.disabled = true; btn.style.opacity = '.5';
+    var log = $('erpRsProgress');
+    var lines = [];
+    var put = function (s) { lines.push(s); log.textContent = lines.join('\n'); };
+    var fail = 0;
+    try {
+      put('① 복구 직전 현재 데이터 자동백업 중...');
+      var pre = await api({ action: 'preRestoreBackup' });
+      lines[lines.length - 1] = '① 복구 직전 자동백업 완료: ' + pre.file; log.textContent = lines.join('\n');
+      for (var i = 0; i < cols.length; i++) {
+        var c = cols[i], name = LABELS[c] || c;
+        put('② [' + (i + 1) + '/' + cols.length + '] ' + name + ' 복구 중...');
+        try {
+          var r;
+          if (state.source === 'drive') {
+            r = await api({ action: 'restoreCollection', fileId: state.fileId, collection: c });
+          } else {
+            var docs = state.backup.collections[c], written = 0, failed = 0;
+            var chunks = chunkDocs(docs);
+            for (var k = 0; k < chunks.length; k++) {
+              var w = await api({ action: 'writeDocs', collection: c, docs: chunks[k] });
+              written += w.written; failed += w.failed;
+            }
+            var p = await api({ action: 'prune', collection: c, keepIds: docs.map(function (d) { return d[0]; }) });
+            r = { written: written, failed: failed, deleted: p.deleted };
+          }
+          if (r.failed) fail++;
+          lines[lines.length - 1] = '② [' + (i + 1) + '/' + cols.length + '] ' + name + ' — 복구 ' + r.written.toLocaleString() + '건' +
+            (r.deleted ? ', 백업 이후 생긴 ' + r.deleted.toLocaleString() + '건 삭제' : '') + (r.failed ? ', ⚠ 실패 ' + r.failed + '건' : '');
+          log.textContent = lines.join('\n');
+        } catch (e) {
+          fail++;
+          lines[lines.length - 1] = '② [' + (i + 1) + '/' + cols.length + '] ' + name + ' — ⚠ 실패: ' + e.message;
+          log.textContent = lines.join('\n');
+        }
+      }
+      put(fail ? '\n⚠ 일부 항목이 실패했습니다. 같은 백업으로 실패한 항목만 체크해서 다시 복구해 주세요.' : '\n✓ 복구가 끝났습니다. ERP를 쓰는 모든 직원이 새로고침(Ctrl+F5)해 주세요.');
+      alert(fail ? '일부 항목 복구에 실패했습니다. 진행 내역을 확인해 주세요.' : fmtKst(state.info.backupAt) + ' 백업 시점으로 복구가 끝났습니다.\n모든 직원이 새로고침(Ctrl+F5)해 주세요.');
+    } catch (e) {
+      put('⚠ 복구를 시작하지 못했습니다: ' + e.message + '\n(복구 직전 자동백업이 실패하면 안전을 위해 복구하지 않습니다.)');
+    } finally {
+      running = false;
+      if ($('erpRsConfirm')) $('erpRsConfirm').value = '';
+    }
+  }
+
+  // boxId: 화면을 그릴 요소 id, mode: 'admin'(관리자 로그인) | 'key'(긴급 복구키)
+  window.erpRestoreInit = function (boxId, mode, key) {
+    if (state && state.boxId === boxId && state.mode === mode && $(boxId) && $(boxId).childElementCount) return; // 이미 그려짐
+    state = { boxId: boxId, mode: mode, key: key || '' };
+    render();
+  };
+
+  window.openErpEmergencyRestore = function () {
+    $('erpEmergencyKeyStep').style.display = '';
+    $('erpEmergencyRestoreBox').style.display = 'none';
+    $('erpEmergencyRestoreBox').innerHTML = '';
+    $('erpEmergencyKey').value = '';
+    $('erpEmergencyKeyResult').textContent = '';
+    $('erpEmergencyRestoreModal').style.display = 'flex';
+    setTimeout(function () { $('erpEmergencyKey').focus(); }, 50);
+  };
+  window.closeErpEmergencyRestore = function () {
+    if (running) { alert('복구가 진행 중입니다. 끝날 때까지 기다려 주세요.'); return; }
+    $('erpEmergencyRestoreModal').style.display = 'none';
+    if (state && state.mode === 'key') state = null;
+  };
+  window.submitErpEmergencyKey = async function () {
+    var key = $('erpEmergencyKey').value.trim();
+    if (!key) return;
+    var btn = $('erpEmergencyKeyBtn'); btn.disabled = true;
+    $('erpEmergencyKeyResult').textContent = '';
+    state = { boxId: 'erpEmergencyRestoreBox', mode: 'key', key: key };
+    try {
+      await api({ action: 'list' }); // 복구키 확인
+      $('erpEmergencyKeyStep').style.display = 'none';
+      $('erpEmergencyRestoreBox').style.display = '';
+      render();
+    } catch (e) {
+      state = null;
+      $('erpEmergencyKeyResult').textContent = e.message;
+    } finally { btn.disabled = false; }
+  };
+})();
+</script>
 
 <section id="mainSection" style="display:none;">
   <div class="tabs-wrap no-capture">
@@ -9139,6 +9432,19 @@ function csDateInputValue(val) {
               <div id="scheduleClearHistoryProgress" style="font-size:12px;color:#888;margin-top:10px;"></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 5. 백업 데이터 복구 (2026-10-14) — 매일 20시 자동 백업된 "지복득마루ERP_백업데이터" 파일 하나로
+           ERP 전체(Firestore 모든 데이터)를 백업 시점으로 되돌린다. 실제 작업은 dailybackup Cloud Function이
+           한다(관리자 로그인 토큰 확인). 로그인조차 안 되는 긴급 상황은 로그인 화면의 "긴급 데이터 복구"로. -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:18px;">
+        <div class="admin-toolbar" style="justify-content:flex-start;cursor:pointer;margin-bottom:0;" onclick="toggleAdminGroup('erpRestoreGroup');erpRestoreInit('erpRestoreAdminBox','admin')">
+          <svg id="erpRestoreGroupToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <span style="font-size:13px;font-weight:800;color:var(--brand);margin-left:8px;">백업 데이터 복구</span>
+        </div>
+        <div id="erpRestoreGroupWrap" style="display:none;margin-top:14px;">
+          <div id="erpRestoreAdminBox"></div>
         </div>
       </div>
 
