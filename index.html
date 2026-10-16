@@ -2961,7 +2961,7 @@ async function _stockBetaCascadeHeibei(sheetName, code, cha, fromMonth, newHeibe
       if (!snap.exists()) return;
       const data = snap.data();
       const box = Number(data.box) || 0;
-      const py = Math.round((box * newHeibei / 3.24) * 100) / 100;
+      const py = Math.round((box * newHeibei / window.FLOOR_PY_M2) * 100) / 100;
       tx.set(ref, { heibei: String(newHeibei), py, updatedAtMs: Date.now() }, { merge: true });
     });
   }
@@ -9329,7 +9329,7 @@ function csDateInputValue(val) {
             <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
             <span style="font-size:13px;font-weight:800;color:var(--brand);">제품관리 (단가표)</span>
           </div>
-          <button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button>
+          <div style="display:flex;gap:6px;"><button class="admin-btn" onclick="recalcAllProductPrices()" title="모든 제품의 ㎡·자재·BOX 단가를 소비자가(평)·업체가(평)·시공비 기준으로 다시 계산해 저장">전체 단가 재계산</button><button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button></div>
         </div>
         <div id="adminProductListWrap" style="display:none;margin-top:14px;">
           <div style="overflow-x:auto;">
@@ -9893,7 +9893,7 @@ function xiParseForecast(wb) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div>
           <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">박스당 면적(㎡)</label>
-          <input type="number" step="any" id="productModalBoxM2" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+          <input type="number" step="any" id="productModalBoxM2" oninput="renderProductModalPreview()" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
         </div>
         <div>
           <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">박스당 장수</label>
@@ -9902,22 +9902,14 @@ function xiParseForecast(wb) {
       </div>
       <div style="margin-bottom:10px;">
         <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">시공비 (자재만 선택 시 평당가에서 차감)</label>
-        <input type="number" step="any" id="productModalInstallCost" placeholder="비워두면 품번 시리즈 기준 자동 적용 (15:3.5만/16-18:4만/19+:5만)" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+        <input type="number" step="any" id="productModalInstallCost" oninput="renderProductModalPreview()" placeholder="비워두면 품번 시리즈 기준 자동 적용 (15:3.5만/16-18:4만/19+:5만)" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
       </div>
-      <div style="font-size:12px;font-weight:800;color:var(--brand);margin:14px 0 6px;">소비자가</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">평</label><input type="number" step="any" id="productModalConsumerPy" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">자재</label><input type="number" step="any" id="productModalConsumerMaterial" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">m²</label><input type="number" step="any" id="productModalConsumerSqm" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">BOX</label><input type="number" step="any" id="productModalConsumerBox" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 10px;">
+        <div><label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">소비자가 (평, 시공비 포함)</label><input type="number" step="any" id="productModalConsumerPy" oninput="renderProductModalPreview()" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;"></div>
+        <div><label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">업체가 (평, 시공비 포함)</label><input type="number" step="any" id="productModalVendorPy" oninput="renderProductModalPreview()" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;"></div>
       </div>
-      <div style="font-size:12px;font-weight:800;color:var(--brand);margin:14px 0 6px;">업체가</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">평</label><input type="number" step="any" id="productModalVendorPy" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">자재</label><input type="number" step="any" id="productModalVendorMaterial" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">m²</label><input type="number" step="any" id="productModalVendorSqm" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
-        <div><label style="font-size:10.5px;color:#888;display:block;margin-bottom:3px;">BOX</label><input type="number" step="any" id="productModalVendorBox" style="width:100%;padding:7px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;"></div>
-      </div>
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">자동 계산 (헤베 = 평÷3.24, 100원 올림 · BOX = 자재헤베×박스당㎡, 100원 올림)</div>
+      <div id="productModalPreview" style="background:#f7f7f9;border:1px solid #eee;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:10px;"></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#555;margin:14px 0 18px;cursor:pointer;">
         <input type="checkbox" id="productModalNatural"> 네츄럴 (단가표에서 강조 표시)
       </label>
@@ -12620,6 +12612,27 @@ let toastTimer = null;
 function showToast(message='복사 완료') { const t=$('toast'); if(!t) return; t.textContent=message; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1400); }
 async function copyToClipboard(text) { try { await navigator.clipboard.writeText(text); showToast('복사 완료'); } catch (e) { const temp=document.createElement('textarea'); temp.value=text; temp.style.position='fixed'; temp.style.left='-9999px'; document.body.appendChild(temp); temp.select(); document.execCommand('copy'); document.body.removeChild(temp); showToast('복사 완료'); } }
 function ceilTo(value, base) { return Math.ceil(value / base) * base; }
+// ★ 마루 1평 = 3.24㎡ — 단가·계산기·견적서·도면 면적분석 모두 이 값 하나만 쓴다(2026-10-16).
+window.FLOOR_PY_M2 = 3.24;
+// ★ 제품 단가 계산의 단일 소스(2026-10-16). 제품에는 소비자가(평)·업체가(평)·시공비만 입력하고
+//   나머지는 전부 여기서 계산한다 — 단가표/단가안내/계산기/견적서/관리자 목록/저장값이 모두 이 결과를 쓴다.
+//   헤베 = 평 ÷ 3.24 → 100원 올림 / 자재평 = 평 − 시공비 / 자재헤베 = 자재평 ÷ 3.24 → 100원 올림
+//   BOX(자재 기준) = 자재헤베(올림된 값) × 박스당㎡ → 100원 올림
+//   예) C19012(박스 2.112㎡), 소비자 48만·업체 41만·시공비 5만 → 헤베 148,200 / 126,600, BOX 280,500 / 234,900
+function calcProductPrices(product) {
+  const F = window.FLOOR_PY_M2;
+  const ic = getEffectiveInstallCost(product);
+  const installCost = ic != null ? ic : 0;
+  const one = (py) => {
+    py = Number(py) || 0;
+    const sqm = py ? ceilTo(py / F, 100) : 0;
+    const materialPy = py ? py - installCost : 0;
+    const materialSqm = materialPy > 0 ? ceilTo(materialPy / F, 100) : 0;
+    const box = materialSqm && product.box_m2 ? ceilTo(materialSqm * product.box_m2, 100) : 0;
+    return { py, sqm, materialPy, materialSqm, box };
+  };
+  return { installCost, installMissing: ic == null, consumer: one(product.consumer && product.consumer.py), vendor: one(product.vendor && product.vendor.py) };
+}
 function formatQuoteDate(dateObj = new Date()) { const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2,'0'); const d = String(dateObj.getDate()).padStart(2,'0'); return `견적일 : ${y}-${m}-${d}`; }
 function updateQuoteDate(dateObj = new Date()) { const el = $('quoteDate'); if(el) el.textContent = formatQuoteDate(dateObj); }
 function getDefaultInstallCost(code) {
@@ -12648,19 +12661,13 @@ function getEffectiveInstallCost(product) {
 // "자재만" 평단가 = 시공비포함 평단가(py) - 시공비. 시공비를 적용할 수 없는(시리즈 미매칭 +
 // 직접입력도 없는) 제품은 예전처럼 별도로 저장된 자재 평단가를 그대로 쓴다.
 function getMaterialPyPrice(product, party) {
-  const installCost = getEffectiveInstallCost(product);
-  return installCost != null ? product[party].py - installCost : product[party].material;
+  return calcProductPrices(product)[party].materialPy;
 }
 function getUnitValue(product, party, unit, priceMode=state.priceMode) {
-  if (unit === 'py') return priceMode === 'material' ? getMaterialPyPrice(product, party) : product[party].py;
-  if (unit === 'sqm') return priceMode === 'material' ? ceilTo(getMaterialPyPrice(product, party) / 3.24, 100) : product[party].sqm;
-  if (unit === 'box') {
-    const installCost = getEffectiveInstallCost(product);
-    if (installCost === null) return product[party].box; // 시공비 적용 불가 품번: 기존값
-    // BOX 단가는 항상 시공비포함 평단가(py) 기준으로 차감 후 계산, 백원단위 올림
-    const pyPrice = product[party].py;
-    return ceilTo((pyPrice - installCost) / 3.24 * product.box_m2, 100);
-  }
+  const r = calcProductPrices(product)[party];
+  if (unit === 'py') return priceMode === 'material' ? r.materialPy : r.py;
+  if (unit === 'sqm') return priceMode === 'material' ? r.materialSqm : r.sqm;
+  if (unit === 'box') return r.box; // BOX는 항상 자재 기준
   return product[party][unit];
 }
 function modeText() { return state.priceMode === 'material' ? '자재 금액 (VAT 별도)' : '시공비 포함 (VAT 별도)'; }
@@ -13371,7 +13378,7 @@ function runCalculator() {
     return;
   }
 
-  const PY_FACTOR = 3.24;
+  const PY_FACTOR = window.FLOOR_PY_M2;
   let inputPy, inputSqm, inputBoxes;
   let calcPy, calcSqm, calcBoxes;
 
@@ -13441,7 +13448,7 @@ function runCalculator() {
 }
 
 function resetCalculator() { $('calcAudienceSelect').value='consumer'; $('calcPriceModeSelect').value='included'; $('calcInputModeSelect').value='py'; $('calcAreaInput').value=''; if($('calcLossRateInput')) $('calcLossRateInput').value=''; syncCalcInputUi(); resetCalcResults(); runCalculator(); }
-function runSelfTests() { console.assert(fmt(12000)==='12,000원','fmt formats'); if(products.length>0){ console.assert(getUnitValue(products[0],'consumer','sqm','included')===products[0].consumer.sqm,'included sqm'); console.assert(getUnitValue(products[0],'consumer','box','included')===products[0].consumer.box,'box raw'); console.assert(getUnitValue(products[0],'consumer','sqm','material')===ceilTo(getMaterialPyPrice(products[0],'consumer')/3.24,100),'material sqm calc'); } }
+function runSelfTests() { console.assert(fmt(12000)==='12,000원','fmt formats'); { const t = calcProductPrices({ code:'C19012', box_m2:2.112, installCost:50000, consumer:{py:480000}, vendor:{py:410000} }); console.assert(t.consumer.sqm===148200 && t.vendor.sqm===126600 && t.consumer.materialSqm===132800 && t.consumer.box===280500 && t.vendor.box===234900, 'calcProductPrices C19012 example', t); } if(products.length>0){ console.assert(getUnitValue(products[0],'consumer','sqm','included')===calcProductPrices(products[0]).consumer.sqm,'included sqm'); console.assert(getUnitValue(products[0],'consumer','box','included')===products[0].consumer.box,'box raw'); console.assert(getUnitValue(products[0],'consumer','sqm','material')===ceilTo(getMaterialPyPrice(products[0],'consumer')/3.24,100),'material sqm calc'); } }
 function initApp() {
   fillSelect(); initPreviews(); renderAll(); syncCalcInputUi(); resetCalcResults(); runCalculator(); runSelfTests();
   $('addBtn').addEventListener('click',()=>addCode($('productSelect').value));
@@ -13711,13 +13718,8 @@ function renderAdminProductsTable() {
             <td>${escapeHtmlProduct(p.spec)}</td>
             <td style="${p.box_m2 ? '' : 'color:#c0392b;'}">${p.box_m2 ? formatDecimal(p.box_m2, 3) : '미입력'}</td>
             <td style="${p.sheets_per_box ? '' : 'color:#c0392b;'}">${p.sheets_per_box ? fmtNum(p.sheets_per_box) : '미입력'}</td>
-            <td>${(() => { const eff = getEffectiveInstallCost(p); if (eff === null) return '<span style="color:#aaa;">-</span>'; return fmt(eff) + (p.installCost != null ? '' : ' <span style="color:#aaa;font-size:10.5px;">(자동)</span>'); })()}</td>
-            <td>${fmt(p.consumer.py)}</td>
-            <td>${fmt(p.consumer.sqm)}</td>
-            <td>${fmt(p.consumer.box)}</td>
-            <td>${fmt(p.vendor.py)}</td>
-            <td>${fmt(p.vendor.sqm)}</td>
-            <td>${fmt(p.vendor.box)}</td>
+            <td>${(() => { const eff = getEffectiveInstallCost(p); if (eff === null) return '<span style="color:#c0392b;font-weight:700;">미입력(0원)</span>'; return fmt(eff) + (p.installCost != null ? '' : ' <span style="color:#aaa;font-size:10.5px;">(자동)</span>'); })()}</td>
+            ${(() => { const c = calcProductPrices(p); const cell = (v, saved) => `<td${saved !== v ? ' style="color:#c0392b;" title="저장값 ' + fmt(saved) + ' → 재계산 필요"' : ''}>${fmt(v)}</td>`; return `<td>${fmt(c.consumer.py)}</td>${cell(c.consumer.sqm, p.consumer.sqm)}${cell(c.consumer.box, p.consumer.box)}<td>${fmt(c.vendor.py)}</td>${cell(c.vendor.sqm, p.vendor.sqm)}${cell(c.vendor.box, p.vendor.box)}`; })()}
             <td>${p.natural ? '✔' : ''}</td>
             <td style="white-space:nowrap;">
                 <button class="admin-btn" onclick="openProductModal('${p.id}')">수정</button>
@@ -13754,19 +13756,65 @@ function openProductModal(id) {
     $('productModalSheetsPerBox').value = p ? p.sheets_per_box : '';
     $('productModalInstallCost').value = (p && p.installCost != null) ? p.installCost : '';
     $('productModalConsumerPy').value = p ? p.consumer.py : '';
-    $('productModalConsumerMaterial').value = p ? p.consumer.material : '';
-    $('productModalConsumerSqm').value = p ? p.consumer.sqm : '';
-    $('productModalConsumerBox').value = p ? p.consumer.box : '';
     $('productModalVendorPy').value = p ? p.vendor.py : '';
-    $('productModalVendorMaterial').value = p ? p.vendor.material : '';
-    $('productModalVendorSqm').value = p ? p.vendor.sqm : '';
-    $('productModalVendorBox').value = p ? p.vendor.box : '';
     $('productModalNatural').checked = p ? !!p.natural : false;
     $('productModalMsg').textContent = '';
     $('productModal').style.display = 'flex';
+    renderProductModalPreview();
+}
+// 모달 입력값으로 단가 미리보기(저장 시에도 같은 calcProductPrices 결과를 저장)
+function _productModalDraft() {
+    const num = (elId) => { const v = parseFloat($(elId).value); return Number.isFinite(v) ? v : 0; };
+    const rawIc = $('productModalInstallCost').value.trim();
+    const icv = parseFloat(rawIc);
+    return {
+        code: $('productModalCode').value.trim(),
+        box_m2: num('productModalBoxM2'),
+        installCost: rawIc === '' || !Number.isFinite(icv) ? null : icv,
+        consumer: { py: num('productModalConsumerPy') },
+        vendor: { py: num('productModalVendorPy') }
+    };
+}
+function renderProductModalPreview() {
+    const el = $('productModalPreview'); if (!el) return;
+    const c = calcProductPrices(_productModalDraft());
+    const row = (label, r) => `<tr><td style="font-weight:700;padding:2px 8px 2px 0;">${label}</td><td style="padding:2px 8px;">헤베 ${fmt(r.sqm)}</td><td style="padding:2px 8px;">자재 평 ${fmt(r.materialPy)}</td><td style="padding:2px 8px;">자재 헤베 ${fmt(r.materialSqm)}</td><td style="padding:2px 8px;">BOX ${fmt(r.box)}</td></tr>`;
+    el.innerHTML = `<div style="margin-bottom:4px;color:${c.installMissing ? '#c0392b' : '#555'};">적용 시공비: ${fmt(c.installCost)}${c.installMissing ? ' (미입력 → 0원으로 계산)' : ''}</div><table style="border-collapse:collapse;">${row('소비자', c.consumer)}${row('업체', c.vendor)}</table>`;
 }
 function closeProductModal() { $('productModal').style.display = 'none'; }
 
+// 계산 결과 → Firestore 저장 필드(consumer/vendor의 py·material·sqm·box)
+function _productPriceFields(p) {
+    const c = calcProductPrices(p);
+    const f = (r) => ({ py: r.py, material: r.materialPy, sqm: r.sqm, box: r.box });
+    return { consumer: f(c.consumer), vendor: f(c.vendor) };
+}
+// 관리자 "전체 단가 재계산": 저장된 ㎡·자재·BOX 값을 계산값으로 일괄 갱신
+async function recalcAllProductPrices() {
+    if (!_adminProducts.length) await loadAdminProducts();
+    const changes = [];
+    _adminProducts.forEach(p => {
+        const nf = _productPriceFields(p);
+        const diff = [];
+        ['consumer', 'vendor'].forEach(party => ['material', 'sqm', 'box'].forEach(k => {
+            if ((p[party][k] || 0) !== nf[party][k]) diff.push(`${party === 'consumer' ? '소비자' : '업체'} ${k === 'sqm' ? '㎡' : k === 'box' ? 'BOX' : '자재'} ${fmt(p[party][k] || 0)}→${fmt(nf[party][k])}`);
+        }));
+        if (diff.length) changes.push({ p, nf, diff });
+    });
+    if (!changes.length) { alert('모든 제품의 단가가 이미 계산식과 일치합니다.'); return; }
+    const preview = changes.slice(0, 12).map(c => `• ${c.p.code}: ${c.diff.slice(0, 3).join(', ')}${c.diff.length > 3 ? ' …' : ''}`).join('\n');
+    const ok = await appConfirm(`${changes.length}개 제품의 ㎡·자재·BOX 단가를 계산식대로 다시 저장합니다.\n\n${preview}${changes.length > 12 ? `\n… 외 ${changes.length - 12}개` : ''}\n\n진행할까요?`);
+    if (!ok) return;
+    await window.fbEnsureAuth();
+    for (let i = 0; i < changes.length; i += 400) {
+        const batch = window.FB.writeBatch(window.FB.db);
+        changes.slice(i, i + 400).forEach(c => batch.set(window.FB.doc(window.FB.db, 'products', c.p.id), { consumer: c.nf.consumer, vendor: c.nf.vendor, updatedAtMs: Date.now() }, { merge: true }));
+        await batch.commit();
+    }
+    await loadAdminProducts();
+    if (typeof loadProducts === 'function') { try { await loadProducts(); if (typeof renderLeftTable === 'function') renderLeftTable(); if (typeof renderRightTable === 'function') renderRightTable(); } catch (e) {} }
+    alert(`${changes.length}개 제품 단가를 다시 계산해 저장했습니다.`);
+}
 async function saveProductModal() {
     const origId = $('productModalOrigId').value;
     const code = $('productModalCode').value.trim();
@@ -13782,17 +13830,13 @@ async function saveProductModal() {
         box_m2: num('productModalBoxM2'),
         sheets_per_box: num('productModalSheetsPerBox'),
         installCost: (() => { const raw = $('productModalInstallCost').value.trim(); if (raw === '') return null; const v = parseFloat(raw); return Number.isFinite(v) ? v : null; })(),
-        consumer: {
-            py: num('productModalConsumerPy'), material: num('productModalConsumerMaterial'),
-            sqm: num('productModalConsumerSqm'), box: num('productModalConsumerBox')
-        },
-        vendor: {
-            py: num('productModalVendorPy'), material: num('productModalVendorMaterial'),
-            sqm: num('productModalVendorSqm'), box: num('productModalVendorBox')
-        },
+        // ㎡·자재·BOX는 입력받지 않고 calcProductPrices로 계산해 저장(아래에서 채움)
+        consumer: { py: num('productModalConsumerPy') },
+        vendor: { py: num('productModalVendorPy') },
         natural: $('productModalNatural').checked,
         updatedAtMs: Date.now()
     };
+    Object.assign(data, _productPriceFields(data));
     // 신규 등록: "어느 제품 뒤" 선택에 맞춰 전체 순서를 다시 매긴다. 수정(기존 제품)은 순서를
     // 건드리지 않고(▲▼ 버튼 전용), 기존 order 값을 그대로 유지한다.
     let reorderedIds = null;
@@ -14592,7 +14636,7 @@ function getInvItemFromBox(box) {
     const party     = partyRaw.replace('_material', '');
     const priceMode = isMaterialOnly ? 'material' : 'included';
 
-    const PY_FACTOR = 3.24;
+    const PY_FACTOR = window.FLOOR_PY_M2;
     const lossMultiplier = lossRate > 0 ? (1 + lossRate / 100) : 1;
 
     let displayQty, unitPrice, total;
@@ -14647,12 +14691,10 @@ function getInvItemFromBox(box) {
         const discount = getEffectiveInstallCost(p);
         if (discount !== null) {
             const splitQty = displayQty;
-            const materialPrice = unit === 'M2'
-                ? ceilTo((pyPrice - discount) / PY_FACTOR, 100)
-                : pyPrice - discount;
-            const laborPrice = unit === 'M2'
-                ? ceilTo(discount / PY_FACTOR, 100)
-                : discount;
+            // ★ 인건비 = 시공비포함 단가 − 자재 단가 (각자 올림하면 두 줄 합이 100원 넘어가던 문제, 2026-10-16)
+            const pr = calcProductPrices(p)[party];
+            const materialPrice = unit === 'M2' ? pr.materialSqm : pr.materialPy;
+            const laborPrice = unit === 'M2' ? pr.sqm - pr.materialSqm : pr.py - pr.materialPy;
             return [
                 { name: formatInvProductName(p), size: formatInvSize(p.spec), unit, qty: splitQty, unitPrice: materialPrice, total: Math.round(splitQty * materialPrice) },
                 { name: '인건비, 부자재비', isLaborCost: true, size: '', unit, qty: splitQty, unitPrice: laborPrice, total: Math.round(splitQty * laborPrice) }
@@ -14904,7 +14946,7 @@ function renderInvoice() {
             const pcs = p.sheets_per_box || '';
             const pcsStr = pcs ? `${pcs}pcs/` : '';
             if (unit === 'PY') {
-                const py = Math.round(p.box_m2 / 3.24 * 100) / 100;
+                const py = Math.round(p.box_m2 / window.FLOOR_PY_M2 * 100) / 100;
                 metaList.push(`${code}(${pcsStr}${py}평)`);
             } else {
                 metaList.push(`${code}(${pcsStr}${p.box_m2}㎡)`);
@@ -16349,7 +16391,7 @@ async function _ivRenderUnsettledView(body, flags) {
   const $ = id => document.getElementById(id);
   const DXF_PARSER_URL = 'https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js';
   const LIBREDWG_BASE = 'https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.7.14/';
-  const PY_M2 = 3.305785;
+  const PY_M2 = window.FLOOR_PY_M2 || 3.24; // 마루 1평 = 3.24㎡ (단가·계산기와 같은 기준)
   // $INSUNITS 코드 → 1단위가 몇 m인지
   const UNIT_M = { 1: 0.0254, 2: 0.3048, 4: 0.001, 5: 0.01, 6: 1 };
   const UNIT_LABEL = { 1: 'inch', 2: 'feet', 4: 'mm', 5: 'cm', 6: 'm' };
