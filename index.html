@@ -26,9 +26,9 @@
       root.id = 'appDialog';
       root.style.cssText = 'display:none;position:fixed;inset:0;z-index:30010;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
       root.innerHTML =
-        '<div style="background:#fff;border-radius:14px;width:90%;max-width:360px;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);box-sizing:border-box;">' +
-          '<p id="appDialogMsg" style="margin:0 0 18px;font-size:13.5px;line-height:1.6;color:#222;white-space:pre-line;word-break:keep-all;overflow-wrap:anywhere;"></p>' +
-          '<div style="display:flex;gap:8px;">' +
+        '<div style="background:#fff;border-radius:14px;width:90%;max-width:360px;max-height:85vh;display:flex;flex-direction:column;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,0.18);box-sizing:border-box;">' +
+          '<p id="appDialogMsg" style="margin:0 0 18px;font-size:13.5px;line-height:1.6;color:#222;white-space:pre-line;word-break:keep-all;overflow-wrap:anywhere;overflow-y:auto;flex:1 1 auto;min-height:0;"></p>' +
+          '<div style="display:flex;gap:8px;flex-shrink:0;">' +
             '<button type="button" id="appDialogNo" style="flex:1;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#666;cursor:pointer;font-size:13px;">아니요</button>' +
             '<button type="button" id="appDialogYes" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:var(--brand,#3b6fd8);color:#fff;font-weight:700;cursor:pointer;font-size:13px;">예</button>' +
           '</div>' +
@@ -9869,7 +9869,7 @@ function xiParseForecast(wb) {
 
   <!-- 제품 등록/수정 모달 -->
   <div id="productModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:20000;align-items:flex-start;justify-content:center;overflow-y:auto;padding:30px 0 40px;">
-    <div style="background:#fff;border-radius:14px;padding:24px;width:92%;max-width:520px;">
+    <div style="background:#fff;border-radius:14px;padding:24px;width:92%;max-width:640px;box-sizing:border-box;">
       <h3 id="productModalTitle" style="font-size:15px;font-weight:800;margin:0 0 16px;">신규 제품 등록</h3>
       <input type="hidden" id="productModalOrigId">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
@@ -9908,7 +9908,7 @@ function xiParseForecast(wb) {
         <div><label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">소비자가 (평, 시공비 포함)</label><input type="number" step="any" id="productModalConsumerPy" oninput="renderProductModalPreview()" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;"></div>
         <div><label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">업체가 (평, 시공비 포함)</label><input type="number" step="any" id="productModalVendorPy" oninput="renderProductModalPreview()" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;"></div>
       </div>
-      <div style="font-size:11px;color:#888;margin-bottom:4px;">자동 계산 (헤베 = 평÷3.24, 100원 올림 · BOX = 자재헤베×박스당㎡, 100원 올림)</div>
+      <div style="font-size:11px;color:#888;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">자동 계산 · 헤베=평÷3.24 · BOX=자재헤베×박스당㎡ (100원 올림)</div>
       <div id="productModalPreview" style="background:#f7f7f9;border:1px solid #eee;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:10px;"></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#555;margin:14px 0 18px;cursor:pointer;">
         <input type="checkbox" id="productModalNatural"> 네츄럴 (단가표에서 강조 표시)
@@ -13775,11 +13775,51 @@ function _productModalDraft() {
         vendor: { py: num('productModalVendorPy') }
     };
 }
+
+// 단가 미리보기/재계산 확인창 전용 스타일(PC는 가로 표, 폭 480px 이하는 세로 표)
+function _ensurePriceUiStyle() {
+    if (document.getElementById('priceUiStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'priceUiStyle';
+    st.textContent = [
+        '.ppv-tbl{border-collapse:collapse;width:100%;font-size:12.5px;}',
+        '.ppv-tbl th,.ppv-tbl td{white-space:nowrap;padding:3px 8px;}',
+        '.ppv-tbl th{color:#888;font-weight:700;font-size:11.5px;text-align:right;}',
+        '.ppv-tbl td{text-align:right;font-variant-numeric:tabular-nums;}',
+        '.ppv-tbl .ppv-lbl{text-align:left;font-weight:800;color:#333;}',
+        '.ppv-narrow{display:none;}',
+        '@media (max-width:480px){.ppv-wide{display:none;}.ppv-narrow{display:table;}}',
+        '#recalcModal{display:none;position:fixed;inset:0;z-index:30005;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:16px;box-sizing:border-box;}',
+        '#recalcModal .rc-box{background:#fff;border-radius:14px;width:100%;max-width:800px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.18);box-sizing:border-box;}',
+        '#recalcModal .rc-head{padding:18px 20px 10px;flex-shrink:0;}',
+        '#recalcModal .rc-body{flex:1 1 auto;min-height:0;overflow:auto;padding:0 20px;}',
+        '#recalcModal .rc-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px 18px;flex-shrink:0;border-top:1px solid #eee;}',
+        '#recalcModal table{border-collapse:collapse;width:100%;font-size:12px;}',
+        '#recalcModal th{position:sticky;top:0;background:#f7f7f9;color:#666;font-weight:700;padding:6px 8px;white-space:nowrap;text-align:right;border-bottom:1px solid #e5e5e5;}',
+        '#recalcModal th:first-child,#recalcModal td:first-child{text-align:left;}',
+        '#recalcModal td{padding:5px 8px;white-space:nowrap;text-align:right;border-bottom:1px solid #f0f0f0;font-variant-numeric:tabular-nums;}',
+        '#recalcModal td.rc-chg{background:#fff4e5;}',
+        '#recalcModal .rc-old{color:#999;text-decoration:line-through;margin-right:4px;}',
+        '#recalcModal .rc-new{color:#c0392b;font-weight:700;}',
+        '@media (max-width:480px){#recalcModal{padding:0;}#recalcModal .rc-box{max-width:none;max-height:none;height:100%;border-radius:0;}}'
+    ].join('\n');
+    document.head.appendChild(st);
+}
 function renderProductModalPreview() {
     const el = $('productModalPreview'); if (!el) return;
+    _ensurePriceUiStyle();
     const c = calcProductPrices(_productModalDraft());
-    const row = (label, r) => `<tr><td style="font-weight:700;padding:2px 8px 2px 0;">${label}</td><td style="padding:2px 8px;">헤베 ${fmt(r.sqm)}</td><td style="padding:2px 8px;">자재 평 ${fmt(r.materialPy)}</td><td style="padding:2px 8px;">자재 헤베 ${fmt(r.materialSqm)}</td><td style="padding:2px 8px;">BOX ${fmt(r.box)}</td></tr>`;
-    el.innerHTML = `<div style="margin-bottom:4px;color:${c.installMissing ? '#c0392b' : '#555'};">적용 시공비: ${fmt(c.installCost)}${c.installMissing ? ' (미입력 → 0원으로 계산)' : ''}</div><table style="border-collapse:collapse;">${row('소비자', c.consumer)}${row('업체', c.vendor)}</table>`;
+    const cols = [['헤베', 'sqm'], ['자재 평', 'materialPy'], ['자재 헤베', 'materialSqm'], ['BOX', 'box']];
+    const icText = '<span style="color:' + (c.installMissing ? '#c0392b' : '#555') + ';white-space:nowrap;">시공비 ' + fmt(c.installCost) + (c.installMissing ? ' (미입력)' : '') + '</span>';
+    // PC: 행=소비자/업체, 열=단가 종류
+    let wide = '<table class="ppv-tbl ppv-wide"><tr><th style="text-align:left;">' + icText + '</th>' + cols.map(x => '<th>' + x[0] + '</th>').join('') + '</tr>';
+    [['소비자', c.consumer], ['업체', c.vendor]].forEach(([lb, r]) => { wide += '<tr><td class="ppv-lbl">' + lb + '</td>' + cols.map(x => '<td>' + fmt(r[x[1]]) + '</td>').join('') + '</tr>'; });
+    wide += '</table>';
+    // 모바일: 행=단가 종류, 열=소비자/업체
+    let narrow = '<table class="ppv-tbl ppv-narrow"><tr><th style="text-align:left;">' + icText + '</th><th>소비자</th><th>업체</th></tr>';
+    cols.forEach(x => { narrow += '<tr><td class="ppv-lbl">' + x[0] + '</td><td>' + fmt(c.consumer[x[1]]) + '</td><td>' + fmt(c.vendor[x[1]]) + '</td></tr>'; });
+    narrow += '</table>';
+    el.innerHTML = wide + narrow;
 }
 function closeProductModal() { $('productModal').style.display = 'none'; }
 
@@ -13790,21 +13830,43 @@ function _productPriceFields(p) {
     return { consumer: f(c.consumer), vendor: f(c.vendor) };
 }
 // 관리자 "전체 단가 재계산": 저장된 ㎡·자재·BOX 값을 계산값으로 일괄 갱신
+// 재계산 확인창: 바뀌는 제품 전체를 표로 보여주고 저장 여부를 돌려준다
+function _showRecalcPreview(changes) {
+    _ensurePriceUiStyle();
+    let m = document.getElementById('recalcModal');
+    if (!m) { m = document.createElement('div'); m.id = 'recalcModal'; document.body.appendChild(m); }
+    const keys = [['consumer', 'sqm', '소비자 ㎡'], ['consumer', 'box', '소비자 BOX'], ['consumer', 'material', '소비자 자재(평)'], ['vendor', 'sqm', '업체 ㎡'], ['vendor', 'box', '업체 BOX'], ['vendor', 'material', '업체 자재(평)']];
+    const esc = (t) => String(t).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    let rows = '';
+    changes.forEach(ch => {
+        rows += '<tr><td><b>' + esc(ch.p.code) + '</b></td>' + keys.map(([pt, k]) => {
+            const o = ch.p[pt][k] || 0, n = ch.nf[pt][k];
+            return o === n ? '<td>' + fmt(n) + '</td>' : '<td class="rc-chg"><span class="rc-old">' + fmt(o) + '</span><span class="rc-new">' + fmt(n) + '</span></td>';
+        }).join('') + '</tr>';
+    });
+    m.innerHTML = '<div class="rc-box"><div class="rc-head"><div style="font-size:15px;font-weight:800;margin-bottom:4px;">전체 단가 재계산</div>' +
+        '<div style="font-size:12.5px;color:#555;"><b style="color:#c0392b;">' + changes.length + '개 제품</b>의 ㎡·BOX·자재 단가가 계산식과 달라 아래처럼 바뀝니다. (취소선 = 지금 저장값, 빨간색 = 새 값)</div></div>' +
+        '<div class="rc-body"><table><thead><tr><th>품번</th>' + keys.map(k => '<th>' + k[2] + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        '<div class="rc-foot"><button type="button" class="admin-btn" id="recalcNo">취소</button><button type="button" class="admin-btn primary" id="recalcYes">' + changes.length + '개 저장</button></div></div>';
+    m.style.display = 'flex';
+    return new Promise(resolve => {
+        const done = (v) => { m.style.display = 'none'; resolve(v); };
+        m.querySelector('#recalcNo').onclick = () => done(false);
+        m.querySelector('#recalcYes').onclick = () => done(true);
+        m.onclick = (e) => { if (e.target === m) done(false); };
+    });
+}
+// 관리자 "전체 단가 재계산": 저장된 ㎡·자재·BOX 값을 계산값으로 일괄 갱신
 async function recalcAllProductPrices() {
     if (!_adminProducts.length) await loadAdminProducts();
     const changes = [];
     _adminProducts.forEach(p => {
         const nf = _productPriceFields(p);
-        const diff = [];
-        ['consumer', 'vendor'].forEach(party => ['material', 'sqm', 'box'].forEach(k => {
-            if ((p[party][k] || 0) !== nf[party][k]) diff.push(`${party === 'consumer' ? '소비자' : '업체'} ${k === 'sqm' ? '㎡' : k === 'box' ? 'BOX' : '자재'} ${fmt(p[party][k] || 0)}→${fmt(nf[party][k])}`);
-        }));
-        if (diff.length) changes.push({ p, nf, diff });
+        const differs = ['consumer', 'vendor'].some(pt => ['material', 'sqm', 'box'].some(k => (p[pt][k] || 0) !== nf[pt][k]));
+        if (differs) changes.push({ p, nf });
     });
     if (!changes.length) { alert('모든 제품의 단가가 이미 계산식과 일치합니다.'); return; }
-    const preview = changes.slice(0, 12).map(c => `• ${c.p.code}: ${c.diff.slice(0, 3).join(', ')}${c.diff.length > 3 ? ' …' : ''}`).join('\n');
-    const ok = await appConfirm(`${changes.length}개 제품의 ㎡·자재·BOX 단가를 계산식대로 다시 저장합니다.\n\n${preview}${changes.length > 12 ? `\n… 외 ${changes.length - 12}개` : ''}\n\n진행할까요?`);
-    if (!ok) return;
+    if (!(await _showRecalcPreview(changes))) return;
     await window.fbEnsureAuth();
     for (let i = 0; i < changes.length; i += 400) {
         const batch = window.FB.writeBatch(window.FB.db);
@@ -13813,7 +13875,7 @@ async function recalcAllProductPrices() {
     }
     await loadAdminProducts();
     if (typeof loadProducts === 'function') { try { await loadProducts(); if (typeof renderLeftTable === 'function') renderLeftTable(); if (typeof renderRightTable === 'function') renderRightTable(); } catch (e) {} }
-    alert(`${changes.length}개 제품 단가를 다시 계산해 저장했습니다.`);
+    alert(changes.length + '개 제품 단가를 다시 계산해 저장했습니다.');
 }
 async function saveProductModal() {
     const origId = $('productModalOrigId').value;
