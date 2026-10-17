@@ -6442,17 +6442,22 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   //   (\uc804\ub2ec\uc0ac\ud56d\uc740 \ud604\uc7ac \ud544\ub4dc\uba85 content, \uc608\uc804 \uae30\ub85d\uc740 memo\uc5d0 \ub0a8\uc544\uc788\uc5b4 \ub458 \ub2e4 \ubcf8\ub2e4)
   //   연락처는 검색어가 숫자(+ '-'·띄어쓰기)로만 돼 있고 4자리 이상일 때만 비교한다.
   //   (예전엔 "31디자인"에서 숫자 "31"만 뽑아 연락처와 비교해서, 거의 모든 번호에 걸려 전체목록처럼 보였다)
+  //   샘플 제공 목록(sampleList)·단가 안내(priceInfo)도 검색 대상이다(예전엔 빠져 있어서 "스모크 블랙"이 안 걸렸다).
+  //   띄어쓰기는 무시하고 비교한다("스모크블랙"으로 찾아도 "스모크 블랙"이 걸리게).
   function _makeConsultMatcher(q) {
-    const ql = q.toLowerCase();
+    const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+    const ql = norm(q);
     const qDigits = /^[0-9\-\s]+$/.test(q) ? q.replace(/[^0-9]/g, '') : '';
     const usePhone = qDigits.length >= 4;
     return r =>
-      String(r.name || '').toLowerCase().includes(ql) ||
-      String(r.company || '').toLowerCase().includes(ql) ||
-      String(r.address || '').toLowerCase().includes(ql) ||
-      String(r.products || '').toLowerCase().includes(ql) ||
-      String(r.content || '').toLowerCase().includes(ql) ||
-      String(r.memo || '').toLowerCase().includes(ql) ||
+      norm(r.name).includes(ql) ||
+      norm(r.company).includes(ql) ||
+      norm(r.address).includes(ql) ||
+      norm(r.products).includes(ql) ||
+      norm(r.content).includes(ql) ||
+      norm(r.memo).includes(ql) ||
+      norm(r.sampleList).includes(ql) ||
+      norm(r.priceInfo).includes(ql) ||
       (usePhone && String(r.phoneDigits || r.phone || '').replace(/[^0-9]/g, '').includes(qDigits));
   }
   async function _searchConsultsAll(q) {
