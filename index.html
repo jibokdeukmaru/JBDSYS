@@ -3,6 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+<script>
+  // ★ (2026-10-20 모바일 점검) 아이폰/아이패드 사파리는 글자 16px 미만 입력칸을 누르면 화면을 자동 확대해서
+  //   입력할 때마다 화면이 커지고 틀어졌다 — iOS에서만 maximum-scale=1로 자동 확대를 막는다
+  //   (iOS는 이 값이 있어도 손가락 핀치 확대는 그대로 허용됨. 안드로이드는 핀치가 막히므로 적용 안 함).
+  (function(){
+    var ua = navigator.userAgent || '';
+    var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!isIOS) return;
+    var m = document.querySelector('meta[name="viewport"]');
+    if (m) m.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0');
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 
 <script>
@@ -400,14 +412,14 @@ window.fetchEmployeesFS = async function() {
 
 <!-- iOS PWA 설정 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="지복득마루시스템">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
 <link rel="apple-touch-icon" sizes="144x144" href="icons/icon-144.png">
 <link rel="apple-touch-icon" sizes="128x128" href="icons/icon-128.png">
 
-<!-- 스플래시 스크린 (iOS) -->
+<!-- 상태바 스타일 (iOS 홈 화면 추가 시) — 예전엔 black-translucent(화면이 상태바 밑으로 들어감)와 default가
+     둘 다 있어서 기기마다 상단 메뉴가 시계/노치에 가려질 수 있었다(2026-10-20 정리: default 하나만) -->
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <!-- ── /PWA 설정 ── -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/dist/web/static/pretendard-dynamic-subset.css" />
@@ -773,7 +785,7 @@ window.fetchEmployeesFS = async function() {
 }
 
 /* 이미지 갤러리 탭 */
-.gal-wrap { display:flex; height:calc(100vh - 140px); min-height:480px; border:1px solid #e5e5e5; border-radius:10px; overflow:hidden; background:#fff; }
+.gal-wrap { display:flex; height:calc(100vh - 140px); height:calc(100dvh - 140px); min-height:480px; border:1px solid #e5e5e5; border-radius:10px; overflow:hidden; background:#fff; }
 .gal-tree { width:260px; flex-shrink:0; border-right:1px solid #eee; overflow-y:auto; padding:10px 6px; background:#fafafa; }
 .gal-tree-row { display:flex; align-items:center; gap:4px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:13px; color:#333; user-select:none; }
 .gal-tree-row:hover { background:#eee; }
@@ -807,9 +819,22 @@ window.fetchEmployeesFS = async function() {
 .gal-wrap.gal-fs .gal-fs-btn { display:none; }
 .gal-wrap.gal-fs .gal-close-btn { display:flex; }
 @media screen and (max-width: 768px) {
-    .gal-wrap { flex-direction:column; height:calc(100vh - 160px); }
+    .gal-wrap { flex-direction:column; height:calc(100vh - 160px); height:calc(100dvh - 160px); }
     .gal-tree { width:100%; max-height:180px; border-right:none; border-bottom:1px solid #eee; }
+    /* (2026-10-20 모바일 점검) 한글 버튼/제목이 "일괄확/정"처럼 글자 중간에서 줄바꿈되던 것 — 단어 단위로 */
+    button, .btn, h1, h2, h3, h4, label { word-break:keep-all; overflow-wrap:break-word; }
+    /* 전체화면 사진: 노치/홈바가 있는 폰에서 닫기·넘기기 버튼이 가려지지 않게 */
+    .gal-wrap.gal-fs .gal-close-btn { top:calc(12px + env(safe-area-inset-top, 0px)); }
+    .gal-wrap.gal-fs .gal-counter, .gal-wrap.gal-fs .gal-dl-btn { bottom:calc(14px + env(safe-area-inset-bottom, 0px)); }
 }
+/* (2026-10-20 모바일 점검) 손가락으로 쓰는 기기(폰·태블릿)에서 너무 작아 잘 안 눌리던 것들 —
+   상단 홈/다운로드/관리자 아이콘(19px)은 보이는 크기는 그대로 두고 눌리는 영역만 넓히고, 체크박스는 18px로 */
+@media (pointer: coarse) {
+    #headerHomeBtn, #headerDownloadBtn, #adminTabBtn { padding:10px 6px; margin-top:-10px; margin-bottom:-10px; }
+    input[type=checkbox], input[type=radio] { min-width:18px; min-height:18px; }
+}
+/* 한글 버튼 글자가 단어 중간에서 줄바꿈되지 않게(가로 화면·태블릿 포함) */
+button { word-break:keep-all; }
 /* ==========================================================================
    단가표 화면 모바일(스마트폰) 가독성 극대화 스타일
    ========================================================================== */
@@ -1143,7 +1168,7 @@ window.fetchEmployeesFS = async function() {
                 <rect x="8" y="18.6" width="8" height="1.6" rx="0.8" fill="#fff"/>
               </svg>
             </a>
-            <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.1/JBDSYS-ERP-Android-1.1.apk" title="Android 다운로드">
+            <a href="https://sys.jibokdeukmaru.com/apk/JBDSYS-ERP-Android-1.2.apk" title="Android 다운로드">
               <svg width="34" height="34" viewBox="0 0 24 24">
                 <rect width="24" height="24" rx="6" fill="#E8F8EF"/>
                 <g fill="#3DDC84">
@@ -2082,7 +2107,7 @@ window.fetchEmployeesFS = async function() {
   <div class="gal-wrap">
     <div class="gal-tree" id="galTree"></div>
     <div class="gal-view" id="galView">
-      <div class="gal-empty">좌측에서 폴더를 선택하세요</div>
+      <div class="gal-empty">폴더 목록에서 폴더를 선택하세요</div>
     </div>
   </div>
 </section>
@@ -2299,6 +2324,13 @@ window.fetchEmployeesFS = async function() {
   // 실제 브라우저 Fullscreen API로 전체화면 전환(주소창/탭까지 가림)을 우선 시도한다.
   // 이 API 미지원 환경(iOS Safari 등, Element.requestFullscreen 없음)에서는 gal-fs 클래스로
   // .gal-wrap을 position:fixed 덮어써서 폴더트리를 숨기고 이미지 뷰만 꽉 채우는 방식으로 대체된다.
+  // ★ (2026-10-20) 안드로이드 앱(웹뷰)에서는 Fullscreen API로 하단 내비게이션 바(뒤로/홈/제스처 바)를
+  //   가릴 수 없어서 전체화면에도 바가 계속 보였다 — 앱 1.2부터 앱 쪽 기능(window.JBDNative.setImmersive)으로
+  //   상태바·내비게이션 바를 직접 숨긴다. 앱이면 Fullscreen API는 쓰지 않고 gal-fs 오버레이 + 앱 숨김만 사용.
+  function galNativeImmersive(on) {
+    try { if (window.JBDNative && typeof window.JBDNative.setImmersive === 'function') { window.JBDNative.setImmersive(!!on); return true; } } catch(e) {}
+    return false;
+  }
   window._galToggleFullscreen = function() {
     const wrap = document.querySelector('.gal-wrap');
     if (!wrap) return;
@@ -2309,21 +2341,23 @@ window.fetchEmployeesFS = async function() {
         const p = exitFn.call(document);
         if (p && p.catch) p.catch(() => {});
       }
+      galNativeImmersive(false);
       wrap.classList.remove('gal-fs');
       document.body.style.overflow = '';
     } else {
       wrap.classList.add('gal-fs');
       document.body.style.overflow = 'hidden';
+      if (galNativeImmersive(true)) return;
       const reqFn = wrap.requestFullscreen || wrap.webkitRequestFullscreen || wrap.mozRequestFullScreen || wrap.msRequestFullscreen;
       if (reqFn) {
         // navigationUI:'hide' — 크로미움 계열(삼성인터넷/크롬)에서 브라우저 주소창뿐 아니라
         // 하단 내비게이션 바(뒤로/홈/최근 제스처 바 포함)까지 최대한 가려달라고 명시적으로
         // 요청하는 표준 옵션. 미지원 브라우저는 그냥 이 인자를 무시하므로 안전하다.
-        const p = reqFn.call(wrap, { navigationUI: 'hide' });
-        // TEMP 진단용 — 폴드8에서 왜 실패하는지 실제 사유 확인 후 제거
-        if (p && p.catch) p.catch(err => { if (typeof showToast === 'function') showToast('[진단] 전체화면 실패: ' + (err && err.message || err)); });
-      } else if (typeof showToast === 'function') {
-        showToast('[진단] 이 브라우저는 전체화면 API 자체를 지원 안 함');
+        // 실패하거나(구버전 앱 웹뷰 등) 미지원(아이폰 사파리)이면 gal-fs 오버레이만으로 화면을 채운다.
+        try {
+          const p = reqFn.call(wrap, { navigationUI: 'hide' });
+          if (p && p.catch) p.catch(() => {});
+        } catch(e) {}
       }
     }
   };
@@ -2334,6 +2368,7 @@ window.fetchEmployeesFS = async function() {
     if (!wrap) return;
     const isRealFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
     if (!isRealFs && wrap.classList.contains('gal-fs')) {
+      galNativeImmersive(false);
       wrap.classList.remove('gal-fs');
       document.body.style.overflow = '';
     }
@@ -2533,7 +2568,7 @@ window.fetchEmployeesFS = async function() {
      </script> 문자열이 그대로 들어있어서, JS 문자열로 직접 박아넣으면 이 파일의 <script>
      태그가 거기서 먼저 끝나버려 파싱이 깨지기 때문(atob로 디코딩해서 우회). -->
 <section id="stockBetaTab" class="tab-panel" style="display:none;padding:0;">
-  <iframe id="stockBetaFrame" style="width:100%;height:calc(100vh - 140px);min-height:600px;border:none;display:block;"></iframe>
+  <iframe id="stockBetaFrame" style="width:100%;height:calc(100vh - 140px);height:calc(100dvh - 140px);min-height:600px;border:none;display:block;"></iframe>
 </section>
 <script>
 // 재고현황 iframe은 자체 :root에 브랜드색을 하드코딩해뒀었는데, 이름이 같은 변수
@@ -2584,7 +2619,7 @@ window._loadStockBetaFrame = function(){
 };
 </script>
 <section id="scheduleTab" class="tab-panel" style="display:none;padding:0;">
-  <iframe id="scheduleFrame" style="width:100%;height:calc(100vh - 140px);min-height:600px;border:none;display:block;"></iframe>
+  <iframe id="scheduleFrame" style="width:100%;height:calc(100vh - 140px);height:calc(100dvh - 140px);min-height:600px;border:none;display:block;"></iframe>
 </section>
 <script>
 // 시공일정표 — 재고현황(BETA)과 동일한 구조(iframe(srcdoc) + postMessage 브릿지)로 격리.
@@ -3523,6 +3558,12 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 @media screen and (max-width:768px) {
   /* 전체 레이아웃: 폼 → 미리보기 세로 배치 */
   .inv-wrap { grid-template-columns:1fr !important; gap:10px !important; }
+  /* (2026-10-20 모바일 점검) 1fr 칸은 안쪽 내용 최소폭보다 줄어들지 않아서, 폴드 접은 화면(344px) 등 좁은 폰에서
+     입력 카드가 화면보다 넓어져 오른쪽이 잘렸다 — 칸이 화면폭에 맞춰 줄어들도록 */
+  .inv-wrap { grid-template-columns:minmax(0, 1fr) !important; }
+  .inv-wrap > * { min-width:0 !important; }
+  /* 폴드 접은 화면 등 아주 좁은 폰: '단수정리 ( 천 만 )' 칸이 2열 칸보다 길어 잘리던 것 — 한 줄 전체 사용 */
+  @media (max-width:380px) { .inv-adjust-chip { grid-column:1 / -1; } }
 
   /* 입력 폼 카드 */
   .inv-form-card { padding:calc(var(--ui-scale) * 12px) !important; }
@@ -3724,7 +3765,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
         단분리
       </label>
-      <div class="check-chip" style="white-space:nowrap;">
+      <div class="check-chip inv-adjust-chip" style="white-space:nowrap;">
         <input type="checkbox" id="invAdjustCheck" checked onchange="renderInvoice()" />
         <label for="invAdjustCheck" style="cursor:pointer;margin:0;white-space:nowrap;">단수정리</label>
         (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 3px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;white-space:nowrap;">천</label>
@@ -12747,6 +12788,16 @@ function setTab(tabId, fromPopstate) {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === tabId);
   });
+  // ★ (2026-10-20 모바일 점검) 폰에서는 상단 탭 줄이 가로로 넘쳐서, 햄버거 메뉴/홈 위젯으로 뒤쪽 탭에 들어가면
+  //   지금 어느 탭인지 탭 줄에 안 보였다 — 현재 탭 버튼이 보이도록 탭 줄만 가로로 스크롤한다(페이지 스크롤은 그대로).
+  try {
+    const bar = document.getElementById('mainTabBar');
+    const ab = bar && bar.querySelector('.tab-btn.active');
+    if (bar && ab && bar.scrollWidth > bar.clientWidth) {
+      const left = bar.scrollLeft + (ab.getBoundingClientRect().left - bar.getBoundingClientRect().left) - (bar.clientWidth - ab.offsetWidth) / 2;
+      bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    }
+  } catch(_) {}
   document.querySelectorAll('.tab-panel').forEach(panel => {
     panel.style.display = panel.id === tabId ? 'block' : 'none';
   });
@@ -18719,7 +18770,7 @@ if ('serviceWorker' in navigator) {
 <section id="emailTab" class="tab-panel" style="display:none;">
 <style>
   /* ── 이메일 탭 레이아웃 ── */
-  .em-layout { display:flex; height:calc(100vh - 120px); min-height:500px; gap:0; background:var(--app-bg); }
+  .em-layout { display:flex; height:calc(100vh - 120px); height:calc(100dvh - 120px); min-height:500px; gap:0; background:var(--app-bg); }
 
   /* 좌측 사이드바 */
   .em-sidebar { width:200px; min-width:160px; background:#fff; border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
@@ -21250,7 +21301,8 @@ if ('serviceWorker' in navigator) {
     //   무관하다 — 전체화면 중에 history.back()을 그대로 넘기면 전체화면 오버레이는 그대로
     //   떠있는 채 그 아래 탭만 바뀌어버려서 화면이 먹통처럼 보인다(2026-09-22 사용자 리포트).
     //   전체화면이면 그것부터 정상적으로 빠져나오고 history는 건드리지 않는다.
-    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    // (2026-10-20) 앱 1.2부터는 Fullscreen API 없이 gal-fs 오버레이로만 전체화면을 띄우므로 그 상태도 확인
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.querySelector('.gal-wrap.gal-fs');
     if (fsEl) {
       if (typeof window._galToggleFullscreen === 'function') {
         window._galToggleFullscreen();
@@ -21288,7 +21340,7 @@ if ('serviceWorker' in navigator) {
           <div style="font-size:11px;color:#999;">PC 설치 프로그램 다운로드</div>
         </div>
       </a>
-      <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.1/JBDSYS-ERP-Android-1.1.apk" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #e5e5e5;border-radius:12px;text-decoration:none;">
+      <a href="https://sys.jibokdeukmaru.com/apk/JBDSYS-ERP-Android-1.2.apk" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #e5e5e5;border-radius:12px;text-decoration:none;">
         <svg width="40" height="40" viewBox="0 0 24 24" style="flex-shrink:0;">
           <rect width="24" height="24" rx="6" fill="#E8F8EF"/>
           <g fill="#3DDC84">
