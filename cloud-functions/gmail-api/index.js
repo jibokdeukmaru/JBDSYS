@@ -1,7 +1,9 @@
 // HTTP-triggered Cloud Function: 이메일 탭 전체(목록/본문/읽음처리/첨부/발송) 처리.
 // Apps Script(ERP스크립트.txt)의 getGmailMessages/getGmailMessage/getGmailUnread/
 // gmailBatchModify/getGmailAttachment/sendEmailFromERP를 그대로 옮긴 것 — 로직 동일.
-const { google } = require('googleapis');
+// ★ (2026-10-20 속도) googleapis(구글 API 전체 묶음)는 불러오는 데만 오래 걸려 서버가 잠들었다 깰 때
+//   첫 응답이 수 초씩 늦었다 — Gmail 전용 패키지로 바꿈(사용법 동일: gmail({version}), auth.JWT).
+const { gmail: gmailApiFactory, auth: googleAuth } = require('@googleapis/gmail');
 const admin = require('firebase-admin');
 if (!admin.apps.length) admin.initializeApp();
 
@@ -18,12 +20,14 @@ const SCOPES = [
 // ★ (2026-09-30 속도) 예전엔 요청마다 JWT를 새로 만들어 매번 구글 인증(토큰 교환)을 다시 받았다 —
 //   같은 서버 인스턴스 안에서는 메일함별 클라이언트를 재사용한다(JWT가 액세스 토큰을 보관·자동 갱신).
 const _gmailClients = new Map();
+const _gmailJwts = new WeakMap();
 function gmailClientFor(email) {
   const key = String(email || '').trim().toLowerCase();
   let client = _gmailClients.get(key);
   if (!client) {
-    const jwt = new google.auth.JWT({ email: SA_EMAIL, key: SA_KEY, scopes: SCOPES, subject: email });
-    client = google.gmail({ version: 'v1', auth: jwt });
+    const jwt = new googleAuth.JWT({ email: SA_EMAIL, key: SA_KEY, scopes: SCOPES, subject: email });
+    client = gmailApiFactory({ version: 'v1', auth: jwt });
+    _gmailJwts.set(client, jwt); // 일괄요청(batchGetMetadata)에서 액세스 토큰을 꺼내 쓰기 위해 보관(client 객체는 속성 추가 불가)
     _gmailClients.set(key, client);
   }
   return client;
@@ -161,6 +165,61 @@ function extractAttachments(payload) {
   return out;
 }
 
+// ★ (2026-10-20 속도) 목록 20건을 보여주려고 메일마다 따로 구글에 물어보던 것(20번 동시 호출 — Gmail은
+//   메일함 하나에 동시 요청 수를 제한해서 실제로는 줄을 섰다)을 Gmail 일괄요청(batch) 1번으로 묶는다.
+//   일괄요청이 통째로 실패하거나 일부 항목이 빠지면 그 항목만 예전처럼 하나씩 다시 가져온다(결과 동일).
+const META_HEADERS = ['From', 'To', 'Subject', 'Date'];
+const META_FIELDS = 'id,labelIds,snippet,payload/headers';
+async function getMetadataOne(gmail, id) {
+  const r = await gmail.users.messages.get({ userId: 'me', id, format: 'metadata', metadataHeaders: META_HEADERS, fields: META_FIELDS });
+  return r.data;
+}
+function parseBatchResponse(text, boundary) {
+  const out = {};
+  text.split('--' + boundary).forEach((part) => {
+    const idm = /Content-ID:\s*<response-item(\d+)>/i.exec(part);
+    const st = /HTTP\/1\.1 (\d{3})/.exec(part);
+    if (!idm || !st || st[1] !== '200') return;
+    const jsonStart = part.indexOf('{', st.index);
+    const jsonEnd = part.lastIndexOf('}');
+    if (jsonStart < 0 || jsonEnd < jsonStart) return;
+    try { out[idm[1]] = JSON.parse(part.slice(jsonStart, jsonEnd + 1)); } catch (e) { /* 이 항목만 재조회 */ }
+  });
+  return out;
+}
+async function batchGetMetadata(gmail, ids) {
+  const tok = await _gmailJwts.get(gmail).getAccessToken();
+  const token = tok && (tok.token || tok);
+  if (!token || typeof token !== 'string') throw new Error('액세스 토큰 없음');
+  const boundary = 'erp_batch_' + Date.now();
+  const qs = 'format=metadata&' + META_HEADERS.map((x) => 'metadataHeaders=' + x).join('&') + '&fields=' + encodeURIComponent(META_FIELDS);
+  const body = ids.map((id, i) =>
+    '--' + boundary + '\r\nContent-Type: application/http\r\nContent-ID: <item' + i + '>\r\n\r\n' +
+    'GET /gmail/v1/users/me/messages/' + encodeURIComponent(id) + '?' + qs + '\r\n\r\n'
+  ).join('') + '--' + boundary + '--';
+  const res = await fetch('https://gmail.googleapis.com/batch/gmail/v1', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/mixed; boundary=' + boundary },
+    body,
+  });
+  if (!res.ok) throw new Error('batch HTTP ' + res.status);
+  const m = /boundary=("?)([^";]+)\1/i.exec(res.headers.get('content-type') || '');
+  if (!m) throw new Error('batch 응답 형식 오류');
+  const parsed = parseBatchResponse(await res.text(), m[2]);
+  const out = {};
+  ids.forEach((id, i) => { if (parsed[i] && parsed[i].id === id) out[id] = parsed[i]; });
+  return out;
+}
+async function getMetadataMany(gmail, ids) {
+  let got = {};
+  if (ids.length > 1 && _gmailJwts.has(gmail) && typeof fetch === 'function') {
+    try { got = await batchGetMetadata(gmail, ids); } catch (e) { console.warn('batch 실패, 개별 조회로 전환:', e.message); got = {}; }
+  }
+  const missing = ids.filter((id) => !got[id]);
+  await Promise.all(missing.map(async (id) => { got[id] = await getMetadataOne(gmail, id); }));
+  return got;
+}
+
 async function getGmailMessages(p) {
   const email = (p.email || '').trim();
   const folder = (p.folder || 'inbox').trim();
@@ -181,12 +240,9 @@ async function getGmailMessages(p) {
       pageToken: pageToken || undefined,
     });
     const ids = (listRes.data.messages || []).map((m) => m.id);
-    const items = await Promise.all(ids.map(async (id) => {
-      const mRes = await gmail.users.messages.get({
-        userId: 'me', id, format: 'metadata',
-        metadataHeaders: ['From', 'To', 'Subject', 'Date'],
-      });
-      const m = mRes.data;
+    const metas = await getMetadataMany(gmail, ids);
+    const items = ids.map((id) => {
+      const m = metas[id] || {};
       const h = {};
       (m.payload && m.payload.headers || []).forEach((x) => { h[x.name] = x.value; });
       return {
@@ -197,7 +253,7 @@ async function getGmailMessages(p) {
         // 시스템 라벨은 제외(Gmail이 만든 라벨 ID는 전부 대문자라 소문자 포함 여부로 구분됨).
         labelIds: (m.labelIds || []).filter((id) => id.indexOf('Label_') === 0),
       };
-    }));
+    });
     return { status: 'ok', messages: items, nextPageToken: listRes.data.nextPageToken || '' };
   } catch (err) {
     return { status: 'error', message: (err.errors && err.errors[0] && err.errors[0].message) || err.message };

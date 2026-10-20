@@ -8197,6 +8197,7 @@ function csDateInputValue(val) {
     try {
       const { msgs, nextPageToken } = await window._gmailFetchPage(email, 'inbox');
       if (window._gmailCache) window._gmailCache[cacheKey] = { items: (msgs || []).slice(), nextPageToken, at: Date.now() };
+      if (typeof window._emPersistCache === 'function') window._emPersistCache();
       const list = (msgs || []).slice(0, 3);
       el.innerHTML = list.length ? _homeEmailItemsHtml(list) : '<div class="home-dash-empty">받은 메일이 없습니다.</div>';
     } catch(e) {
@@ -10802,6 +10803,7 @@ function xiParseForecast(wb) {
         sessionStorage.removeItem(LOGIN_TYPE_KEY);
         sessionStorage.removeItem(USER_KEY);
         sessionStorage.removeItem('baram_last_tab');
+        localStorage.removeItem('emListCache_v1'); // 이 기기에 저장해둔 메일 목록(이메일 탭 속도용)도 같이 삭제
         // ★ Firebase 세션(직원 커스텀토큰 로그인)을 같이 끊어야 한다 — 안 그러면 로그아웃 후
         //   같은 기기에서 게스트로 들어가거나 다른 직원이 로그인해도, fbEnsureAuth()가
         //   "이미 인증돼있다"며 방금 로그아웃한 사람의 Firebase 신원을 그대로 재사용해버린다.
@@ -19296,6 +19298,34 @@ if ('serviceWorker' in navigator) {
   // Gmail 캐시: { '계정|폴더': { items, nextPageToken, at(ms) } }, 5분 유효
   const _gmailCache = {};
   const _GMAIL_CACHE_MS = 5 * 60 * 1000;
+  // ★ (2026-10-20 속도) 캐시가 메모리에만 있어서 ERP를 새로 켜거나 새로고침하면 매번 "메일을 불러오는 중..."부터
+  //   기다려야 했다 — 폴더 목록(검색 결과 제외, 폴더당 최대 50건)을 이 기기에 저장해두고, 다시 켜면 지난 목록을
+  //   즉시 보여준 뒤 뒤에서 최신화한다(저장된 at 그대로라 만료 판정 → 위 stale-while-revalidate 흐름). 로그아웃 시 삭제.
+  const _EM_LS_KEY = 'emListCache_v1';
+  try {
+    const saved = JSON.parse(localStorage.getItem(_EM_LS_KEY) || 'null');
+    if (saved && typeof saved === 'object') Object.keys(saved).forEach(k => {
+      const v = saved[k];
+      if (v && Array.isArray(v.items) && k.indexOf('|q=') === -1) _gmailCache[k] = v;
+    });
+  } catch(e) {}
+  let _emPersistTimer = null;
+  function _emPersistCache() {
+    clearTimeout(_emPersistTimer);
+    _emPersistTimer = setTimeout(() => {
+      try {
+        const out = {};
+        Object.keys(_gmailCache).filter(k => k.indexOf('|q=') === -1)
+          .sort((a, b) => (_gmailCache[b].at || 0) - (_gmailCache[a].at || 0)).slice(0, 12)
+          .forEach(k => {
+            const v = _gmailCache[k];
+            out[k] = { items: (v.items || []).slice(0, 50), nextPageToken: (v.items || []).length > 50 ? '' : (v.nextPageToken || ''), at: v.at || 0 };
+          });
+        localStorage.setItem(_EM_LS_KEY, JSON.stringify(out));
+      } catch(e) {}
+    }, 800);
+  }
+  window._emPersistCache = _emPersistCache;
   // ★ 홈 화면 메일 위젯(다른 <script> 블록)이 같은 캐시를 재사용할 수 있도록 노출
   window._gmailCache = _gmailCache;
   window._GMAIL_CACHE_MS = _GMAIL_CACHE_MS;
@@ -19318,6 +19348,7 @@ if ('serviceWorker' in navigator) {
     const key = _emCacheKey(email, _currentFolder, _emQuery);
     if (_gmailCache[key]) { _gmailCache[key].items = _allEmailItems.slice(); _gmailCache[key].nextPageToken = _gmailNextToken; }
     if (_emQuery) delete _gmailCache[_emCacheKey(email, _currentFolder, '')];
+    _emPersistCache();
   }
 
   // ── 폴더 전환 ──
@@ -19669,6 +19700,8 @@ if ('serviceWorker' in navigator) {
     try {
       const { msgs, nextPageToken } = await _gmailFetchPage(email, folder, '', q);
       _gmailCache[cacheKey] = { items: msgs.slice(), nextPageToken, at: Date.now() };
+      _emPersistCache();
+      if (folder === 'inbox' && !q) _emPrefetchDetails(email, msgs);
       if (seq !== _emListSeq) return; // 그사이 다른 폴더/검색으로 바뀜 — 화면은 건드리지 않음
       _allEmailItems = msgs;
       _gmailNextToken = nextPageToken;
@@ -19703,6 +19736,7 @@ if ('serviceWorker' in navigator) {
       _gmailNextToken = nextPageToken;
       // 캐시 갱신 (쌓인 전체 + 토큰)
       _gmailCache[_emCacheKey(email, _currentFolder, q)] = { items: _allEmailItems.slice(), nextPageToken, at: Date.now() };
+      _emPersistCache();
       _renderGmailList(_allEmailItems, _currentFolder);
       _appendMoreButton();
     } catch (e) {
@@ -20020,6 +20054,34 @@ if ('serviceWorker' in navigator) {
     // 못 찾으면 목록만 표시(폴백) — 별도 처리 없음
   }
 
+  // ★ (2026-10-20 속도) 본문 캐시 — 같은 메일을 다시 열거나, 미리 받아둔(받은메일함 위쪽 3건) 메일은 서버를
+  //   기다리지 않고 바로 표시한다. 메모리에만 최대 30건(본문 이미지가 커서 기기 저장은 안 함).
+  const _emDetailCache = new Map(); // 'mailbox|gmailId' -> message
+  const _EM_DETAIL_MAX = 30;
+  function _emDetailPut(key, msg) {
+    _emDetailCache.delete(key);
+    _emDetailCache.set(key, msg);
+    while (_emDetailCache.size > _EM_DETAIL_MAX) _emDetailCache.delete(_emDetailCache.keys().next().value);
+  }
+  async function _emFetchDetail(email, gmailId) {
+    const params = new URLSearchParams({ action: 'getGmailMessage', email, id: gmailId });
+    const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
+    const data = await res.json();
+    if (data.status === 'ok' && data.message) _emDetailPut(email + '|' + gmailId, data.message);
+    return data;
+  }
+  let _emPrefetchTimer = null;
+  function _emPrefetchDetails(email, msgs) {
+    clearTimeout(_emPrefetchTimer);
+    _emPrefetchTimer = setTimeout(async () => {
+      const targets = (msgs || []).slice(0, 3).filter(m => m.gmailId && !_emDetailCache.has(email + '|' + m.gmailId));
+      for (const m of targets) {
+        if (_emMailbox(window._currentUser) !== email) return; // 그사이 로그아웃/계정 변경
+        try { await _emFetchDetail(email, m.gmailId); } catch(e) { return; }
+      }
+    }, 1500);
+  }
+
   // Gmail 메일 상세 열기
   window.openGmailDetail = async function(idx) {
     const m = _allEmailItems[idx];
@@ -20048,10 +20110,14 @@ if ('serviceWorker' in navigator) {
         <div style="padding:30px;text-align:center;color:#aaa;">본문을 불러오는 중...</div>`;
     }
     const dseq = ++_emDetailSeq;
+    const cachedMsg = _emDetailCache.get(email + '|' + m.gmailId);
+    if (cachedMsg) {
+      _renderGmailDetail(cachedMsg);
+      if (m.unread) _emAutoMarkRead(m, email);
+      return;
+    }
     try {
-      const params = new URLSearchParams({ action: 'getGmailMessage', email, id: m.gmailId });
-      const res = await fetchWithRetry(`${window.GMAIL_CF_URL}?${params}`, undefined, 0, 30000);
-      const data = await res.json();
+      const data = await _emFetchDetail(email, m.gmailId);
       if (dseq !== _emDetailSeq) return; // 그사이 목록으로 돌아갔거나 다른 메일을 열었음
       if (data.status !== 'ok') {
         if (dp) dp.innerHTML = `<div style="padding:30px;text-align:center;color:#c0392b;">본문 조회 실패: ${_emEsc(data.message||'')}<br><button onclick="backToEmailList()" style="margin-top:16px;background:none;border:1px solid #ddd;border-radius:8px;padding:8px 20px;cursor:pointer;">목록으로</button></div>`;
