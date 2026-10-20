@@ -33,6 +33,23 @@ function gmailClientFor(email) {
   return client;
 }
 
+// ★ (2026-10-20) 완전삭제(messages.batchDelete)는 구글이 메일함 전체 권한(https://mail.google.com/)을 요구한다 —
+//   gmail.modify로는 "insufficient authentication scopes"로 거절돼 휴지통 "삭제"가 한 번도 안 됐다.
+//   이 권한은 완전삭제할 때만 따로 요청한다: 관리콘솔 도메인 위임에 아직 추가 안 됐으면 삭제만 실패하고
+//   목록/발송 등 나머지 기능(위 SCOPES 클라이언트)은 영향 없음.
+const FULL_SCOPES = ['https://mail.google.com/'];
+const _gmailFullClients = new Map();
+function gmailFullClientFor(email) {
+  const key = String(email || '').trim().toLowerCase();
+  let client = _gmailFullClients.get(key);
+  if (!client) {
+    const jwt = new googleAuth.JWT({ email: SA_EMAIL, key: SA_KEY, scopes: FULL_SCOPES, subject: email });
+    client = gmailApiFactory({ version: 'v1', auth: jwt });
+    _gmailFullClients.set(key, client);
+  }
+  return client;
+}
+
 function labelForFolder(folder) {
   switch (folder) {
     case 'sent': return 'SENT';
@@ -342,9 +359,21 @@ async function gmailBatchModify(p) {
     }
     // 완전삭제(복구 불가) — 휴지통 화면에서 "삭제"를 누르면 이미 휴지통에 있는 메일이라
     // trash가 아니라 이걸 써야 한다.
+    // 복구 불가라서, 실제로 휴지통에 있는 메일만 지운다(다른 폴더 메일 id가 넘어와도 지우지 않음).
     if (op === 'delete') {
-      await Promise.all(ids.map((id) => gmail.users.messages.delete({ userId: 'me', id })));
-      return { status: 'ok', count: ids.length };
+      const metas = await getMetadataMany(gmail, ids);
+      const inTrash = ids.filter((id) => ((metas[id] && metas[id].labelIds) || []).indexOf('TRASH') !== -1);
+      if (!inTrash.length) return { status: 'error', message: '휴지통에 있는 메일만 완전삭제할 수 있습니다.' };
+      try {
+        await gmailFullClientFor(email).users.messages.batchDelete({ userId: 'me', requestBody: { ids: inTrash } });
+      } catch (e) {
+        const msg = String((e && e.message) || '');
+        if (/insufficient authentication scopes|unauthorized_client|not authorized/i.test(msg)) {
+          return { status: 'error', message: '완전삭제 권한이 아직 설정되지 않았습니다(관리자: Google 관리콘솔 도메인 전체 위임에 https://mail.google.com/ 추가 필요). 휴지통 메일은 30일 뒤 자동 삭제됩니다.' };
+        }
+        throw e;
+      }
+      return { status: 'ok', count: inTrash.length };
     }
     let addLabelIds = [], removeLabelIds = [];
     if (op === 'read') removeLabelIds = ['UNREAD'];
