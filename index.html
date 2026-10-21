@@ -14086,7 +14086,7 @@ function renumberInvoiceItems() {
     document.querySelectorAll('#invAllItems .inv-extra-item-wrap').forEach((wrap, i) => {
         const num = i + 1;
         const label = wrap.querySelector('.inv-item-num-label');
-        if (label) label.textContent = '제품 ' + num;
+        if (label) label.textContent = '항목 ' + num;
         const box = wrap.querySelector('[data-inv-item]');
         if (box) box.dataset.invItem = num;
     });
@@ -14097,7 +14097,10 @@ function createInvoiceItem(index) {
     wrap.className = 'inv-extra-item-wrap';
     wrap.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <div class="inv-label inv-item-num-label" style="font-size:12px; color:#333; font-weight:700; margin-bottom:0;">제품 ${index}</div>
+        <div style="display:flex; align-items:center; gap:2px;">
+          <span class="inv-drag-handle" title="끌어서 순서 변경" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:28px;margin-left:-4px;color:#aaa;cursor:grab;touch-action:none;user-select:none;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg></span>
+          <div class="inv-label inv-item-num-label" style="font-size:12px; color:#333; font-weight:700; margin-bottom:0;">항목 ${index}</div>
+        </div>
         <div style="display:flex; align-items:center; gap:8px;">
           <label style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#888; cursor:pointer; user-select:none;">
             <input type="checkbox" class="inv-manual-toggle" style="width:14px; height:14px; margin:0; cursor:pointer;">
@@ -14275,6 +14278,7 @@ function createDividerItem() {
     wrap.className = 'inv-divider-wrap';
     wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;';
     wrap.innerHTML = `
+      <span class="inv-drag-handle" title="끌어서 순서 변경" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:28px;margin-left:-4px;color:#aaa;cursor:grab;touch-action:none;user-select:none;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg></span>
       <input type="text" class="inv-divider-text" placeholder="예: 자재만 납품" style="flex:1;color:#e11d48;font-weight:700;padding:9px 12px;border:1px solid #f3c6ce;border-radius:8px;font-size:13px;box-sizing:border-box;" data-inv-divider="1">
       <button type="button" class="inv-remove-item secondary" style="min-height:36px;padding:0 10px;font-size:11px;border-radius:8px;flex-shrink:0;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> 삭제</button>
     `.trim();
@@ -14290,6 +14294,90 @@ function addDividerItem() {
     const item = createDividerItem();
     document.getElementById('invAllItems')?.appendChild(item);
     renderInvoice();
+}
+
+// ── 항목/구분선 드래그로 순서 변경 — 왼쪽 손잡이(⋮⋮)를 잡았을 때만 시작해서 입력칸 조작과
+//   충돌하지 않게 한다. Pointer Events라 마우스/터치 모두 동작(손잡이는 touch-action:none).
+//   계산·저장·불러오기는 모두 #invAllItems의 DOM 순서를 따르므로 자리만 옮기면 끝.
+function initInvoiceItemDrag() {
+    const list = document.getElementById('invAllItems');
+    if (!list || list.dataset.dragBound === '1') return;
+    list.dataset.dragBound = '1';
+    let drag = null;
+
+    const scrollParent = el => {
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+            const oy = getComputedStyle(p).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+        }
+        return document.scrollingElement || document.documentElement;
+    };
+
+    const moveTo = clientY => {
+        const others = [...list.children].filter(c => c !== drag.wrap);
+        const before = others.find(c => {
+            const r = c.getBoundingClientRect();
+            return clientY < r.top + r.height / 2;
+        });
+        if (before) { if (drag.wrap.nextElementSibling !== before) list.insertBefore(drag.wrap, before); }
+        else if (list.lastElementChild !== drag.wrap) list.appendChild(drag.wrap);
+    };
+
+    const autoScroll = () => {
+        if (!drag) return;
+        const sp = drag.scroller;
+        const isRoot = sp === document.scrollingElement || sp === document.documentElement;
+        const top = isRoot ? 0 : sp.getBoundingClientRect().top;
+        const bottom = isRoot ? window.innerHeight : sp.getBoundingClientRect().bottom;
+        const edge = 50;
+        let dy = 0;
+        if (drag.y < top + edge) dy = -Math.ceil((top + edge - drag.y) / 4);
+        else if (drag.y > bottom - edge) dy = Math.ceil((drag.y - (bottom - edge)) / 4);
+        if (dy) { sp.scrollTop += dy; moveTo(drag.y); }
+        drag.raf = requestAnimationFrame(autoScroll);
+    };
+
+    const end = () => {
+        if (!drag) return;
+        cancelAnimationFrame(drag.raf);
+        drag.wrap.style.opacity = '';
+        drag.wrap.style.outline = '';
+        drag.wrap.style.outlineOffset = '';
+        drag.handle.style.cursor = 'grab';
+        document.body.style.userSelect = '';
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', end);
+        document.removeEventListener('pointercancel', end);
+        drag = null;
+        renumberInvoiceItems();
+        renderInvoice();
+    };
+
+    const onMove = e => {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        e.preventDefault();
+        drag.y = e.clientY;
+        moveTo(e.clientY);
+    };
+
+    list.addEventListener('pointerdown', e => {
+        const handle = e.target.closest('.inv-drag-handle');
+        if (!handle || drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        const wrap = handle.closest('#invAllItems > div');
+        if (!wrap) return;
+        e.preventDefault();
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        drag = { wrap, handle, pointerId: e.pointerId, y: e.clientY, scroller: scrollParent(list) };
+        wrap.style.opacity = '0.55';
+        wrap.style.outline = '2px dashed var(--brand, #b08850)';
+        wrap.style.outlineOffset = '2px';
+        handle.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('pointermove', onMove, { passive: false });
+        document.addEventListener('pointerup', end);
+        document.addEventListener('pointercancel', end);
+        drag.raf = requestAnimationFrame(autoScroll);
+    });
 }
 
 // ── 견적서 전체 초기화 (좌측 새로고침 아이콘 버튼 또는 F5 단축키) ──
@@ -14661,6 +14749,7 @@ function initInvoiceTab() {
         document.getElementById('invSavePdfBtn').addEventListener('click', saveInvoicePdf);
         document.getElementById('invAddItemBtn')?.addEventListener('click', addInvoiceItem);
         document.getElementById('invAddDividerBtn')?.addEventListener('click', addDividerItem);
+        initInvoiceItemDrag();
 
         // 가격기준을 사람이 직접 "자재만"으로 바꾼 경우(분류가 자재가 아니어도)도
         // 박스기준 헤베계산을 자동으로 켠다 — applyInvCategoryToItems()는 [분류] 변경/
