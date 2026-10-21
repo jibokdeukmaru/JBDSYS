@@ -14298,12 +14298,16 @@ function addDividerItem() {
 
 // ── 항목/구분선 드래그로 순서 변경 — 왼쪽 손잡이(⋮⋮)를 잡았을 때만 시작해서 입력칸 조작과
 //   충돌하지 않게 한다. Pointer Events라 마우스/터치 모두 동작(손잡이는 touch-action:none).
+//   잡은 항목은 떠올라 포인터를 따라다니고(absolute), 원래 자리엔 점선 빈칸이 생겨 그 빈칸이
+//   목록 안을 옮겨 다니며 다른 항목은 FLIP 애니메이션으로 비켜준다. 놓으면 빈칸 자리로 착지.
+//   좌표는 전부 #invAllItems 기준 로컬 px(폴드 등 화면 scale 적용 시에도 어긋나지 않게).
 //   계산·저장·불러오기는 모두 #invAllItems의 DOM 순서를 따르므로 자리만 옮기면 끝.
 function initInvoiceItemDrag() {
     const list = document.getElementById('invAllItems');
     if (!list || list.dataset.dragBound === '1') return;
     list.dataset.dragBound = '1';
     let drag = null;
+    const SLIDE_MS = 180;
 
     const scrollParent = el => {
         for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
@@ -14313,18 +14317,38 @@ function initInvoiceItemDrag() {
         return document.scrollingElement || document.documentElement;
     };
 
-    const moveTo = clientY => {
-        const others = [...list.children].filter(c => c !== drag.wrap);
-        const before = others.find(c => {
-            const r = c.getBoundingClientRect();
-            return clientY < r.top + r.height / 2;
-        });
-        if (before) { if (drag.wrap.nextElementSibling !== before) list.insertBefore(drag.wrap, before); }
-        else if (list.lastElementChild !== drag.wrap) list.appendChild(drag.wrap);
+    // 떠 있는 항목의 top(목록 기준 로컬 px)을 포인터 위치에 맞춘다
+    const followPointer = () => {
+        const lr = list.getBoundingClientRect();
+        const top = (drag.y - lr.top) / drag.scale - drag.grab;
+        drag.wrap.style.top = top + 'px';
+        return top;
     };
 
-    const autoScroll = () => {
-        if (!drag) return;
+    // 빈칸을 옮기고, 자리가 바뀐 다른 항목들은 이전 위치에서 새 위치로 미끄러지게(FLIP)
+    const movePlaceholder = top => {
+        const ph = drag.ph;
+        const center = top + drag.h / 2;
+        const others = [...list.children].filter(c => c !== drag.wrap && c !== ph);
+        const before = others.find(c => center < c.offsetTop + c.offsetHeight / 2) || null;
+        let cur = ph.nextElementSibling;
+        if (cur === drag.wrap) cur = cur.nextElementSibling;
+        if (cur === before) return;
+        const firstTops = new Map(others.map(c => [c, c.offsetTop]));
+        list.insertBefore(ph, before);
+        others.forEach(c => {
+            const dy = firstTops.get(c) - c.offsetTop;
+            if (!dy) return;
+            c.style.transition = 'none';
+            c.style.transform = `translateY(${dy}px)`;
+            c.offsetHeight; // reflow
+            c.style.transition = `transform ${SLIDE_MS}ms ease`;
+            c.style.transform = '';
+        });
+    };
+
+    const tick = () => {
+        if (!drag || drag.dropping) return;
         const sp = drag.scroller;
         const isRoot = sp === document.scrollingElement || sp === document.documentElement;
         const top = isRoot ? 0 : sp.getBoundingClientRect().top;
@@ -14333,31 +14357,46 @@ function initInvoiceItemDrag() {
         let dy = 0;
         if (drag.y < top + edge) dy = -Math.ceil((top + edge - drag.y) / 4);
         else if (drag.y > bottom - edge) dy = Math.ceil((drag.y - (bottom - edge)) / 4);
-        if (dy) { sp.scrollTop += dy; moveTo(drag.y); }
-        drag.raf = requestAnimationFrame(autoScroll);
+        if (dy) sp.scrollTop += dy;
+        movePlaceholder(followPointer());
+        drag.raf = requestAnimationFrame(tick);
+    };
+
+    const finish = () => {
+        const { wrap, ph, handle } = drag;
+        list.insertBefore(wrap, ph);
+        ph.remove();
+        ['position', 'left', 'top', 'width', 'zIndex', 'boxShadow', 'background', 'borderRadius',
+         'transform', 'transition', 'pointerEvents', 'willChange'].forEach(k => { wrap.style[k] = ''; });
+        [...list.children].forEach(c => { c.style.transition = ''; c.style.transform = ''; });
+        list.style.position = drag.listPos;
+        handle.style.cursor = 'grab';
+        drag = null;
+        renumberInvoiceItems();
+        renderInvoice();
     };
 
     const end = () => {
-        if (!drag) return;
+        if (!drag || drag.dropping) return;
+        drag.dropping = true;
         cancelAnimationFrame(drag.raf);
-        drag.wrap.style.opacity = '';
-        drag.wrap.style.outline = '';
-        drag.wrap.style.outlineOffset = '';
-        drag.handle.style.cursor = 'grab';
         document.body.style.userSelect = '';
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', end);
         document.removeEventListener('pointercancel', end);
-        drag = null;
-        renumberInvoiceItems();
-        renderInvoice();
+        // 빈칸 자리로 착지
+        const wrap = drag.wrap;
+        wrap.style.transition = `top ${SLIDE_MS}ms ease, transform ${SLIDE_MS}ms ease, box-shadow ${SLIDE_MS}ms ease`;
+        wrap.style.top = drag.ph.offsetTop + 'px';
+        wrap.style.transform = 'scale(1)';
+        wrap.style.boxShadow = '0 0 0 rgba(0,0,0,0)';
+        setTimeout(finish, SLIDE_MS + 20);
     };
 
     const onMove = e => {
         if (!drag || e.pointerId !== drag.pointerId) return;
         e.preventDefault();
         drag.y = e.clientY;
-        moveTo(e.clientY);
     };
 
     list.addEventListener('pointerdown', e => {
@@ -14367,16 +14406,39 @@ function initInvoiceItemDrag() {
         if (!wrap) return;
         e.preventDefault();
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-        drag = { wrap, handle, pointerId: e.pointerId, y: e.clientY, scroller: scrollParent(list) };
-        wrap.style.opacity = '0.55';
-        wrap.style.outline = '2px dashed var(--brand, #b08850)';
-        wrap.style.outlineOffset = '2px';
+
+        const listPos = list.style.position;
+        if (getComputedStyle(list).position === 'static') list.style.position = 'relative';
+        const rect = wrap.getBoundingClientRect();
+        const scale = (rect.width / wrap.offsetWidth) || 1;
+        const h = wrap.offsetHeight;
+        const startTop = wrap.offsetTop;
+
+        // 원래 자리를 지키는 점선 빈칸
+        const ph = document.createElement('div');
+        ph.className = 'inv-drag-placeholder';
+        ph.style.cssText = `height:${h}px; margin-bottom:${getComputedStyle(wrap).marginBottom}; box-sizing:border-box; border:2px dashed #d8c3a5; border-radius:12px; background:rgba(176,136,80,0.06);`;
+        list.insertBefore(ph, wrap);
+
+        // 항목을 띄워서 포인터를 따라다니게
+        Object.assign(wrap.style, {
+            position: 'absolute', left: '0', top: startTop + 'px', width: list.clientWidth + 'px',
+            zIndex: '50', background: '#fff', borderRadius: '12px', pointerEvents: 'none',
+            willChange: 'top, transform', boxShadow: '0 0 0 rgba(0,0,0,0)', transform: 'scale(1)',
+            transition: `transform ${SLIDE_MS}ms ease, box-shadow ${SLIDE_MS}ms ease`,
+        });
+        wrap.offsetHeight; // reflow 후 떠오르는 효과 시작
+        wrap.style.transform = 'scale(1.02)';
+        wrap.style.boxShadow = '0 12px 28px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)';
         handle.style.cursor = 'grabbing';
         document.body.style.userSelect = 'none';
+
+        drag = { wrap, handle, ph, h, scale, listPos, pointerId: e.pointerId, y: e.clientY,
+                 grab: (e.clientY - rect.top) / scale, scroller: scrollParent(list) };
         document.addEventListener('pointermove', onMove, { passive: false });
         document.addEventListener('pointerup', end);
         document.addEventListener('pointercancel', end);
-        drag.raf = requestAnimationFrame(autoScroll);
+        drag.raf = requestAnimationFrame(tick);
     });
 }
 
