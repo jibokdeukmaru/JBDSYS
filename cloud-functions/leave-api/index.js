@@ -114,10 +114,31 @@ async function submitLeave(p) {
   return { status: 'ok', applyId: docRef.id };
 }
 
+// ★ (2026-10-23 읽기 절감) 결재대기 확인이 팀장·대표 PC마다 60초 간격으로 호출되는데, 매번 leaves 전체를
+//   읽고 나서 본인 건만 걸러냈다(Firestore 읽기 대부분). 이제 직원 조회는 "본인 신청 + 본인이 결재자인 건"만
+//   쿼리로 가져온다 — 아래 마지막 filter는 예전과 똑같이 그대로 적용하므로 돌려주는 결과는 동일하다.
+//   · empId: 숫자/문자 어느 쪽으로 저장됐어도 찾도록 둘 다 조회
+//   · approverIds: 배열(array-contains) + 예전 문자열 형식("12,34")은 문자열 타입만 범위조회로 가져옴
+async function _getLeaveDocsFor(myId) {
+  const col = db.collection('leaves');
+  const ids = [myId];
+  if (/^\d+$/.test(myId) && String(Number(myId)) === myId) ids.push(Number(myId));
+  const snaps = await Promise.all([
+    col.where('empId', 'in', ids).get(),
+    col.where('approverIds', 'array-contains', myId).get(),
+    col.where('approverIds', '>=', '').where('approverIds', '<', '').get()
+  ]);
+  const byId = new Map();
+  snaps.forEach(s => s.docs.forEach(d => byId.set(d.id, d)));
+  // 전체 조회(.get())와 같은 순서(문서ID 오름차순)로 맞춘다
+  return Array.from(byId.values()).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
 async function getLeaves(p) {
-  const snap = await db.collection('leaves').get();
-  let rows = snap.docs.map(d => Object.assign({ rowIdx: d.id }, d.data()));
-  if (p && p.id && p.role !== 'admin') {
+  const scoped = !!(p && p.id && p.role !== 'admin');
+  const docs = scoped ? await _getLeaveDocsFor(String(p.id)) : (await db.collection('leaves').get()).docs;
+  let rows = docs.map(d => Object.assign({ rowIdx: d.id }, d.data()));
+  if (scoped) {
     const myId = String(p.id);
     rows = rows.filter(r => String(r.empId || '') === myId || (r.approverIds || []).includes(myId));
   }
