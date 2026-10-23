@@ -6235,7 +6235,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     await Promise.all(targets.map(async (r) => {
       try {
         const ref = window.FB.doc(window.FB.db, 'consults', r._docId);
-        await window.FB.updateDoc(ref, { status: '미방문' });
+        await window.FB.updateDoc(ref, { status: '미방문', _syncMs: Date.now() }); // _syncMs: 전체목록 캐시 변경감지용(ensureFullConsults)
         r.status = '미방문'; // 로컬 캐시도 즉시 반영
       } catch(e) {
         console.warn('[미방문 자동변경] 실패:', r._docId, e && e.message);
@@ -6335,6 +6335,25 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   // ── 전체 데이터 확보(온디맨드): 검색·재방문에서만 호출 ──
   //   최초 1회만 Firestore 전체 조회 후 _consultsFullCache 에 캐시. 이후엔 캐시 재사용.
   //   (검색은 부분일치가 필요하므로, 하루 몇 번뿐인 검색 시에만 전체를 1회 읽어 클라이언트 필터링)
+  // ★ 읽기 절감: 돋보기/필터를 누를 때마다(=dirty) 전체(수천 건)를 다시 읽던 것을, 먼저 "총 건수 + 최근
+  //   updatedAtMs + 최근 _syncMs"(읽기 몇 건)만 확인해서 전체를 마지막으로 읽었을 때와 같으면 캐시를 그대로 쓴다.
+  //   추가·삭제는 건수로, 수정은 updatedAtMs(일반 수정)/_syncMs(미방문 자동처리·휴지통 복원 — 화면에 '수정일'로
+  //   보이는 updatedAtMs를 건드리지 않으려고 별도 필드)로 잡힌다. 하나라도 다르면 예전처럼 전체를 다시 읽는다.
+  //   서명 확인이 실패하거나 숫자가 아닌 시각값이 섞여 있으면(정렬로 최신값을 못 믿음) 항상 전체를 읽는다.
+  let _consultsFullSig = null;
+  async function _consultsSignature() {
+    const col = window.FB.collection(window.FB.db, 'consults');
+    const latest = async (field) => {
+      const s = await window.FB.getDocs(window.FB.query(col, window.FB.orderBy(field, 'desc'), window.FB.limit(1)));
+      return s.empty ? '-' : s.docs[0].id + ':' + s.docs[0].data()[field];
+    };
+    const [cnt, u, s] = await Promise.all([window.FB.getCountFromServer(col), latest('updatedAtMs'), latest('_syncMs')]);
+    return cnt.data().count + '|' + u + '|' + s;
+  }
+  function _consultsSigUsable(rows) {
+    return rows.every(r => (r.updatedAtMs === undefined || typeof r.updatedAtMs === 'number')
+      && (r._syncMs === undefined || typeof r._syncMs === 'number'));
+  }
   async function ensureFullConsults() {
     if (_consultsFullCache && !_consultsFilterDirty) return _consultsFullCache;
     if (_consultsFullLoading) {
@@ -6345,12 +6364,17 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     _consultsFilterDirty = false;
     try {
       await window.fbEnsureAuth();
+      // 서명은 전체 읽기 "전에" 잡는다 — 그 사이 생긴 변경은 다음 확인 때 서명이 달라져 다시 읽힌다.
+      let sig = null;
+      try { sig = await _consultsSignature(); } catch(e) { sig = null; }
+      if (sig && _consultsFullCache && _consultsFullSig === sig) return _consultsFullCache;
       const q = window.FB.query(
         window.FB.collection(window.FB.db, 'consults'),
         window.FB.orderBy('createdAtMs', 'desc')
       );
       const snap = await window.FB.getDocs(q);
       _consultsFullCache = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      _consultsFullSig = (sig && _consultsSigUsable(_consultsFullCache)) ? sig : null;
       window._allConsultsGlobal = _consultsFullCache;
       return _consultsFullCache;
     } catch(e) {
@@ -7072,6 +7096,8 @@ function csDateInputValue(val) {
       //   걸리고 "인테리어 오월"은 누락됨). 전체 상담 데이터를 온디맨드로 1회 캐시하는
       //   ensureFullConsults()를 재사용해 클라이언트에서 부분일치로 필터링하도록 변경.
       tbody.innerHTML = '<tr><td colspan="6" style="padding:10px 8px;text-align:center;color:#aaa;">검색 중...</td></tr>';
+      // 검색할 때마다 변경 여부를 확인(바뀐 게 없으면 캐시, 있으면 전체 재조회) — 다른 PC의 새 상담도 찾히게
+      _consultsFilterDirty = true;
       const all = await ensureFullConsults();
       const phoneQ = qRaw.replace(/[^0-9]/g, '');
       const matched = all.filter(function(r) {
@@ -17810,7 +17836,7 @@ if ('serviceWorker' in navigator) {
       checked.forEach(id => {
         const t = _consultTrashCache[id];
         if (!t) return;
-        batch.set(window.FB.doc(window.FB.db, 'consults', id), t.data);
+        batch.set(window.FB.doc(window.FB.db, 'consults', id), Object.assign({}, t.data, { _syncMs: Date.now() })); // _syncMs: 전체목록 캐시 변경감지용
         batch.delete(window.FB.doc(window.FB.db, 'consultsTrash', id));
       });
       await batch.commit();
