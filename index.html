@@ -9541,7 +9541,7 @@ function csDateInputValue(val) {
         <div id="xlsImportGroupWrap" style="display:none;margin-top:14px;">
           <div style="font-size:11.5px;color:#888;line-height:1.7;margin-bottom:12px;">
             시공일정표(월별, 주 단위 시트) / 시공예정상황 엑셀을 선택하면 종류를 자동으로 구분해서 읽습니다. 여러 파일을 한 번에 선택할 수 있습니다.<br>
-            <b style="color:#c0392b;">시공일정표는 올린 파일에 들어있는 날짜 범위(첫 일정 ~ 마지막 일정)만 교체</b>되고, 그 밖의 날짜(예: 11·12월 파일만 올리면 10월 이전)는 그대로 남습니다.
+            <b style="color:#c0392b;">시공일정표는 올린 파일에 들어있는 날짜 범위(첫 날짜 ~ 마지막 날짜)만 교체</b>되고, 그 밖의 날짜(예: 11·12월 파일만 올리면 10월 이전)는 그대로 남습니다.
             시공예정상황은 표 전체가 선택한 파일 내용으로 교체됩니다. 올리지 않은 종류(예: 예정상황 파일을 안 고르면 시공예정상황)는 건드리지 않습니다.
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -9815,26 +9815,47 @@ function xiParseForecast(wb) {
       var html = '', warnings = [];
       var result = { schedFiles: [], forecastFile: null, jobs: [], days: [], forecast: null, warnings: warnings };
 
-      var order = Date.now(), dayMap = {}, dateFile = {};
+      // 월 파일끼리 경계 주 시트(예: 10.26~11.1)가 양쪽에 다 들어있다 — 같은 날짜는 뒤 달 파일(이어받아 최신으로
+      // 고쳐 쓰는 쪽)의 일정만 쓰고, 뒤 달 파일에 그 날짜 일정이 없으면 앞 달 파일 것을 쓴다.
+      var order = Date.now(), dayMap = {}, dateFile = {}, perFile = [], rangeDates = [];
       sched.forEach(function(b){
         var r = xiParseSchedule(b.wb, b.name, order);
         order = r.nextOrder;
-        r.jobs.forEach(function(j){
-          if (dateFile[j.date] && dateFile[j.date] !== b.name && warnings.indexOf(j.date) < 0) warnings.push(j.date);
-          dateFile[j.date] = b.name;
-        });
-        result.jobs = result.jobs.concat(r.jobs);
+        r.jobs.forEach(function(j){ dateFile[j.date] = b.name; });
+        perFile.push({ b: b, r: r });
         Object.keys(r.dayInfo).forEach(function(d){ dayMap[d] = r.dayInfo[d]; });
+        // 일정 없이 색/메모만 있는 날(월말 휴무 메모 등)도 범위에 넣되, 그 파일의 달에 속한 날짜만 —
+        // 경계 주 시트에 칠해진 이웃 달 주말 때문에 범위가 이웃 달까지 번지지 않게.
+        var ym = _xiYearMonthFromName(b.name), pre = ym.year + '-' + ('0' + ym.month).slice(-2);
+        Object.keys(r.dayInfo).forEach(function(d){
+          if (ym.month && d.slice(0, 7) === pre && (r.dayInfo[d].color || r.dayInfo[d].note)) rangeDates.push(d);
+        });
         result.schedFiles.push(b.name);
-        var ds = r.jobs.map(function(j){ return j.date; }).sort();
-        html += '<div>📅 <b>' + esc(b.name) + '</b> → 시공일정표 · ' + r.jobs.length + '건'
+      });
+      var overlap = {}; // '앞파일→뒤파일' : [날짜...]
+      perFile.forEach(function(pf){
+        var used = pf.r.jobs.filter(function(j){ return dateFile[j.date] === pf.b.name; });
+        pf.r.jobs.forEach(function(j){
+          if (dateFile[j.date] === pf.b.name) return;
+          var key = pf.b.name + '\u0000' + dateFile[j.date];
+          overlap[key] = overlap[key] || [];
+          if (overlap[key].indexOf(j.date) < 0) overlap[key].push(j.date);
+        });
+        result.jobs = result.jobs.concat(used);
+        var ds = used.map(function(j){ return j.date; }).sort(), skipped = pf.r.jobs.length - used.length;
+        html += '<div>📅 <b>' + esc(pf.b.name) + '</b> → 시공일정표 · ' + used.length + '건'
           + (ds.length ? ' (' + ds[0] + ' ~ ' + ds[ds.length - 1] + ')' : '')
-          + '<br><span style="color:#999;font-size:11px;">' + esc(r.sheets.join(' / ')) + '</span></div>';
+          + (skipped ? ' <span style="color:#d35400;">· 겹치는 날짜 ' + skipped + '건 제외</span>' : '')
+          + '<br><span style="color:#999;font-size:11px;">' + esc(pf.r.sheets.join(' / ')) + '</span></div>';
+      });
+      Object.keys(overlap).forEach(function(k){
+        var f = k.split('\u0000'), ds = overlap[k].sort();
+        warnings.push(ds[0] + (ds.length > 1 ? ' ~ ' + ds[ds.length - 1] : '') + ' 일정은 두 파일에 다 있어서 <b>' + esc(f[1]) + '</b> 기준으로 반영 (' + esc(f[0]) + ' 쪽은 제외)');
       });
       result.days = Object.keys(dayMap).sort().filter(function(d){ return dayMap[d].color || dayMap[d].note; })
         .map(function(d){ return [d, dayMap[d]]; });
-      // 교체 범위 = 올린 파일들의 첫 일정일 ~ 마지막 일정일 (일정 없이 색만 칠한 경계 주말 때문에 범위가 넓어지지 않게 일정 날짜만 기준)
-      var jds = result.jobs.map(function(j){ return j.date; }).sort();
+      // 교체 범위 = 올린 파일들의 첫 날짜 ~ 마지막 날짜 (일정 날짜 + 각 파일 자기 달의 일자칸 색/메모 날짜)
+      var jds = result.jobs.map(function(j){ return j.date; }).concat(rangeDates).sort();
       result.range = jds.length ? [jds[0], jds[jds.length - 1]] : null;
 
       if (fcs.length > 1) {
@@ -9848,7 +9869,7 @@ function xiParseForecast(wb) {
         html += '<div style="color:#c0392b;">✖ <b>' + esc(b.name) + '</b> — ' + esc(b.err || '시공일정표/시공예정상황 형식이 아니라서 제외') + '</div>';
       });
       if (warnings.length) {
-        html += '<div style="color:#d35400;">⚠ 여러 파일에 같은 날짜의 일정이 있습니다(그대로 올리면 중복 표시됨): ' + esc(warnings.join(', ')) + '</div>';
+        html += warnings.map(function(w){ return '<div style="color:#d35400;">ℹ ' + w + '</div>'; }).join('');
       }
       if (result.schedFiles.length) {
         var colored = result.jobs.filter(function(j){ return j.highlightMap; }).length;
