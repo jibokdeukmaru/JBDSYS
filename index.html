@@ -9541,13 +9541,14 @@ function csDateInputValue(val) {
         <div id="xlsImportGroupWrap" style="display:none;margin-top:14px;">
           <div style="font-size:11.5px;color:#888;line-height:1.7;margin-bottom:12px;">
             시공일정표(월별, 주 단위 시트) / 시공예정상황 엑셀을 선택하면 종류를 자동으로 구분해서 읽습니다. 여러 파일을 한 번에 선택할 수 있습니다.<br>
-            <b style="color:#c0392b;">반영하면 해당 표의 기존 내용이 전부 지워지고 선택한 파일 내용으로 교체됩니다.</b>
-            시공일정표는 남겨둘 달의 파일(예: 9월 + 10월)을 <b>모두 함께</b> 선택하세요. 올리지 않은 종류(예: 예정상황 파일을 안 고르면 시공예정상황)는 건드리지 않습니다.
+            <b style="color:#c0392b;">시공일정표는 올린 파일에 들어있는 날짜 범위(첫 일정 ~ 마지막 일정)만 교체</b>되고, 그 밖의 날짜(예: 11·12월 파일만 올리면 10월 이전)는 그대로 남습니다.
+            시공예정상황은 표 전체가 선택한 파일 내용으로 교체됩니다. 올리지 않은 종류(예: 예정상황 파일을 안 고르면 시공예정상황)는 건드리지 않습니다.
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <input type="file" id="xlsImportInput" accept=".xlsx" multiple style="display:none;" onchange="xlsImportOnFiles(this)">
             <button class="admin-btn" onclick="document.getElementById('xlsImportInput').click()">엑셀 파일 선택</button>
             <button class="admin-btn primary" id="xlsImportRunBtn" onclick="xlsImportRun()" disabled style="opacity:.5;">반영하기</button>
+            <label style="font-size:11.5px;color:#888;display:inline-flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="xlsImportFullReplace" onchange="xlsImportOnModeChange()"> 시공일정 기존 내용 전부 지우고 교체(범위 밖 날짜도 삭제)</label>
           </div>
           <div id="xlsImportPreview" style="font-size:12px;color:#555;margin-top:12px;line-height:1.7;word-break:break-all;"></div>
           <div id="xlsImportProgress" style="font-size:12px;color:#888;margin-top:8px;"></div>
@@ -9762,7 +9763,16 @@ function xiParseForecast(wb) {
 
 // ── 화면/업로드 처리 ──
 (function(){
-  var parsed = null; // { schedFiles:[], forecastFile, jobs, days:[[date,{color,note}]], forecast, warnings:[] }
+  var parsed = null; // { schedFiles:[], forecastFile, jobs, days:[[date,{color,note}]], range:[from,to], forecast, warnings:[] }
+  var parsedForScope = null;
+  function isFull() { var c = document.getElementById('xlsImportFullReplace'); return !!(c && c.checked); }
+  window.xlsImportOnModeChange = function() {
+    var el = document.getElementById('xlsImportScopeText'), p = parsedForScope;
+    if (!el || !p) return;
+    if (isFull()) el.innerHTML = '<b style="color:#c0392b;">기존 시공일정 전체 삭제 후 교체</b>';
+    else if (p.range) el.innerHTML = '<b>' + p.range[0] + ' ~ ' + p.range[1] + '</b> 범위만 교체 (그 밖의 날짜는 유지)';
+    else el.textContent = '';
+  };
   var esc = function(s){ return window._escHtml(s); };
   function loadExcelJS() {
     if (window.ExcelJS) return Promise.resolve();
@@ -9823,6 +9833,9 @@ function xiParseForecast(wb) {
       });
       result.days = Object.keys(dayMap).sort().filter(function(d){ return dayMap[d].color || dayMap[d].note; })
         .map(function(d){ return [d, dayMap[d]]; });
+      // 교체 범위 = 올린 파일들의 첫 일정일 ~ 마지막 일정일 (일정 없이 색만 칠한 경계 주말 때문에 범위가 넓어지지 않게 일정 날짜만 기준)
+      var jds = result.jobs.map(function(j){ return j.date; }).sort();
+      result.range = jds.length ? [jds[0], jds[jds.length - 1]] : null;
 
       if (fcs.length > 1) {
         html += '<div style="color:#c0392b;">⚠ 시공예정상황 파일이 ' + fcs.length + '개입니다. 하나만 선택해주세요: ' + esc(fcs.map(function(b){ return b.name; }).join(', ')) + '</div>';
@@ -9839,12 +9852,13 @@ function xiParseForecast(wb) {
       }
       if (result.schedFiles.length) {
         var colored = result.jobs.filter(function(j){ return j.highlightMap; }).length;
-        html += '<div style="margin-top:6px;color:#333;">▶ 반영 시: <b>시공일정 ' + result.jobs.length + '건</b>(색 있는 행 ' + colored + ') + <b>일자칸 색/메모 ' + result.days.length + '일</b>로 전체 교체</div>';
+        html += '<div style="margin-top:6px;color:#333;">▶ 반영 시: <b>시공일정 ' + result.jobs.length + '건</b>(색 있는 행 ' + colored + ') + <b>일자칸 색/메모 ' + result.days.length + '일</b> → <span id="xlsImportScopeText"></span></div>';
       }
       if (result.forecast) {
         html += '<div style="color:#333;">▶ 반영 시: <b>시공예정상황 ' + result.forecast.length + '건</b>으로 전체 교체</div>';
       }
       prev.innerHTML = html || '읽을 수 있는 파일이 없습니다.';
+      parsedForScope = result; window.xlsImportOnModeChange();
       var ok = (result.schedFiles.length && result.jobs.length) || (result.forecast && result.forecast.length);
       if (fcs.length > 1) ok = false;
       if (ok) { parsed = result; setRunEnabled(true); }
@@ -9855,7 +9869,8 @@ function xiParseForecast(wb) {
 
   // 기존 문서를 먼저 읽어두고 → 새 문서를 다 쓴 다음 → 기존 문서를 지운다(중간에 실패해도 표가 통째로 비지 않게).
   // fixedIds: 문서ID를 직접 정하는 경우(scheduleDayNotes = 날짜) — 같은 ID는 덮어쓰기라 삭제 대상에서 뺀다.
-  async function replaceCollection(name, items, fixedIds) {
+  // shouldRemove(doc): 기존 문서 중 지울 대상만 true (생략하면 전부 지움)
+  async function replaceCollection(name, items, fixedIds, shouldRemove) {
     var FB = window.FB;
     var oldSnap = await FB.getDocs(FB.collection(FB.db, name));
     var now = Date.now(), keep = {};
@@ -9868,20 +9883,24 @@ function xiParseForecast(wb) {
       });
       await b.commit();
     }
-    var olds = oldSnap.docs.filter(function(d){ return !keep[d.id]; });
+    var targets = oldSnap.docs.filter(function(d){ return !shouldRemove || shouldRemove(d); });
+    var olds = targets.filter(function(d){ return !keep[d.id]; });
     for (var k = 0; k < olds.length; k += 400) {
       var b2 = FB.writeBatch(FB.db);
       olds.slice(k, k + 400).forEach(function(d){ b2.delete(d.ref); });
       await b2.commit();
     }
-    return { written: items.length, removed: oldSnap.size };
+    return { written: items.length, removed: targets.length };
   }
 
   window.xlsImportRun = async function() {
     if (!parsed) return;
-    var p = parsed, msg = '다음 내용으로 기존 데이터를 전부 교체합니다. 되돌릴 수 없습니다.\n\n';
-    if (p.schedFiles.length) msg += '· 시공일정표: ' + p.jobs.length + '건 + 일자칸 색/메모 ' + p.days.length + '일\n   (' + p.schedFiles.join(', ') + ')\n';
-    if (p.forecast) msg += '· 시공예정상황: ' + p.forecast.length + '건\n   (' + p.forecastFile + ')\n';
+    var p = parsed, full = isFull(), msg = '다음 내용으로 기존 데이터를 교체합니다. 되돌릴 수 없습니다.\n\n';
+    var inRange = function(date){ return full || !!(p.range && date >= p.range[0] && date <= p.range[1]); };
+    var scopeTxt = full ? '기존 시공일정 전체 삭제 후 교체' : (p.range ? p.range[0] + ' ~ ' + p.range[1] + ' 범위만 교체, 그 밖의 날짜는 유지' : '');
+    var days = p.days.filter(function(d){ return inRange(d[0]); });
+    if (p.schedFiles.length) msg += '· 시공일정표: ' + p.jobs.length + '건 + 일자칸 색/메모 ' + days.length + '일\n   [' + scopeTxt + ']\n   (' + p.schedFiles.join(', ') + ')\n';
+    if (p.forecast) msg += '· 시공예정상황: ' + p.forecast.length + '건 (전체 교체)\n   (' + p.forecastFile + ')\n';
     msg += '\n계속할까요?';
     if (!await appConfirm(msg)) return;
     var prog = document.getElementById('xlsImportProgress');
@@ -9898,11 +9917,14 @@ function xiParseForecast(wb) {
       var log = async function(text){ try { await _scheduleSaveHistory(text, (u && u.name) || '', (u && u.title) || ''); } catch(e) {} };
       if (p.schedFiles.length) {
         set('시공일정 반영 중...');
-        var r1 = await replaceCollection('constructionSchedule', p.jobs.map(function(j){ return { data: j }; }), false);
+        // 범위 교체: 날짜가 범위 안인 기존 문서만 지운다(범위 밖·날짜 없는 문서는 유지). 일자칸도 범위 안만 쓰고 지운다.
+        var r1 = await replaceCollection('constructionSchedule', p.jobs.map(function(j){ return { data: j }; }), false,
+          full ? null : function(d){ var dt = (d.data() || {}).date; return !!dt && inRange(dt); });
         set('일자칸 색/메모 반영 중...');
-        var r2 = await replaceCollection('scheduleDayNotes', p.days.map(function(d){ return { id: d[0], data: { color: d[1].color || '', text: d[1].note || '' } }; }), true);
-        done.push('시공일정 ' + r1.written + '건(기존 ' + r1.removed + '건 교체), 일자칸 ' + r2.written + '일');
-        await log('[시공일정] 엑셀 일괄 가져오기: ' + esc(p.schedFiles.join(', ')) + ' → ' + r1.written + '건 (기존 ' + r1.removed + '건 교체)');
+        var r2 = await replaceCollection('scheduleDayNotes', days.map(function(d){ return { id: d[0], data: { color: d[1].color || '', text: d[1].note || '' } }; }), true,
+          full ? null : function(d){ return inRange(d.id); });
+        done.push('시공일정 ' + r1.written + '건(기존 ' + r1.removed + '건 교체' + (full ? '' : ', ' + p.range[0] + '~' + p.range[1]) + '), 일자칸 ' + r2.written + '일');
+        await log('[시공일정] 엑셀 일괄 가져오기: ' + esc(p.schedFiles.join(', ')) + ' → ' + r1.written + '건 (' + esc(scopeTxt) + ', 기존 ' + r1.removed + '건 교체)');
       }
       if (p.forecast) {
         set('시공예정상황 반영 중...');
