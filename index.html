@@ -19925,6 +19925,15 @@ if ('serviceWorker' in navigator) {
   window.refreshInboxUnread = window.refreshFolderUnreadBadges;
 
   // 공통: 서버에서 메일 한 페이지 조회
+  // ★ (2026-10-26) 업체 시스템 메일 중 Date 헤더가 표준 형식이 아닌 메일(예: "2026-10-26 오전 9:37")이 하나라도 있으면
+  //   new Date(..).toISOString()이 예외를 던져 받은메일함 갱신 전체가 실패 → 예전 목록만 계속 보여 새 메일이 안 보였다.
+  //   Date 헤더를 못 읽으면 Gmail이 받은 시각(internalDate)으로, 그것도 없으면 날짜 없음으로 표시한다.
+  function _emMsgDateIso(m) {
+    const d = m.date ? new Date(m.date) : null;
+    if (d && !isNaN(d.getTime())) return d.toISOString();
+    const ms = parseInt(m.internalDate || '', 10);
+    return ms > 0 ? new Date(ms).toISOString() : '';
+  }
   async function _gmailFetchPage(email, folder, pageToken, q) {
     // ★ 예전엔 여기서 Firestore(settings/gmailOAuth)를 조회해 clientId/clientSecret을
     //   서버로 넘겼는데, 서버(getGmailMessages)는 도메인 위임 방식으로 바뀌면서 그 값을
@@ -19937,7 +19946,7 @@ if ('serviceWorker' in navigator) {
     if (data.status !== 'ok') throw new Error(data.message || '메일 조회 실패');
     const msgs = (data.messages || []).map(m => ({
       gmailId: m.id, from: m.from, to: m.to, subject: m.subject,
-      sentAt: m.date ? new Date(m.date).toISOString() : '',
+      sentAt: _emMsgDateIso(m),
       snippet: m.snippet, unread: m.unread, labelIds: m.labelIds || []
     }));
     return { msgs, nextPageToken: data.nextPageToken || '' };
@@ -19999,8 +20008,17 @@ if ('serviceWorker' in navigator) {
       if (!cached) {
         listEl.innerHTML = `<div class="em-empty"><p>메일 조회 오류<br><span style="font-size:11px;color:#aaa;">${_emEsc(e.message||'')}</span></p></div>`;
       } else {
-        // 캐시된(오래된) 목록이 이미 화면에 떠 있으므로 조용히 실패 처리
+        // 캐시된(오래된) 목록이 이미 화면에 떠 있음 — ★ (2026-10-26) 조용히 넘어가면 예전 목록이 최신인 줄 알게 되므로
+        //   목록 위에 작은 안내를 띄운다(목록이 다시 그려지면 자연히 사라짐).
         console.warn('Gmail 백그라운드 갱신 실패:', e.message);
+        if (!document.getElementById('emStaleNotice')) {
+          const n = document.createElement('div');
+          n.id = 'emStaleNotice';
+          n.title = e.message || '';
+          n.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 12px;margin:6px 8px;background:#fff7e6;border:1px solid #f5c26b;border-radius:8px;font-size:12px;color:#8a5a00;';
+          n.innerHTML = '최신 메일을 불러오지 못했습니다 (지난 목록 표시 중) <button onclick="gmailRefresh()" style="background:#fff;border:1px solid #f5c26b;border-radius:6px;padding:3px 10px;font-size:12px;color:#8a5a00;cursor:pointer;">다시 시도</button>';
+          listEl.insertBefore(n, listEl.firstChild);
+        }
       }
     }
   }

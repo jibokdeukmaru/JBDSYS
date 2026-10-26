@@ -97,7 +97,13 @@ function decodePartData(part, inheritedCs) {
     const mm = head.match(/<meta[^>]+charset\s*=\s*["']?([\w.:-]+)/i);
     if (mm) cs = normCharset(mm[1]);
   }
+  // ★ (2026-10-26) 반대 경우 — charset은 euc-kr로 적혀 있는데 본문은 실제 UTF-8인 메일(NHN KCP 결제내역 등)이
+  //   '寃곗젣'처럼 깨졌다. 한글 등 비ASCII가 들어 있고 UTF-8로 오류 없이 읽히면 UTF-8이 맞다
+  //   (진짜 EUC-KR 한글이 우연히 올바른 UTF-8이 되는 일은 사실상 없음 — Gmail도 이렇게 판별).
   if (cs && cs !== 'utf-8' && cs !== 'us-ascii') {
+    if (buf.some((b) => b >= 0x80)) {
+      try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { /* UTF-8 아님 → 선언된 charset으로 */ }
+    }
     const dec = tryDecode(buf, cs);
     if (dec != null) return dec;
   }
@@ -186,7 +192,8 @@ function extractAttachments(payload) {
 //   메일함 하나에 동시 요청 수를 제한해서 실제로는 줄을 섰다)을 Gmail 일괄요청(batch) 1번으로 묶는다.
 //   일괄요청이 통째로 실패하거나 일부 항목이 빠지면 그 항목만 예전처럼 하나씩 다시 가져온다(결과 동일).
 const META_HEADERS = ['From', 'To', 'Subject', 'Date'];
-const META_FIELDS = 'id,labelIds,snippet,payload/headers';
+// ★ (2026-10-26) internalDate(Gmail이 받은 시각) — 업체 시스템 메일 중 Date 헤더가 표준 형식이 아닌 메일이 있어 화면 날짜 대체용
+const META_FIELDS = 'id,labelIds,snippet,internalDate,payload/headers';
 async function getMetadataOne(gmail, id) {
   const r = await gmail.users.messages.get({ userId: 'me', id, format: 'metadata', metadataHeaders: META_HEADERS, fields: META_FIELDS });
   return r.data;
@@ -264,7 +271,7 @@ async function getGmailMessages(p) {
       (m.payload && m.payload.headers || []).forEach((x) => { h[x.name] = x.value; });
       return {
         id, from: h.From || '', to: h.To || '', subject: h.Subject || '(제목없음)',
-        date: h.Date || '', snippet: m.snippet || '',
+        date: h.Date || '', internalDate: m.internalDate || '', snippet: m.snippet || '',
         unread: (m.labelIds || []).indexOf('UNREAD') !== -1,
         // 사용자가 만든 라벨(개인 폴더)만 — 목록에 칩으로 표시하는 용도. INBOX/UNREAD/CATEGORY_* 같은
         // 시스템 라벨은 제외(Gmail이 만든 라벨 ID는 전부 대문자라 소문자 포함 여부로 구분됨).
