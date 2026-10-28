@@ -7451,6 +7451,25 @@ function csDateInputValue(val) {
       if (!cfTimeEl.value) cfTimeEl.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     }
 
+    // ★ 로그인한 상담자를 상담자 목록에 넣기 — 상담완료/샘플수령/전화상담으로 저장할 때만 (예약·미방문은 제외)
+    //   신규 등록이면 묻지 않고 추가, 예약으로 올라와 있던 건을 처리하는 저장이면 물어보고 추가.
+    //   대상은 상담자 드롭다운 명단(COUNSELOR_DROPDOWN_ORDER)에 있는 사람만.
+    const _newStatus = document.getElementById('cfStatus').value;
+    if (['상담완료', '샘플수령', '전화상담'].includes(_newStatus)) {
+      const myFirst = String((window._currentUser && window._currentUser.name) || '').trim().split(' ')[0];
+      const already = selectedCounselors.some(c => String(c).trim().split(' ')[0] === myFirst);
+      if (myFirst && !already && COUNSELOR_DROPDOWN_ORDER.includes(myFirst)) {
+        const wasReserved = selectedConsult && (selectedConsult.status || '예약') === '예약';
+        if (!selectedConsult || wasReserved) {
+          const me = attachTitle(myFirst, await loadAllStaffMap()) || myFirst;
+          if (!selectedConsult || await window.appConfirm(`이 상담에 ${me}님을 상담자로 등록할까요?`)) {
+            selectedCounselors.push(me);
+            renderCounselorList();
+          }
+        }
+      }
+    }
+
     const payload = {
       action: selectedConsult ? 'saveConsult' : 'createConsult',
       rowIndex: selectedConsult ? selectedConsult._rowIndex : '',
