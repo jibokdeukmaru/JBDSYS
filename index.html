@@ -5261,6 +5261,19 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   .cs-work-tag .cs-work-t { overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .cs-work-tag .cs-work-d { font-weight:600; opacity:.8; margin-left:4px; flex-shrink:0; }
   .cs-work-plain { color:#999; font-size:11.5px; }
+  /* 시공예정 분류별 줄 전체 색 — td에 칠해야 tr 기본 hover보다 우선 적용된다 */
+  #csTable tbody tr.cs-row-future > td { background:#f0faf8; }
+  #csTable tbody tr.cs-row-near > td   { background:#fff5ea; }
+  #csTable tbody tr.cs-row-past > td   { background:#f8f3fd; }
+  #csTable tbody tr.cs-row-future:hover > td { background:#e0f4f1; }
+  #csTable tbody tr.cs-row-near:hover > td   { background:#ffe9d1; }
+  #csTable tbody tr.cs-row-past:hover > td   { background:#f1e8fb; }
+  #csTable tbody tr.cs-row-future > td:first-child { box-shadow:inset 3px 0 0 #11806a; }
+  #csTable tbody tr.cs-row-near > td:first-child   { box-shadow:inset 3px 0 0 #c25e00; }
+  #csTable tbody tr.cs-row-past > td:first-child   { box-shadow:inset 3px 0 0 #7d3cb5; }
+  #csTable .cs-card.cs-row-future { background:#f0faf8 !important; border-left:3px solid #11806a !important; }
+  #csTable .cs-card.cs-row-near   { background:#fff5ea !important; border-left:3px solid #c25e00 !important; }
+  #csTable .cs-card.cs-row-past   { background:#f8f3fd !important; border-left:3px solid #7d3cb5 !important; }
 
   /* ── 허용메뉴(탭 권한 설정) 모달: PC에서는 2열로 한번에 다 보이게, 모바일은 기존 1열 스크롤 유지 ── */
   #tabPermModalBox { max-width:420px; }
@@ -6740,6 +6753,8 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       const counselorDisplay = attachTitle(r.counselor || '', map);
       const isRevisit = (r.visitStatus === '재방문' || r.revisit === '재방문');
       const workTag = window._csWorkTimingTag(r.workTiming, dateStr);
+      const _wi = window._csWorkTimingInfo(r.workTiming, dateStr);
+      const rowCls = _wi ? ' cs-row-' + _wi.cat : '';
 
       // 모바일: 카드형 (iframe 환경에서 innerWidth가 좁게 찍히는 오판 방지 — screen.width 우선)
       const _isMobileCard = (window.screen && window.screen.width) ? window.screen.width <= 768 : window.innerWidth <= 768;
@@ -6747,7 +6762,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         return `
           <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
             <td colspan="11" style="padding:0;border:none;">
-              <div class="cs-card">
+              <div class="cs-card${rowCls}">
                 <div class="cs-card-top">
                   <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
                   <span class="dw-status-pill ${status}">${status}</span>
@@ -6772,7 +6787,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
       // PC: 기존 테이블 행
       return `
-        <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
+        <tr class="${rowCls.trim()}" onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
           <td>${i + 1 + start}</td>
           <td onclick="event.stopPropagation()"><input type="checkbox" class="dw-checkbox"></td>
           <td><span class="dw-status-pill ${status}">${status}</span>${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:3px;vertical-align:middle;">N</span>' : ''}</td>
@@ -6865,10 +6880,17 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(_csColWidthsStorageKey()) || 'null'); } catch(_) {}
     const widths = Object.assign({}, CS_COL_DEFAULT_WIDTHS, saved || {});
-    table.querySelectorAll('thead th[data-col]').forEach(th => {
-      const w = widths[th.dataset.col];
-      if (w) th.style.width = w + 'px';
+    // ★ px 합계가 화면보다 넓으면 가로 스크롤이 생겨서(시공예정 칸 추가 후), 저장된 px는 '비율'로만 쓰고
+    //   %로 바꿔 표를 항상 화면 너비에 맞춘다. 드래그로 한 칸을 넓히면 나머지 칸이 그만큼 줄어든다.
+    const ths = Array.from(table.querySelectorAll('thead th[data-col]'));
+    const total = ths.reduce((sum, th) => sum + (Number(widths[th.dataset.col]) || 0), 0);
+    if (!total) return;
+    ths.forEach(th => {
+      const w = Number(widths[th.dataset.col]) || 0;
+      th.style.width = (w / total * 100).toFixed(3) + '%';
     });
+    table.style.width = '100%';
+    table.style.minWidth = '';
   };
   function _saveConsultColWidths() {
     const table = document.getElementById('csTable');
@@ -6919,6 +6941,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
       _saveConsultColWidths();
+      window._applyConsultColWidths(); // 드래그 결과 비율로 다시 화면 너비에 맞춤
     }
   }
   initColumnResize();
