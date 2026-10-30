@@ -15535,31 +15535,21 @@ window.addEventListener('afterprint', () => {
     document.body.classList.remove('print-invoice');
 });
 
-// 견적서/가견적서/정산서 저장 파일명 통일 규칙: yymmdd_문서종류(업체명_담당자)
+// 견적서/가견적서/정산서 저장 파일명 규칙: 업체명 현장주소 문서종류 (공백 구분)
+// 문서종류는 정산서 체크 시에만 '정산서', 그 외(가견적서 포함)는 모두 '견적서'. 빈 칸은 건너뛴다.
 function buildInvoiceFileName() {
-    const rawDate = (document.getElementById('invDate')?.value || '').trim();
-    const digits  = rawDate.replace(/\D/g, '');
-    let dateStr;
-    if (digits.length >= 8) dateStr = digits.slice(digits.length - 6);
-    else if (digits.length === 6) dateStr = digits;
-    else {
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        dateStr = `${String(now.getFullYear()).slice(2)}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-    }
-
-    const sanitize = s => (s || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const sanitize = s => (s || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
     // ★ 업체명 칸에 실제로는 "회사명 담당자명 직급님 전화번호"를 한 번에 몰아 적는 경우가
     //   많아서(예: "에이라이브 전희수 실장님 010-2050-0318"), 파일명엔 전화번호를 빼고
     //   "이름+직급"을 붙여쓰기(님 제거)로 정리한다. 담당자(invManager) 칸은 실제로는 작성한
     //   우리 직원 본인 이름이 들어가는 용도로 쓰이고 있어 파일명에는 포함하지 않는다.
     const company = _cleanInvoiceContactPhrase(sanitize(document.getElementById('invBillTo')?.value));
+    const site    = sanitize(document.getElementById('invSite')?.value);
 
-    const isDraft = !!document.getElementById('invDraftCheck')?.checked;
     const isFinal = !!document.getElementById('invFinalCheck')?.checked;
-    const docLabel = isFinal ? '정산서' : (isDraft ? '가견적서' : '견적서');
+    const docLabel = isFinal ? '정산서' : '견적서';
 
-    return company ? `${dateStr}_${docLabel}(${company})` : `${dateStr}_${docLabel}`;
+    return [company, site, docLabel].filter(Boolean).join(' ');
 }
 
 const INV_JOB_TITLES = ['대표이사','부사장','전무','상무','이사','실장','부장','차장','과장','대리','주임','사원','팀장','대표','회장','사장'];
