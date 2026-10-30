@@ -5249,6 +5249,18 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   .dw-filter-chips { display:flex; gap:6px; margin-left:auto; }
   .dw-chip { padding:4px 12px; border-radius:999px; border:1px solid #ddd; background:#fff; font-size:11.5px; font-weight:700; color:#666; cursor:pointer; }
   .dw-chip.on { background:#222; color:#fff; border-color:#222; }
+  /* 쇼룸상담 시공예정일 리터치 색상 (2주+ 남음 / ±2주 / 2주+ 지남) */
+  .cs-work-legend { margin-left:auto; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .cs-work-legend-title { font-size:11px; font-weight:700; color:#888; margin-right:2px; }
+  .cs-work-chip { padding:3px 10px; border-radius:999px; border:1.5px solid transparent; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .cs-work-chip.future, .cs-work-tag.future { background:#e0f4f1; color:#11806a; }
+  .cs-work-chip.near,   .cs-work-tag.near   { background:#ffe9d1; color:#c25e00; }
+  .cs-work-chip.past,   .cs-work-tag.past   { background:#f1e8fb; color:#7d3cb5; }
+  .cs-work-chip.on { border-color:currentColor; box-shadow:0 0 0 1px currentColor inset; }
+  .cs-work-tag { display:inline-flex; max-width:100%; padding:2px 8px; border-radius:5px; font-size:11px; font-weight:700; white-space:nowrap; vertical-align:middle; }
+  .cs-work-tag .cs-work-t { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .cs-work-tag .cs-work-d { font-weight:600; opacity:.8; margin-left:4px; flex-shrink:0; }
+  .cs-work-plain { color:#999; font-size:11.5px; }
 
   /* ── 허용메뉴(탭 권한 설정) 모달: PC에서는 2열로 한번에 다 보이게, 모바일은 기존 1열 스크롤 유지 ── */
   #tabPermModalBox { max-width:420px; }
@@ -5559,7 +5571,14 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
   <div class="dw-count-toolbar-row">
     <div class="dw-count-line"><strong id="csCount">0</strong> 개의 데이터가 있습니다</div>
-    <div id="csActiveFilters" style="margin-left:auto;display:flex;gap:6px;"></div>
+    <!-- 시공예정일 리터치 색상 안내 겸 필터 (색 기준: _csWorkTimingInfo / CS_WORK_CATS) -->
+    <div class="cs-work-legend">
+      <span class="cs-work-legend-title">시공예정</span>
+      <button type="button" class="cs-work-chip future" data-work-filter="future" onclick="setWorkFilter(this)" title="오늘 기준 시공예정일이 14일 넘게 남은 상담 (누르면 이것만 보기)">● 2주+ 남음</button>
+      <button type="button" class="cs-work-chip near" data-work-filter="near" onclick="setWorkFilter(this)" title="오늘 기준 시공예정일이 앞뒤 14일 이내인 상담 (누르면 이것만 보기)">● ±2주 이내</button>
+      <button type="button" class="cs-work-chip past" data-work-filter="past" onclick="setWorkFilter(this)" title="오늘 기준 시공예정일이 14일 넘게 지난 상담 (누르면 이것만 보기)">● 2주+ 지남</button>
+    </div>
+    <div id="csActiveFilters" style="margin-left:10px;display:flex;gap:6px;"></div>
   </div>
 
   <div class="dw-toolbar">
@@ -5589,11 +5608,12 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           <th data-col="company" style="width:100px; cursor:pointer;" onclick="toggleSort('company')">업체명 <span id="sort-company"></span><span class="dw-col-resizer"></span></th>
           <th data-col="address" style="width:160px;">현장주소<span class="dw-col-resizer"></span></th>
           <th data-col="date" style="width:120px; cursor:pointer;" onclick="toggleSort('date')">일정 <span id="sort-date">▼</span><span class="dw-col-resizer"></span></th>
+          <th data-col="work" style="width:130px;">시공예정<span class="dw-col-resizer"></span></th>
           <th data-col="phone" style="width:104px;">연락처<span class="dw-col-resizer"></span></th>
         </tr>
       </thead>
       <tbody id="csTableBody">
-        <tr class="dw-empty-row"><td colspan="10">불러오는 중...</td></tr>
+        <tr class="dw-empty-row"><td colspan="11">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -5828,8 +5848,8 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         </div>
       </div>
       <div class="dw-field">
-        <label>시공 예정일</label>
-        <input type="text" id="cfWorkTiming">
+        <label>시공 예정일 <span id="cfWorkTimingChip" style="font-weight:400;"></span></label>
+        <input type="text" id="cfWorkTiming" oninput="_csRefreshWorkChip()">
       </div>
       <div class="dw-field">
         <label>공사 기간</label>
@@ -6236,7 +6256,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     const q = (document.getElementById('csSearch').value || '').trim();
     if (q) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">검색 중...</td></tr>';
+      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">검색 중...</td></tr>';
     }
     currentPage = 1;
     await renderConsultList();
@@ -6267,7 +6287,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     }
     // 캐시가 없거나 강제 새로고침: 로딩 표시 후 받아오기
     const bodyEl = document.getElementById('csTableBody');
-    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">불러오는 중...</td></tr>';
+    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">불러오는 중...</td></tr>';
     await _fetchConsults();
   };
 
@@ -6390,7 +6410,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       }
       if (!_consultsCache) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="10">오류: ${window._escHtml(e.message)}<br><button type="button" onclick="loadConsults(true)" style="margin-top:8px;padding:6px 14px;border:1px solid #2c5fc4;border-radius:6px;background:#fff;color:#2c5fc4;font-weight:700;cursor:pointer;">다시 불러오기</button></td></tr>`;
+        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="11">오류: ${window._escHtml(e.message)}<br><button type="button" onclick="loadConsults(true)" style="margin-top:8px;padding:6px 14px;border:1px solid #2c5fc4;border-radius:6px;background:#fff;color:#2c5fc4;font-weight:700;cursor:pointer;">다시 불러오기</button></td></tr>`;
       }
     } finally {
       _consultsLoading = false;
@@ -6475,7 +6495,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     currentPage = 1;
     if (_myConsultsOnly) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">나의 상담내역 조회 중...</td></tr>';
+      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">나의 상담내역 조회 중...</td></tr>';
     }
     renderConsultList();
   };
@@ -6500,6 +6520,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     // 방문구분 필터 초기화
     csVisitFilter = '전체';
     document.querySelectorAll('.dw-chip[data-visit-filter]').forEach(c => c.classList.toggle('on', c.dataset.visitFilter === '전체'));
+    // 시공예정 리터치 필터 초기화
+    csWorkFilter = null;
+    document.querySelectorAll('.cs-work-chip[data-work-filter]').forEach(c => c.classList.remove('on'));
     currentPage = 1;
     renderConsultList();
     updateActiveFilterBadges();
@@ -6518,6 +6541,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     }
     if (csVisitFilter && csVisitFilter !== '전체') {
       badges.push(`<span onclick="clearVisitFilter()" style="cursor:pointer;background:#2e7d32;color:#fff;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;">${csVisitFilter} <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;pointer-events:none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>`);
+    }
+    if (csWorkFilter) {
+      badges.push(`<span onclick="clearWorkFilter()" class="cs-work-tag ${csWorkFilter}" style="cursor:pointer;border-radius:999px;padding:3px 10px;">시공예정 ${CS_WORK_CATS[csWorkFilter].label} ✕</span>`);
     }
     el.innerHTML = badges.join('');
   }
@@ -6611,7 +6637,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
     // 나의상담내역은 최근 100건만이 아니라 전체를 대상으로 걸러야 하므로,
     // 검색어가 있을 때와 마찬가지로 전체 데이터를 온디맨드로 확보한다(캐시되어 재조회는 최초 1회뿐).
-    if (_myConsultsOnly || csCurrentFilter !== '전체' || csVisitFilter !== '전체') {
+    if (_myConsultsOnly || csCurrentFilter !== '전체' || csVisitFilter !== '전체' || csWorkFilter) {
       // 필터가 켜져 있어도 검색어가 있으면 같이 적용 (예전엔 필터 중엔 검색어가 무시됐다)
       allConsults = q ? await _searchConsultsAll(q) : await ensureFullConsults();
       _consultsMode = 'searchResult'; // 최근100 모드가 아니므로 백그라운드 갱신에 덮어써지지 않도록
@@ -6651,6 +6677,10 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         if (csVisitFilter === '재방문' && !isRevisit) return false;
         if (csVisitFilter === '신규' && isRevisit) return false;
       }
+      if (csWorkFilter) {
+        const wi = window._csWorkTimingInfo(r.workTiming, csDateInputValue(r.date));
+        if (!wi || wi.cat !== csWorkFilter) return false;
+      }
       return true;
     });
 
@@ -6659,7 +6689,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     if (!list.length) {
       // 최초 조회(재시도 포함)가 아직 진행 중이면 "데이터 없음"이 아니라 로딩 중으로 표시
       const _stillLoading = _consultsMode === 'recent' && !_consultsCache && _consultsLoading;
-      document.getElementById('csTableBody').innerHTML = `<tr class="dw-empty-row"><td colspan="10">${_stillLoading ? '불러오는 중...' : '데이터가 없습니다.'}</td></tr>`;
+      document.getElementById('csTableBody').innerHTML = `<tr class="dw-empty-row"><td colspan="11">${_stillLoading ? '불러오는 중...' : '데이터가 없습니다.'}</td></tr>`;
       return;
     }
 
@@ -6700,13 +6730,14 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       }
       const counselorDisplay = attachTitle(r.counselor || '', map);
       const isRevisit = (r.visitStatus === '재방문' || r.revisit === '재방문');
+      const workTag = window._csWorkTimingTag(r.workTiming, dateStr);
 
       // 모바일: 카드형 (iframe 환경에서 innerWidth가 좁게 찍히는 오판 방지 — screen.width 우선)
       const _isMobileCard = (window.screen && window.screen.width) ? window.screen.width <= 768 : window.innerWidth <= 768;
       if (_isMobileCard) {
         return `
           <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
-            <td colspan="10" style="padding:0;border:none;">
+            <td colspan="11" style="padding:0;border:none;">
               <div class="cs-card">
                 <div class="cs-card-top">
                   <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
@@ -6719,6 +6750,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
                 <div class="cs-card-rows">
                   ${counselorDisplay ? `<div class="cs-card-row"><span class="cs-card-label">상담자</span><span>${counselorDisplay}</span></div>` : ''}
                   ${scheduleDisplay ? `<div class="cs-card-row"><span class="cs-card-label">일정</span><span>${scheduleDisplay}</span></div>` : ''}
+                  ${workTag ? `<div class="cs-card-row"><span class="cs-card-label">시공예정</span><span style="min-width:0;">${workTag}</span></div>` : ''}
                   ${r.phone ? `<div class="cs-card-row"><span class="cs-card-label">연락처</span><span>${r.phone}</span></div>` : ''}
                   ${r.company ? `<div class="cs-card-row"><span class="cs-card-label">업체명</span><span>${r.company}</span></div>` : ''}
                   ${r.visitorType ? `<div class="cs-card-row"><span class="cs-card-label">유형</span><span>${r.visitorType}</span></div>` : ''}
@@ -6741,6 +6773,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           <td>${r.company||''}</td>
           <td title="${(r.address||'').replace(/"/g,'&quot;')}">${r.address||''}</td>
           <td>${scheduleDisplay}</td>
+          <td>${workTag}</td>
           <td>${r.phone||''}</td>
         </tr>
       `;
@@ -6787,7 +6820,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       const curTotalPages = Math.ceil((allConsults || []).length / pageSize);
       if (p > curTotalPages) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">전체 상담내역 불러오는 중...</td></tr>';
+        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">전체 상담내역 불러오는 중...</td></tr>';
         let full = [];
         try {
           full = await ensureFullConsults();
@@ -6799,7 +6832,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           if (typeof _syncConsultRefs === 'function') _syncConsultRefs();
         } else {
           // 전체 불러오기 실패/빈손: 무반응 방지 — 안내 후 현재 페이지 유지
-          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
+          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
           alert('전체 상담내역을 불러오지 못했습니다.\n네트워크 상태를 확인한 뒤 다시 시도해주세요.');
           renderConsultList();
           return;
@@ -6812,7 +6845,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   // ── 쇼룸상담 표 컬럼 너비: 사원별 저장/복원 ──
   //   개인설정(_syncUserPrefs/userPrefs) 패턴과 동일하게, 기기(localStorage)엔 즉시 반영하고
   //   로그인 계정(Firestore userPrefs/{uid}.consultColWidths)에도 저장해 다른 기기에서도 유지되게 한다.
-  const CS_COL_DEFAULT_WIDTHS = { no:23, check:34, status:54, revisit:70, counselor:110, name:90, company:100, address:160, date:120, phone:104 };
+  const CS_COL_DEFAULT_WIDTHS = { no:23, check:34, status:54, revisit:70, counselor:110, name:90, company:100, address:160, date:120, work:130, phone:104 };
   function _csColWidthsStorageKey() {
     const uid = window._currentUser && window._currentUser.id;
     return uid ? `baram_consult_col_widths_${uid}` : 'baram_consult_col_widths';
@@ -7019,6 +7052,7 @@ function csDateInputValue(val) {
     document.getElementById('cfWorkPeriod').value = '';
     document.querySelector('input[name=cfElevator][value="유"]').checked = true;
     document.getElementById('cfWorkTiming').value = '';
+    window._csRefreshWorkChip();
     document.getElementById('cfProducts').value = '';
     document.getElementById('cfPriceInfo').value = '';
     document.getElementById('cfReqSample').checked = false;
@@ -7249,6 +7283,7 @@ function csDateInputValue(val) {
     set('cfVisitCount', String(r.visitCount||'').replace(/[^0-9]/g,''));
     set('cfWorkDate', csDateInputValue(r.workDate));
     set('cfWorkTiming', sanitizeDateVal(r.workTiming || ''));
+    window._csRefreshWorkChip();
     set('cfWorkPeriod', sanitizeDateVal(r.workPeriod || ''));
     set('cfProducts', r.products);
     if (document.getElementById('cfSpaceType')) document.getElementById('cfSpaceType').value = r.spaceType||'';
@@ -7340,6 +7375,7 @@ function csDateInputValue(val) {
     // 시공예정시기, 공사기간 (쇼룸상담 추가 필드)
     if (document.getElementById('cfWorkTiming')) {
       document.getElementById('cfWorkTiming').value = sanitizeDateVal(r.workTiming || '');
+      window._csRefreshWorkChip();
     }
     if (document.getElementById('cfWorkPeriod')) {
       document.getElementById('cfWorkPeriod').value = sanitizeDateVal(r.workPeriod || '');
@@ -13568,6 +13604,88 @@ window.setVisitFilter = function(el) {
   currentPage = 1;
   if (typeof renderConsultList === 'function') renderConsultList();
   if (typeof updateActiveFilterBadges === 'function') updateActiveFilterBadges();
+};
+
+// ── 시공예정일 리터치 분류 ──
+// ★ 시공예정일(workTiming)은 날짜칸이 아니라 자유 입력 글("6/말", "8월", "7/말 예정", "6/말-7/초",
+//   "26.12말", "2주 후" 등)이라 대략적인 날짜로 해석해서 오늘 기준 3가지로 나눈다.
+//   목록·모바일카드·상세·필터가 모두 이 함수 하나만 쓴다(같은 값을 화면마다 따로 계산하지 않기).
+//   - 초=5일, 초중=10일, 중/중순=15일, 중말=20일, 말=25일, 월만 있으면 15일. 기간이면 앞 날짜.
+//   - 연도가 없으면 상담일 기준: 상담월보다 6달 이상 앞선 월이면 해를 넘긴 것으로 본다(12월 상담의 "2월" → 다음 해).
+//   - "N주 후/N달 뒤"는 상담일 기준으로 더한다. 해석 못 하는 글("미정", "여름 이후")은 null.
+const CS_WORK_CATS = {
+  future: { label: '2주+ 남음' },
+  near:   { label: '±2주 이내' },
+  past:   { label: '2주+ 지남' },
+};
+window._csWorkTimingInfo = function(workTiming, consultDate) {
+  const s = String(workTiming || '').trim();
+  if (!s) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const cd = String(consultDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const base = cd ? new Date(+cd[1], +cd[2] - 1, +cd[3]) : today;
+  const PART = { '초': 5, '초중': 10, '중': 15, '중순': 15, '중말': 20, '말': 25 };
+  const dayOf = p => (p && /^\d/.test(p)) ? Math.min(Math.max(parseInt(p, 10), 1), 31) : (PART[p] || 15);
+  const PART_RE = '(\\d{1,2}(?!\\d)|초중|중말|초|중순|중|말)?';
+  let d = null, m;
+  if ((m = s.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/))) {
+    d = new Date(+m[1], +m[2] - 1, +m[3]);
+  } else if ((m = s.match(/(\d+)(?:\s*[~-]\s*\d+)?\s*(주|개월|달)\s*(?:후|뒤|이후)/))) {
+    d = new Date(base);
+    if (m[2] === '주') d.setDate(d.getDate() + (+m[1]) * 7);
+    else d.setMonth(d.getMonth() + (+m[1]));
+  } else if ((m = s.match(new RegExp('^(\\d{4}|[2-3]\\d)\\s*[.\\/년]\\s*(\\d{1,2})(?!\\d)\\s*[.\\/월]?\\s*' + PART_RE)))
+             && +m[2] >= 1 && +m[2] <= 12) {
+    const y = m[1].length === 2 ? 2000 + (+m[1]) : +m[1];
+    d = new Date(y, +m[2] - 1, dayOf(m[3]));
+  } else if ((m = s.replace(/(\d{1,2})\s*[~-]\s*\d{1,2}\s*월/, '$1월').match(new RegExp('(\\d{1,2})\\s*(?:\\/|월)\\s*' + PART_RE)))
+             && +m[1] >= 1 && +m[1] <= 12) {
+    let y = base.getFullYear();
+    if ((base.getMonth() + 1) - (+m[1]) >= 6) y++;
+    d = new Date(y, +m[1] - 1, dayOf(m[2]));
+  }
+  if (!d || isNaN(d)) return null;
+  const diff = Math.round((d - today) / 86400000);
+  const cat = diff > 14 ? 'future' : (diff >= -14 ? 'near' : 'past');
+  return { date: d, diff, cat };
+};
+// 목록/상세에 쓰는 색 칩 HTML. 해석 못 하는 글은 색 없이 그대로 보여준다.
+window._csWorkTimingTag = function(workTiming, consultDate) {
+  const s = String(workTiming || '').trim();
+  if (!s) return '';
+  const esc = window._escHtml(s);
+  const info = window._csWorkTimingInfo(s, consultDate);
+  if (!info) return `<span class="cs-work-plain" title="${esc}">${esc}</span>`;
+  const dLabel = info.diff > 0 ? 'D-' + info.diff : (info.diff === 0 ? 'D-day' : '+' + (-info.diff) + '일');
+  return `<span class="cs-work-tag ${info.cat}" title="${esc} · ${CS_WORK_CATS[info.cat].label}"><span class="cs-work-t">${esc}</span><span class="cs-work-d">${dLabel}</span></span>`;
+};
+
+let csWorkFilter = null;
+window.setWorkFilter = function(el) {
+  if (typeof window._markConsultsFilterDirty === 'function') window._markConsultsFilterDirty();
+  const next = csWorkFilter === el.dataset.workFilter ? null : el.dataset.workFilter;
+  csWorkFilter = next;
+  document.querySelectorAll('.cs-work-chip[data-work-filter]').forEach(c => c.classList.toggle('on', c.dataset.workFilter === next));
+  currentPage = 1;
+  if (typeof renderConsultList === 'function') renderConsultList();
+  if (typeof updateActiveFilterBadges === 'function') updateActiveFilterBadges();
+};
+window.clearWorkFilter = function() {
+  if (typeof window._markConsultsFilterDirty === 'function') window._markConsultsFilterDirty();
+  csWorkFilter = null;
+  document.querySelectorAll('.cs-work-chip[data-work-filter]').forEach(c => c.classList.remove('on'));
+  currentPage = 1;
+  if (typeof renderConsultList === 'function') renderConsultList();
+  if (typeof updateActiveFilterBadges === 'function') updateActiveFilterBadges();
+};
+// 상세/등록 폼의 시공 예정일 옆 색 칩
+window._csRefreshWorkChip = function() {
+  const el = document.getElementById('cfWorkTimingChip');
+  if (!el) return;
+  const wt = (document.getElementById('cfWorkTiming') || {}).value || '';
+  const cdRaw = (document.getElementById('cfDate') || {}).value || '';
+  el.innerHTML = window._csWorkTimingTag(wt, cdRaw);
 };
 
 // 초기 즐겨찾기 + 순서 적용
