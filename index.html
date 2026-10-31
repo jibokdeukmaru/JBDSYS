@@ -1691,9 +1691,9 @@ button { word-break:keep-all; }
               <label class="check-chip"><input type="checkbox" id="boxCheck" /> 박스당 단가</label>
             </div>
             <select id="audienceSelect" class="plain-select no-capture">
-              <option value="both">소비자&업체가</option>
               <option value="consumer">소비자가</option>
               <option value="vendor">업체가</option>
+              <option value="both">소비자&업체가</option>
             </select>
             <select id="priceModeSelect" class="plain-select no-capture">
               <option value="included">시공비 포함</option>
@@ -12931,7 +12931,8 @@ return: [
   '감사합니다.'
 ].join('\n')
 };
-const state = { selected: [], audience: 'consumer', priceMode: 'included', maxSelected: 10, box: false, sqm: false };
+const PRICING_DEFAULTS = { audience: 'consumer', priceMode: 'included', box: false, sqm: false };
+const state = { selected: [], maxSelected: 10, ...PRICING_DEFAULTS };
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => (Number.isFinite(n) ? `${n.toLocaleString('ko-KR')}원` : '-');
 let toastTimer = null;
@@ -13043,7 +13044,8 @@ function renderMeta() { updateQuoteDate(); $('noticeLinePrimary').textContent = 
 function renderAll() { renderLeftTable(); buildRightHeader(); renderRightTable(); renderMeta(); }
 function addCode(code) { if(!code || state.selected.includes(code)) return; if(state.selected.length >= state.maxSelected) return showToast(`선택은 최대 ${state.maxSelected}개까지만 가능합니다.`); state.selected.push(code); renderAll(); }
 function removeCode(code) { state.selected = state.selected.filter(x=>x!==code); renderAll(); }
-function resetAll() { state.selected=[]; renderAll(); }
+function syncPricingControls() { $('audienceSelect').value=state.audience; $('priceModeSelect').value=state.priceMode; $('boxCheck').checked=state.box; $('sqmCheck').checked=state.sqm; }
+function resetAll() { state.selected=[]; Object.assign(state, PRICING_DEFAULTS); syncPricingControls(); renderAll(); }
 async function saveCapture() { const el=$('captureArea'); if(!el) return; const captureNow = new Date(); updateQuoteDate(captureNow); const scrollers=el.querySelectorAll('.scroll'); const prev=[]; el.classList.add('is-capturing'); scrollers.forEach(node=>{ prev.push([node,node.style.overflow,node.style.maxHeight]); node.style.overflow='visible'; node.style.maxHeight='none'; }); try { const canvas=await html2canvas(el,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,onclone:window._h2cOnclone}); const now=new Date(); const stamp=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download=`단가안내_${stamp}.png`; a.click(); } finally { prev.forEach(([node,overflow,maxHeight])=>{ node.style.overflow=overflow; node.style.maxHeight=maxHeight; }); el.classList.remove('is-capturing'); } }
 function initPreviews() { document.querySelectorAll('[data-preview]').forEach(node=>{ node.textContent = templates[node.dataset.preview] || ''; }); }
 function resetViewportZoom() {
@@ -13880,7 +13882,7 @@ function runCalculator() {
 function resetCalculator() { $('calcAudienceSelect').value='consumer'; $('calcPriceModeSelect').value='included'; $('calcInputModeSelect').value='py'; $('calcAreaInput').value=''; if($('calcLossRateInput')) $('calcLossRateInput').value=''; syncCalcInputUi(); resetCalcResults(); runCalculator(); }
 function runSelfTests() { console.assert(fmt(12000)==='12,000원','fmt formats'); { const t = calcProductPrices({ code:'C19012', box_m2:2.112, installCost:50000, consumer:{py:480000}, vendor:{py:410000} }); console.assert(t.consumer.sqm===148200 && t.vendor.sqm===126600 && t.consumer.materialSqm===132800 && t.consumer.box===280500 && t.vendor.box===234900, 'calcProductPrices C19012 example', t); } if(products.length>0){ console.assert(getUnitValue(products[0],'consumer','sqm','included')===calcProductPrices(products[0]).consumer.sqm,'included sqm'); console.assert(getUnitValue(products[0],'consumer','box','included')===products[0].consumer.box,'box raw'); console.assert(getUnitValue(products[0],'consumer','sqm','material')===ceilTo(getMaterialPyPrice(products[0],'consumer')/3.24,100),'material sqm calc'); } }
 function initApp() {
-  fillSelect(); initPreviews(); renderAll(); syncCalcInputUi(); resetCalcResults(); runCalculator(); runSelfTests();
+  fillSelect(); initPreviews(); syncPricingControls(); renderAll(); syncCalcInputUi(); resetCalcResults(); runCalculator(); runSelfTests();
   $('addBtn').addEventListener('click',()=>addCode($('productSelect').value));
   $('searchInput').addEventListener('input',renderAll);
   $('audienceSelect').addEventListener('change',e=>{ state.audience=e.target.value; renderAll(); });
