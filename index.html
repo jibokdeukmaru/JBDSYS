@@ -14078,12 +14078,16 @@ function _productDocId(code) {
 function _productColRef() {
     return window.FB.collection(window.FB.db, 'products');
 }
+// 스펙의 곱하기 기호 X는 대문자/소문자 상관없이 소문자 x로 통일 (예: 1200X190X12T → 1200x190x12T)
+function normalizeProductSpec(spec) {
+    return String(spec || '').replace(/X/g, 'x');
+}
 function _productFromDoc(id, v) {
     return {
         id,
         code:           v.code || id,
         name:           v.name || '',
-        spec:           v.spec || '',
+        spec:           normalizeProductSpec(v.spec),
         box_m2:         v.box_m2 || 0,
         sheets_per_box: v.sheets_per_box || 0,
         installCost:    Number.isFinite(v.installCost) ? v.installCost : null,
@@ -14320,7 +14324,7 @@ async function saveProductModal() {
     const data = {
         code,
         name: $('productModalName').value.trim(),
-        spec: $('productModalSpec').value.trim(),
+        spec: normalizeProductSpec($('productModalSpec').value.trim()),
         box_m2: num('productModalBoxM2'),
         sheets_per_box: num('productModalSheetsPerBox'),
         installCost: (() => { const raw = $('productModalInstallCost').value.trim(); if (raw === '') return null; const v = parseFloat(raw); return Number.isFinite(v) ? v : null; })(),
