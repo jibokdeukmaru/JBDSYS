@@ -16195,7 +16195,47 @@ async function _ivFetchQuotesFor(targetId) {
     }
     const rows = [];
     snap.forEach(d => rows.push(Object.assign({ id: d.id }, d.data())));
-    return rows;
+    return _ivSortByWorkDate(rows);
+}
+
+// ---------------- 시공예정일 순 정렬 ----------------
+// 시공예정일은 견적서 스냅샷 안(simpleData / stages[단계].data)의 자유입력 글이라, 4단계 견적서는
+// 정산서→중도금→실측후→실측전 순으로 값이 있는 가장 최근 단계 것을 쓴다. 날짜 해석은 쇼룸상담과
+// 같은 _csWorkTimingInfo 하나만 쓴다(연도 없는 글은 견적서 작성일 기준으로 해 판단).
+function _ivQuoteWorkDate(q) {
+    let snap = null;
+    if (q.type === 'staged') {
+        for (const st of IV_STAGE_ORDER.slice().reverse()) {
+            const d = q.stages && q.stages[st] && q.stages[st].data;
+            if (d && String(d.workDate || '').trim()) { snap = d; break; }
+        }
+    } else {
+        snap = q.simpleData || null;
+    }
+    const text = snap ? String(snap.workDate || '').trim() : '';
+    if (!text) return { text: '', date: null };
+    const pad = n => String(n).padStart(2, '0');
+    let base = '';
+    const m = String(snap.date || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+    if (m) base = `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+    else if (q.createdAt && typeof q.createdAt.toDate === 'function') {
+        const c = q.createdAt.toDate();
+        base = `${c.getFullYear()}-${pad(c.getMonth() + 1)}-${pad(c.getDate())}`;
+    }
+    const info = (typeof window._csWorkTimingInfo === 'function') ? window._csWorkTimingInfo(text, base) : null;
+    return { text, date: info ? info.date : null };
+}
+// 시공예정일 빠른 순 → 해석 불가/빈칸은 맨 아래(그 안에서는 최근 수정 순).
+function _ivSortByWorkDate(rows) {
+    const ts = t => (t && typeof t.toMillis === 'function') ? t.toMillis() : 0;
+    rows.forEach(q => { q._wd = _ivQuoteWorkDate(q); });
+    return rows.sort((a, b) => {
+        const da = a._wd.date, db = b._wd.date;
+        if (da && db) return (da - db) || (ts(b.updatedAt) - ts(a.updatedAt));
+        if (da) return -1;
+        if (db) return 1;
+        return ts(b.updatedAt) - ts(a.updatedAt);
+    });
 }
 
 // ---------------- 범용 흐름 모달(폴더선택/단계선택) ----------------
@@ -16629,7 +16669,8 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
           }).join(' ')
         : `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#eee;color:#555;">${q.category || ''}</span>`;
     const displayTitle = _ivNoBreakPhone(q.fileName || q.companyName || '(파일명 미입력)');
-    const companyLine = _ivNoBreakPhone(q.companyName);
+    const wd = q._wd || _ivQuoteWorkDate(q);
+    const companyLine = _ivNoBreakPhone(q.companyName) + (wd.text ? ` · 시공 ${window._escHtml(wd.text)}` : '');
     const subtitle = locationLabel
         ? `${companyLine} · ${q.authorName || ''} · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${locationLabel} · ${stageStrip}`
         : `${companyLine} · ${q.authorName || ''} · ${stageStrip}`;
@@ -16871,6 +16912,7 @@ async function _ivRenderSearchResults(body, flags, employees, kw) {
             }
         });
     }
+    _ivSortByWorkDate(results);
     // 검색결과에 나온 폴더 이름 표시용 — 작성자별 폴더 목록을 필요한 만큼만 조회해 캐시
     const foldersByOwner = {};
     for (const q of results) {
