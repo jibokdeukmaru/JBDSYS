@@ -9385,6 +9385,7 @@ function csDateInputValue(val) {
   table.admin-table { width:100%; border-collapse:collapse; font-size:13px; }
   table.admin-table th { padding:10px 8px; background:#fafafa; border:1px solid #e5e5e5; font-weight:700; color:#555; text-align:center; }
   table.admin-table td { padding:10px 8px; border:1px solid #f0f0f0; text-align:center; color:#333; }
+  table.admin-table td.pa-num { white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums; }
   table.admin-table tbody tr:hover { background:var(--cream-2); }
   .admin-empty { padding:40px; text-align:center; color:#aaa; font-size:13px; }
   .admin-status-badge { display:inline-block; padding:3px 10px; border-radius:5px; font-size:11.5px; font-weight:700; }
@@ -9578,7 +9579,7 @@ function csDateInputValue(val) {
         <div class="admin-toolbar" style="justify-content:space-between;margin-bottom:0;">
           <div onclick="toggleProductListVisible()" style="display:flex;align-items:center;gap:18px;cursor:pointer;">
             <svg id="productListToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            <span style="font-size:13px;font-weight:800;color:var(--brand);">제품관리 (단가표)</span>
+            <span style="font-size:13px;font-weight:800;color:var(--brand);">제품관리 (단가표) <span style="font-size:11px;font-weight:500;color:#999;">(금액 단위: 원)</span></span>
           </div>
           <div style="display:flex;gap:6px;"><button class="admin-btn" onclick="recalcAllProductPrices()" title="모든 제품의 ㎡·자재·BOX 단가를 소비자가(평)·업체가(평)·시공비 기준으로 다시 계산해 저장">전체 단가 재계산</button><button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button></div>
         </div>
@@ -14135,6 +14136,9 @@ async function loadAdminProducts() {
     }
 }
 
+// 단가표 금액 칸 — 칸이 좁아 '원'만 다음 줄로 떨어져 행이 두 줄이 되던 문제(2026-11-04):
+// 숫자만 표시하고 단위는 표 제목 옆 "(금액 단위: 원)"에 한 번만 적는다. 다른 화면의 fmt()는 그대로.
+const _paNum = (n) => (Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-');
 function renderAdminProductsTable() {
     const wrap = $('productAdminTableBody');
     if (!wrap) return;
@@ -14156,8 +14160,8 @@ function renderAdminProductsTable() {
             <td>${escapeHtmlProduct(p.spec)}</td>
             <td style="${p.box_m2 ? '' : 'color:#c0392b;'}">${p.box_m2 ? formatDecimal(p.box_m2, 3) : '미입력'}</td>
             <td style="${p.sheets_per_box ? '' : 'color:#c0392b;'}">${p.sheets_per_box ? fmtNum(p.sheets_per_box) : '미입력'}</td>
-            <td>${(() => { const eff = getEffectiveInstallCost(p); if (eff === null) return '<span style="color:#c0392b;font-weight:700;">미입력(0원)</span>'; return fmt(eff) + (p.installCost != null ? '' : ' <span style="color:#aaa;font-size:10.5px;">(자동)</span>'); })()}</td>
-            ${(() => { const c = calcProductPrices(p); const cell = (v, saved) => `<td${saved !== v ? ' style="color:#c0392b;" title="저장값 ' + fmt(saved) + ' → 재계산 필요"' : ''}>${fmt(v)}</td>`; return `<td>${fmt(c.consumer.py)}</td>${cell(c.consumer.sqm, p.consumer.sqm)}${cell(c.consumer.box, p.consumer.box)}<td>${fmt(c.vendor.py)}</td>${cell(c.vendor.sqm, p.vendor.sqm)}${cell(c.vendor.box, p.vendor.box)}`; })()}
+            <td class="pa-num">${(() => { const eff = getEffectiveInstallCost(p); if (eff === null) return '<span style="color:#c0392b;font-weight:700;">미입력(0원)</span>'; return _paNum(eff) + (p.installCost != null ? '' : ' <span style="color:#aaa;font-size:10.5px;">(자동)</span>'); })()}</td>
+            ${(() => { const c = calcProductPrices(p); const cell = (v, saved) => `<td class="pa-num"${saved !== v ? ' style="color:#c0392b;" title="저장값 ' + fmt(saved) + ' → 재계산 필요"' : ''}>${_paNum(v)}</td>`; return `<td class="pa-num">${_paNum(c.consumer.py)}</td>${cell(c.consumer.sqm, p.consumer.sqm)}${cell(c.consumer.box, p.consumer.box)}<td class="pa-num">${_paNum(c.vendor.py)}</td>${cell(c.vendor.sqm, p.vendor.sqm)}${cell(c.vendor.box, p.vendor.box)}`; })()}
             <td>${p.natural ? '✔' : ''}</td>
             <td style="white-space:nowrap;">
                 <button class="admin-btn" onclick="openProductModal('${p.id}')">수정</button>
