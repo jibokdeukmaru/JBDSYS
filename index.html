@@ -1187,7 +1187,7 @@ button { word-break:keep-all; }
                 <rect x="8" y="18.6" width="8" height="1.6" rx="0.8" fill="#fff"/>
               </svg>
             </a>
-            <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.3/JBDSYS-ERP-Android-1.3.apk" title="Android 다운로드">
+            <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.4/JBDSYS-ERP-Android-1.4.apk" title="Android 다운로드">
               <svg width="34" height="34" viewBox="0 0 24 24">
                 <rect width="24" height="24" rx="6" fill="#E8F8EF"/>
                 <g fill="#3DDC84">
@@ -2191,6 +2191,47 @@ window.appIsNativeApp = function() {
   return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
 };
 window._appToast = function(msg) { try { if (typeof showToast === 'function') showToast(msg); } catch (e) {} };
+// (1.4 / 2026-11-05) 앱에서 저장 버튼을 눌러도 된 건지 안 된 건지 알 수 없다는 피드백 —
+//   누르는 즉시 "저장 중…" 표시, 끝나면 파일명·저장 위치가 적힌 확인창(alert = 페이지 안 창)을 띄운다.
+//   오류 시에는 각 기능이 원래 띄우던 토스트/알림이 나오면서 "저장 중…"은 자동으로 닫힌다. 앱에서만 동작.
+window.appBusy = function(msg) {
+  if (!window.appIsNativeApp()) return;
+  let el = document.getElementById('appBusyOverlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'appBusyOverlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,0.25);display:none;align-items:center;justify-content:center;';
+    el.innerHTML = '<div style="background:#fff;border-radius:12px;padding:16px 22px;font-size:14px;font-weight:600;color:#222;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;">'
+      + '<span style="width:16px;height:16px;border:2px solid #ddd;border-top-color:var(--brand,#3b6fd8);border-radius:50%;display:inline-block;animation:appBusySpin .8s linear infinite;"></span>'
+      + '<span id="appBusyMsg"></span></div><style>@keyframes appBusySpin{to{transform:rotate(360deg)}}</style>';
+    document.body.appendChild(el);
+  }
+  el.querySelector('#appBusyMsg').textContent = msg || '저장 중…';
+  el.style.display = 'flex';
+  clearTimeout(window._appBusyTimer);
+  window._appBusyTimer = setTimeout(window.appBusyEnd, 45000); // 안전장치
+};
+window.appBusyEnd = function() {
+  clearTimeout(window._appBusyTimer);
+  const el = document.getElementById('appBusyOverlay');
+  if (el) el.style.display = 'none';
+};
+// 오류 안내(토스트/알림)가 뜨면 "저장 중…"은 닫는다 — showToast/alert는 다른 스크립트에서 정의되므로 로드 후 감싼다
+window.addEventListener('DOMContentLoaded', function() {
+  try {
+    const _st = window.showToast;
+    if (typeof _st === 'function' && !_st._busyWrapped) {
+      window.showToast = function() { window.appBusyEnd(); return _st.apply(this, arguments); };
+      window.showToast._busyWrapped = true;
+    }
+    const _al = window.alert;
+    window.alert = function() { window.appBusyEnd(); return _al.apply(this, arguments); };
+  } catch (e) {}
+});
+window._appSavedDialog = function(name, where) {
+  window.appBusyEnd();
+  window.alert('✅ 저장 완료\n\n' + name + '\n저장 위치: ' + where);
+};
 window.appBlobToBase64 = function(blob) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -2218,19 +2259,22 @@ window.appSaveBlobNative = async function(blob, filename) {
   const isImage = /^image\//.test(mime);
   if (N && isImage && typeof N.saveImage === 'function') {
     const r = String(N.saveImage(b64, name, mime) || '');
-    if (r === 'ok') { window._appToast('갤러리에 저장했습니다 (지복득마루 폴더)'); return true; }
+    if (r === 'ok') { window._appSavedDialog(name, '갤러리 › 지복득마루'); return true; }
     console.warn('[app] saveImage:', r);
   } else if (N && !isImage && typeof N.saveFile === 'function') {
     const r = String(N.saveFile(b64, name, mime) || '');
-    if (r === 'ok') { window._appToast('다운로드 폴더에 저장했습니다 (Download/지복득마루)'); return true; }
+    if (r === 'ok') { window._appSavedDialog(name, '내 파일 › 다운로드(Download) › 지복득마루'); return true; }
     console.warn('[app] saveFile:', r);
   }
   // 구버전 앱(1.2 이하) 또는 안드로이드 9 이하 — 임시폴더에 쓰고 공유창으로
   const P = (window.Capacitor && window.Capacitor.Plugins) || {};
   if (!P.Filesystem) throw new Error('앱 저장 기능을 찾을 수 없습니다');
   const written = await P.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
-  if (P.Share) await P.Share.share({ title: name, url: written.uri, dialogTitle: '저장/공유' });
-  else window._appToast('저장 완료: ' + name);
+  window.appBusyEnd();
+  if (P.Share) {
+    window._appToast('공유창에서 저장하거나 보낼 곳을 선택하세요');
+    try { await P.Share.share({ title: name, url: written.uri, dialogTitle: '저장/공유' }); } catch (e) { /* 사용자가 닫음 */ }
+  } else window._appSavedDialog(name, '앱 임시폴더');
   return true;
 };
 // 어디서나 쓰는 파일 저장: 앱 → 네이티브, iOS → 새 탭(길게 눌러 저장), 그 외 → <a download>
@@ -2251,6 +2295,7 @@ window.appSaveBlob = async function(blob, filename) {
 // 앱 안에서 인쇄: 인쇄할 HTML 문서를 통째로 네이티브에 넘긴다. 처리했으면 true(앱이 아니면 false → window.print()).
 window.appPrintHtmlNative = function(html, jobName, landscape) {
   if (!window.appIsNativeApp()) return false;
+  window.appBusyEnd();
   const N = window.JBDNative;
   if (N && typeof N.printHtml === 'function') {
     N.printHtml(String(html), String(jobName || '지복득마루 ERP'), !!landscape);
@@ -2558,6 +2603,7 @@ window.appBuildPrintDoc = function(doc, bodyClass, bodyHtml) {
   }
 
   window._galDownload = async function() {
+    window.appBusy('사진 저장 중…');
     if (!state.current || !state.current.images.length) return;
     const img = state.current.images[state.current.index];
     if (!img) return;
@@ -7249,6 +7295,7 @@ function csDateInputValue(val) {
 
   // ── 쇼룸상담 목록 CSV 다운로드 ──
   window.downloadConsultCSV = async function() {
+    window.appBusy('CSV 만드는 중…');
     // ★ 현재 화면(allConsults)은 검색/필터 상태에 따라 최근 100건이나 검색 결과처럼
     //   일부만 담겨있을 수 있다. CSV는 "전체데이터" 다운로드가 목적이므로, 화면 상태와
     //   무관하게 항상 Firestore 전체 데이터를 새로 받아와서 내보낸다.
@@ -13162,7 +13209,7 @@ function addCode(code) { if(!code || state.selected.includes(code)) return; if(s
 function removeCode(code) { state.selected = state.selected.filter(x=>x!==code); renderAll(); }
 function syncPricingControls() { $('audienceSelect').value=state.audience; $('priceModeSelect').value=state.priceMode; $('boxCheck').checked=state.box; $('sqmCheck').checked=state.sqm; }
 function resetAll() { state.selected=[]; Object.assign(state, PRICING_DEFAULTS); syncPricingControls(); renderAll(); }
-async function saveCapture() { const el=$('captureArea'); if(!el) return; const captureNow = new Date(); updateQuoteDate(captureNow); const scrollers=el.querySelectorAll('.scroll'); const prev=[]; el.classList.add('is-capturing'); scrollers.forEach(node=>{ prev.push([node,node.style.overflow,node.style.maxHeight]); node.style.overflow='visible'; node.style.maxHeight='none'; }); try { const canvas=await html2canvas(el,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,onclone:window._h2cOnclone}); const now=new Date(); const stamp=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const _capName=`단가안내_${stamp}.png`; const _capUrl=canvas.toDataURL('image/png'); if (await window.appSaveBlobNative(window.appDataUrlToBlob(_capUrl), _capName)) return; const a=document.createElement('a'); a.href=_capUrl; a.download=_capName; a.click(); } finally { prev.forEach(([node,overflow,maxHeight])=>{ node.style.overflow=overflow; node.style.maxHeight=maxHeight; }); el.classList.remove('is-capturing'); } }
+async function saveCapture() { const el=$('captureArea'); if(!el) return; window.appBusy('이미지 저장 중…'); const captureNow = new Date(); updateQuoteDate(captureNow); const scrollers=el.querySelectorAll('.scroll'); const prev=[]; el.classList.add('is-capturing'); scrollers.forEach(node=>{ prev.push([node,node.style.overflow,node.style.maxHeight]); node.style.overflow='visible'; node.style.maxHeight='none'; }); try { const canvas=await html2canvas(el,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,onclone:window._h2cOnclone}); const now=new Date(); const stamp=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const _capName=`단가안내_${stamp}.png`; const _capUrl=canvas.toDataURL('image/png'); if (await window.appSaveBlobNative(window.appDataUrlToBlob(_capUrl), _capName)) return; const a=document.createElement('a'); a.href=_capUrl; a.download=_capName; a.click(); } finally { prev.forEach(([node,overflow,maxHeight])=>{ node.style.overflow=overflow; node.style.maxHeight=maxHeight; }); el.classList.remove('is-capturing'); } }
 function initPreviews() { document.querySelectorAll('[data-preview]').forEach(node=>{ node.textContent = templates[node.dataset.preview] || ''; }); }
 function resetViewportZoom() {
   const meta = document.querySelector('meta[name="viewport"]');
@@ -15869,6 +15916,7 @@ async function _invRenderCanvas(outputScale) {
 
 async function printInvoice() {
     renderInvoice();
+    window.appBusy('인쇄 준비 중…');
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     let canvas;
     try {
@@ -15972,6 +16020,7 @@ async function _invStampToday() {
 
 async function saveInvoiceImage() {
     await _invStampToday();
+    window.appBusy('견적서 이미지 만드는 중…');
     const el = document.getElementById('invoiceDoc');
     if (!el) return;
 
@@ -16025,6 +16074,7 @@ async function saveInvoicePdf() {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     try {
         await _invStampToday();
+        window.appBusy('견적서 PDF 만드는 중…');
         // 이미지 저장/출력과 같은 공통 캔버스 (_invRenderCanvas 주석 참고)
         const canvas = await _invRenderCanvas(isMobile ? 2 : 3);
 
@@ -21046,6 +21096,7 @@ if ('serviceWorker' in navigator) {
   //   다운로드 매니저가 아예 못 가로챈다 — 그래서 클릭해도 조용히 아무 반응이 없었다.
   //   플랫폼별로 실제로 동작하는 저장 방식으로 분기한다.
   window.downloadGmailAttachment = async function(i) {
+    window.appBusy('첨부파일 받는 중…');
     const msg = _currentGmailDetailMsg;
     const att = msg && msg.attachments && msg.attachments[i];
     if (!att) return;
@@ -22029,10 +22080,66 @@ if ('serviceWorker' in navigator) {
       const remote = await res.json();
       if (remote.version && isNewerVersion(remote.version, currentVersion)) {
         const goUpdate = await appConfirm(`새 버전이 있습니다 (${remote.version}). 업데이트하시겠습니까?`);
-        if (goUpdate && remote.url) window.open(remote.url, '_system');
+        if (!goUpdate || !remote.url) return;
+        // (앱 1.4+) 앱 안에서 바로 받아 설치 화면까지 — 구버전은 예전처럼 브라우저로 APK 열기
+        if (window.JBDNative && typeof window.JBDNative.updateApp === 'function') {
+          _showUpdateProgress(remote.version);
+          const r = String(window.JBDNative.updateApp(remote.url) || '');
+          if (r !== 'ok') { window._appUpdateError(r); }
+        } else {
+          window.open(remote.url, '_system');
+        }
       }
     } catch (e) { console.warn('안드로이드 앱 버전 확인 실패:', e.message); }
   }
+  // ---- 앱 내 업데이트 진행창 (네이티브 MainActivity.downloadAndInstall이 아래 함수들을 호출) ----
+  function _updEl() {
+    let el = document.getElementById('appUpdateOverlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'appUpdateOverlay';
+      el.style.cssText = 'position:fixed;inset:0;z-index:30005;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;padding:16px;';
+      el.innerHTML = '<div style="background:#fff;border-radius:14px;width:90%;max-width:340px;padding:22px;box-shadow:0 8px 40px rgba(0,0,0,.18);">'
+        + '<div id="appUpdTitle" style="font-size:15px;font-weight:800;color:#222;margin-bottom:10px;"></div>'
+        + '<div id="appUpdMsg" style="font-size:13px;color:#555;line-height:1.6;white-space:pre-line;margin-bottom:12px;"></div>'
+        + '<div style="height:8px;background:#eee;border-radius:4px;overflow:hidden;"><div id="appUpdBar" style="height:100%;width:0;background:var(--brand,#3b6fd8);transition:width .2s;"></div></div>'
+        + '<button type="button" id="appUpdClose" style="display:none;margin-top:14px;width:100%;padding:10px 0;border:1px solid #ddd;border-radius:8px;background:#fff;color:#444;font-size:13px;">닫기</button>'
+        + '</div>';
+      document.body.appendChild(el);
+      el.querySelector('#appUpdClose').onclick = () => { el.style.display = 'none'; };
+    }
+    return el;
+  }
+  function _showUpdateProgress(ver) {
+    const el = _updEl();
+    el.querySelector('#appUpdTitle').textContent = '앱 업데이트 ' + (ver || '');
+    el.querySelector('#appUpdMsg').textContent = '새 버전을 받는 중입니다…';
+    el.querySelector('#appUpdBar').style.width = '0%';
+    el.querySelector('#appUpdClose').style.display = 'none';
+    el.style.display = 'flex';
+  }
+  window._appUpdateProgress = function(pct) {
+    const el = _updEl();
+    el.querySelector('#appUpdBar').style.width = Math.max(0, Math.min(100, pct)) + '%';
+    el.querySelector('#appUpdMsg').textContent = pct >= 100 ? '다운로드 완료 — 설치 화면을 여는 중…' : ('새 버전을 받는 중입니다… ' + pct + '%');
+  };
+  window._appUpdateNeedPermission = function() {
+    const el = _updEl();
+    el.querySelector('#appUpdMsg').textContent = '처음 한 번만 설정이 필요합니다.\n\n열리는 설정 화면에서 \'지복득마루 ERP\'의\n[이 출처 허용]을 켠 뒤 뒤로 가기를 누르세요.\n돌아오면 설치 화면이 바로 이어서 뜹니다.';
+    el.querySelector('#appUpdClose').style.display = '';
+  };
+  window._appUpdateInstalling = function() {
+    const el = _updEl();
+    el.querySelector('#appUpdMsg').textContent = '설치 화면에서 [업데이트(설치)]를 눌러 주세요.\n설치가 끝나면 앱이 새 버전으로 다시 열립니다.';
+    el.querySelector('#appUpdClose').style.display = '';
+  };
+  window._appUpdateError = function(msg) {
+    const el = _updEl();
+    el.querySelector('#appUpdMsg').textContent = '업데이트 실패: ' + (msg || '알 수 없는 오류') + '\n잠시 후 다시 시도하거나, 앱 다운로드 메뉴에서 직접 받아 설치해 주세요.';
+    el.querySelector('#appUpdClose').style.display = '';
+    el.style.display = 'flex';
+  };
+
   setTimeout(checkForAndroidUpdate, 3000);
 })();
 </script>
@@ -22094,7 +22201,7 @@ if ('serviceWorker' in navigator) {
           <div style="font-size:11px;color:#999;">PC 설치 프로그램 다운로드</div>
         </div>
       </a>
-      <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.3/JBDSYS-ERP-Android-1.3.apk" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #e5e5e5;border-radius:12px;text-decoration:none;">
+      <a href="https://github.com/jibokdeukmaru/JBDSYS/releases/download/android-app-v1.4/JBDSYS-ERP-Android-1.4.apk" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #e5e5e5;border-radius:12px;text-decoration:none;">
         <svg width="40" height="40" viewBox="0 0 24 24" style="flex-shrink:0;">
           <rect width="24" height="24" rx="6" fill="#E8F8EF"/>
           <g fill="#3DDC84">
