@@ -3827,7 +3827,11 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         <input type="checkbox" id="invSeparateCheck" onchange="toggleInvDividerBtn()" />
         단분리
       </label>
-      <div class="check-chip inv-adjust-chip" style="white-space:nowrap;">
+      <label class="check-chip">
+        <input type="checkbox" id="invBaseboardSiteCheck" onchange="renderInvoice()" />
+        걸레받이 현장지급
+      </label>
+      <div class="check-chip inv-adjust-chip" style="white-space:nowrap; grid-column:1 / -1;">
         <input type="checkbox" id="invAdjustCheck" checked onchange="renderInvoice()" />
         <label for="invAdjustCheck" style="cursor:pointer;margin:0;white-space:nowrap;">단수정리</label>
         (<input type="checkbox" id="invAdjustUnit1000" checked onchange="onInvAdjustUnitChange('1000')" style="margin:0 2px 0 3px;"><label for="invAdjustUnit1000" style="cursor:pointer;margin:0;white-space:nowrap;">천</label>
@@ -3956,7 +3960,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
             단위 : 원/m²<br>
             결제조건 : 계약금 50%, 중도금 30%(시공 일주일 전) 잔금 20%(시공 직후)<br>
             시공 : 본드-친환경 황토풀 사용 기준<br>
-            <span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
             <span class="inv-red">*걸레받이 별도</span><br>
             원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
             자연 질감이 그대로 표현되므로,<br>
@@ -14857,6 +14860,7 @@ async function resetInvoiceForm() {
         invBoxCalcCheck: false,
         invRemarksEditCheck: false,
         invSeparateCheck: false,
+        invBaseboardSiteCheck: false,
         invAdjustCheck: true,
         invAdjustUnit1000: true,
         invAdjustUnit10000: false,
@@ -15387,6 +15391,19 @@ window.onInvAdjustUnitChange = function(which) {
     renderInvoice();
 };
 
+// REMARKS의 안내 문구 줄(2026-11-05) — 견적 종류마다 4벌로 복붙돼 있던 두 줄을 한 곳에서 만든다.
+//  · "실측 후 물량은 상이할 수 있습니다." → 가견적서(=실측 전)에만 표시, 일반 견적서·정산서(=실측 후)는 생략
+//  · [걸레받이 현장지급] 체크 시 "*걸레받이 별도" → "*걸레받이 시공(실정산) 장당 5,000원 / 현장지급"
+function _invRemarksNoticeLines(isDraft) {
+    const baseboardSite = !!document.getElementById('invBaseboardSiteCheck')?.checked;
+    let html = '';
+    if (isDraft) html += '<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>\n';
+    html += baseboardSite
+        ? '<span class="inv-red">*걸레받이 시공(실정산) 장당 5,000원 / 현장지급</span><br>\n'
+        : '<span class="inv-red">*걸레받이 별도</span><br>\n';
+    return html;
+}
+
 function renderInvoice() {
 
     // 메타
@@ -15629,9 +15646,7 @@ function renderInvoice() {
 단위 : 원/PY<br>
 결제조건 : 계약금 50%, 중도금 30%(시공 일주일 전) 잔금 20%(시공 직후)<br>
 시공 : 본드-친환경 황토풀 사용 기준<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
-<span class="inv-red">*걸레받이 별도</span><br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
+${_invRemarksNoticeLines(true)}원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
 자연 질감이 그대로 표현되므로,<br>
 시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
         } else {
@@ -15640,9 +15655,7 @@ function renderInvoice() {
 단위 : 원/m²<br>
 결제조건 : 계약금 50%, 중도금 30%(시공 일주일 전) 잔금 20%(시공 직후)<br>
 시공 : 본드-친환경 황토풀 사용 기준<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
-<span class="inv-red">*걸레받이 별도</span><br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
+${_invRemarksNoticeLines(true)}원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
 자연 질감이 그대로 표현되므로,<br>
 시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
         }
@@ -15668,9 +15681,7 @@ function renderInvoice() {
 단위 : 원/PY<br>
 결제조건 : 계약금 50%, 중도금 30%(시공 일주일 전) 잔금 20%(시공 직후)<br>
 시공 : 본드-친환경 황토풀 사용 기준<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
-<span class="inv-red">*걸레받이 별도</span><br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
+${_invRemarksNoticeLines(false)}원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
 자연 질감이 그대로 표현되므로,<br>
 시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
     } else {
@@ -15679,9 +15690,7 @@ function renderInvoice() {
 단위 : 원/m²<br>
 결제조건 : 계약금 50%, 중도금 30%(시공 일주일 전) 잔금 20%(시공 직후)<br>
 시공 : 본드-친환경 황토풀 사용 기준<br>
-<span class="inv-red">실측 후 물량은 상이할 수 있습니다.</span><br>
-<span class="inv-red">*걸레받이 별도</span><br>
-원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
+${_invRemarksNoticeLines(false)}원목마루는 천연 원목을 사용하여 나무가 가지고 있는 색상, 나뭇결, 옹이 등<br>
 자연 질감이 그대로 표현되므로,<br>
 시공 시 이색 현상이나 옹이 여부 등은 하자 사항이 아님을 알려드립니다.`;
     }
@@ -16032,7 +16041,7 @@ function _ivCollectSnapshot() {
         titleFontSize: val('invTitleFontSize'), titleLetterSpacing: val('invTitleLetterSpacing'),
         mergeLabor: chk('invMergeLaborCheck'), boxCalc: chk('invBoxCalcCheck'),
         remarksEdit: chk('invRemarksEditCheck'), remarksHtml: document.getElementById('invRemarksEditor')?.innerHTML || '',
-        separate: chk('invSeparateCheck'),
+        separate: chk('invSeparateCheck'), baseboardSite: chk('invBaseboardSiteCheck'),
         adjust: chk('invAdjustCheck'), adjustUnit1000: chk('invAdjustUnit1000'), adjustUnit10000: chk('invAdjustUnit10000'),
         misc: val('invMisc'),
         depositDate: val('invDepositDate'), depositAmount: val('invDepositAmount'),
@@ -16064,6 +16073,7 @@ function _ivApplySnapshot(snap) {
     const remarksEditor = document.getElementById('invRemarksEditor');
     if (remarksEditor) remarksEditor.innerHTML = snap.remarksHtml || '';
     setChk('invSeparateCheck', snap.separate);
+    setChk('invBaseboardSiteCheck', snap.baseboardSite);
     setChk('invAdjustCheck', snap.adjust !== false);
     setChk('invAdjustUnit1000', snap.adjustUnit1000 !== false);
     setChk('invAdjustUnit10000', !!snap.adjustUnit10000);
