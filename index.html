@@ -3544,7 +3544,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 }
 /* 좌상단 모서리 장식 띠(시안 실측: F6F3EB, 44x87px) — 페이지 테두리 바로 안쪽 코너에 깔리는
    배경 장식이라 다른 내용과 안 겹치게 로고/제목보다 z-index를 낮춰 뒤에 둔다. */
-.inv-corner-accent { position:absolute; top:0; left:68.89px; width:45px; height:89px; background:#f6f3eb; z-index:0; }
+.inv-corner-accent { position:absolute; top:0; left:68.89px; width:45px; height:89px; background:#ebe3d3; z-index:0; }
 .inv-brand { display:block; width:194.19px; height:auto; position:relative; z-index:1; }
 .inv-brand svg { display:block; width:100%; height:auto; }
 /* 로고와 제목 사이 가로선(시안 실측: E1E0E0, 콘텐츠 폭 전체) */
@@ -3596,7 +3596,8 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 .inv-won-num { margin-left:6px; }
 /* GRAND TOTAL 금액값: Pretendard Medium */
 .inv-total-table .grand .amount { font-weight:500; }
-.inv-total-table .grand td { height:31px; font-weight:500; color:#373130; background:#f6f3eb; }
+/* 베이지: 예전 #f6f3eb는 종이에선 거의 흰색이라 인쇄 때만 #ebe3d3로 바꿨는데, 화면/이미지/출력을 똑같이 맞추려고 공통으로 #ebe3d3 사용 (2026-11-05) */
+.inv-total-table .grand td { height:31px; font-weight:500; color:#373130; background:#ebe3d3; }
 .inv-total-table .grand td { border-top:1px solid #e1e0e0; }
 /* REMARKS → 구분선 → CONTACT/ACCOUNT INFO 순서로 세로로 쌓는다(시안 실측 기준) —
    예전엔 CONTACT/ACCOUNT INFO 두 블록에 서로 다른 고정 margin-top(80px/140px)을 각각
@@ -3696,30 +3697,24 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   }
   /* 브라우저 헤더/푸터 제거용 (Chrome 지원) */
   body::before, body::after { display: none !important; }
+  /* ★ 2026-11-05: 견적서 '출력'은 이제 DOM을 직접 인쇄하지 않고, 이미지/PDF 저장과 똑같은
+     캔버스(_invRenderCanvas)를 이미지로 만들어 A4 한 장에 맞춰 인쇄한다 — 예전엔 인쇄용 CSS
+     (min-height:auto, 0.853배, 여백0, 인쇄 전용 색)로 따로 그려서 바로 출력한 것과 이미지를
+     출력한 것이 위치/크기/색/굵기까지 전부 달랐다. */
+  /* 다른 화면 요소(로그인 잠금화면 등 중첩된 고정 요소 포함)는 전부 안 보이게 하고 출력용 그림만 표시 */
   body.print-invoice * { visibility: hidden !important; }
-  body.print-invoice #invoiceDoc,
-  body.print-invoice #invoiceDoc * { visibility: visible !important; }
-  body.print-invoice #invoiceDoc {
-    /* 930px → A4 210mm 전체로 스케일, 비율: 210mm/930px = 약 0.7097 (96dpi 기준) */
-    /* 실제 인쇄 DPI는 다양하므로 mm 단위로 width 지정 */
-    position: fixed !important;
-    left: 0 !important; top: 0 !important;
-    width: 930px !important;
-    min-height: auto !important;
-    border: 0 !important;
-    box-shadow: none !important;
-    margin: 0 !important;
-    padding: 104px 72px 106px 72px !important;
-    /* 930px를 210mm(≈793px @96dpi)에 맞게 축소하는 배율. 항목이 많아 세로로 길어지면
-       printInvoice()가 --inv-print-scale을 그보다 더 작게 재계산해서 A4 한 장에 맞춘다
-       (고정값 0.853만 쓰면 기본 분량 기준으로 튜닝된 값이라 항목이 늘면 하단이 잘렸다). */
-    transform: scale(var(--inv-print-scale, 0.853)) !important;
-    transform-origin: top left !important;
+  body.print-invoice #invPrintImgRoot,
+  body.print-invoice #invPrintImgRoot * { visibility: visible !important; }
+  body.print-invoice #invPrintImgRoot {
+    display: flex !important; align-items: flex-start; justify-content: center;
+    position: fixed !important; left: 0 !important; top: 0 !important; z-index: 2147483647 !important;
+    width: 210mm; height: 297mm; padding: 5mm; box-sizing: border-box; overflow: hidden; background: #fff;
   }
-  /* 화면용 베이지(#f6f3eb)는 너무 연해서 프린터에서 거의 흰색으로 나옴 → 인쇄 시에만 진하게 */
-  body.print-invoice .inv-total-table .grand td,
-  body.print-invoice .inv-corner-accent { background:#ebe3d3 !important; }
+  body.print-invoice #invPrintImgRoot img {
+    display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;
+  }
 }
+#invPrintImgRoot { display: none; }
 .iv-vault-btn { width:34px; height:34px; padding:0; border:1px solid #ddd; border-radius:10px; background:#fff; color:#555; cursor:pointer; align-items:center; justify-content:center; flex-shrink:0; }
 .iv-vault-btn:hover { background:#f5f5f5; }
 .iv-stage-chip { padding:8px 18px; border-radius:999px; font-size:15px; font-weight:700; }
@@ -15694,28 +15689,87 @@ function renderInvoice() {
     setTimeout(updateInvoiceScale, 30);
 }
 
-function printInvoice() {
-    renderInvoice();
-    // ★ 930px 폭 기준 고정 배율(0.853)은 기본 분량(min-height:1312px)에 맞춰 튜닝된 값이라,
-    //   제품/공과잡비를 추가해 실제 내용이 더 길어지면 그 초과분이 A4 한 장 밖으로 넘쳐
-    //   overflow:hidden에 잘려나갔다. 인쇄 직전 실제 높이를 재서, 필요하면 그보다 더 작은
-    //   배율을 써서 세로로도 한 장에 들어가게 만든다(가로폭 배율 0.853은 그대로 상한선).
-    const doc = document.getElementById('invoiceDoc');
-    if (doc) {
-        const A4_HEIGHT_PX = 1122.52; // 297mm @ 96dpi
-        const WIDTH_SCALE = 0.853;    // 210mm / 930px 고정 상한
-        const rawH = doc.scrollHeight || 1312;
-        const scale = Math.min(WIDTH_SCALE, A4_HEIGHT_PX / rawH);
-        document.documentElement.style.setProperty('--inv-print-scale', scale.toFixed(4));
+// ★ 2026-11-05 견적서 출력/이미지/PDF 통합: 셋 다 이 함수 하나로 그린 캔버스를 쓴다.
+//   예전엔 '출력'은 인쇄용 CSS로 DOM을 직접 인쇄(min-height 해제로 하단 정보가 위로 올라옴,
+//   0.853배·여백0, 인쇄 전용 베이지, 벡터 글씨), 이미지는 html2canvas 캡처, PDF는 또 다른 여백으로
+//   캡처해서 같은 견적서인데 출력물의 위치·크기·색·굵기가 전부 달랐다.
+//   원본 #invoiceDoc을 복제하되 id를 떼서(모바일 @media의 #invoiceDoc !important 축소/절대배치
+//   규칙이 복제본에 걸리지 않게) 필요한 본체 스타일을 직접 지정한다.
+async function _invRenderCanvas(outputScale) {
+    const el = document.getElementById('invoiceDoc');
+    if (!el) throw new Error('견적서를 먼저 생성해주세요.');
+    const clone = el.cloneNode(true);
+    clone.removeAttribute('id');
+    const container = document.createElement('div');
+    container.style.cssText = [
+        'position:fixed', 'left:-99999px', 'top:0', 'width:930px',
+        'background:#fff', 'pointer-events:none', 'z-index:-1',
+    ].join(';');
+    clone.style.cssText = [
+        'width:930px', 'min-height:1312px', 'box-sizing:border-box',
+        'display:flex', 'flex-direction:column',
+        'background:#fff', 'border:none', 'box-shadow:none', 'transform:none',
+        'position:relative', 'margin:0',
+        'padding:104px 72px 106px 72px',
+        "font-family:'Pretendard','Noto Sans KR','Malgun Gothic','Arial',sans-serif",
+        'font-size:11px', 'color:#000',
+    ].join(';');
+    container.appendChild(clone);
+    document.body.appendChild(container);
+    try {
+        // Pretendard 웹폰트 로딩 완료 후 캡처(대체 폰트로 찍혀 숫자 정렬이 어긋나던 문제, 2026-09-23)
+        if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        await new Promise(r => setTimeout(r, isMobile ? 300 : 80));
+        return await html2canvas(clone, {
+            backgroundColor: '#ffffff',
+            scale: outputScale,
+            useCORS: true,
+            logging: false,
+            width:  930,
+            height: clone.scrollHeight,
+            windowWidth: 930,
+            onclone: window._h2cOnclone,
+        });
+    } finally {
+        container.remove();
     }
-    document.body.classList.add('print-invoice');
-    window.print();
-    setTimeout(() => document.body.classList.remove('print-invoice'), 800);
 }
 
-window.addEventListener('afterprint', () => {
+async function printInvoice() {
+    renderInvoice();
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    let canvas;
+    try {
+        canvas = await _invRenderCanvas(isMobile ? 2 : 3);
+    } catch (e) {
+        showToast('출력 준비 실패: ' + (e && e.message || e));
+        return;
+    }
+    // 이미지 저장과 같은 그림을 A4 한 장(사방 5mm 안전여백, 비율 유지)에 맞춰 인쇄
+    let root = document.getElementById('invPrintImgRoot');
+    if (!root) {
+        root = document.createElement('div');
+        root.id = 'invPrintImgRoot';
+        document.body.appendChild(root);
+    }
+    root.innerHTML = '';
+    const img = new Image();
+    img.src = canvas.toDataURL('image/png');
+    root.appendChild(img);
+    try { if (img.decode) await img.decode(); } catch (e) {}
+    document.body.classList.add('print-invoice');
+    window.print();
+    setTimeout(_invPrintCleanup, 800);
+}
+
+function _invPrintCleanup() {
     document.body.classList.remove('print-invoice');
-});
+    const root = document.getElementById('invPrintImgRoot');
+    if (root) root.innerHTML = '';
+}
+
+window.addEventListener('afterprint', _invPrintCleanup);
 
 // 견적서/가견적서/정산서 저장 파일명 규칙: 업체명 현장주소 문서종류 (공백 구분)
 // 문서종류는 정산서 체크 시에만 '정산서', 그 외(가견적서 포함)는 모두 '견적서'. 빈 칸은 건너뛴다.
@@ -15788,58 +15842,8 @@ async function saveInvoiceImage() {
     const OUTPUT_SCALE = isMobile ? 2 : 3;
 
     try {
-        // 1. invoiceDoc를 완전히 클론해서 숨겨진 컨테이너에 넣고 캡처
-        //    원본은 건드리지 않아 검정 줄/레이아웃 깨짐 없음
-        const clone = el.cloneNode(true);
-        const container = document.createElement('div');
-        container.style.cssText = [
-            'position:fixed',
-            'left:-99999px',
-            'top:0',
-            'width:930px',
-            'background:#fff',
-            'pointer-events:none',
-            'z-index:-1',
-        ].join(';');
-        // 클론: border/shadow 제거 (검정 줄 원인 제거)
-        clone.style.cssText = [
-            'width:930px',
-            'min-height:1312px',
-            'background:#fff',
-            'border:none',
-            'box-shadow:none',
-            'transform:none',
-            'position:static',
-            'margin:0',
-            'padding:104px 72px 106px 72px',
-            'font-family:Pretendard,Malgun Gothic,Arial,sans-serif',
-            'font-size:11px',
-            'color:#000',
-        ].join(';');
-        container.appendChild(clone);
-        document.body.appendChild(container);
-
-        // 2. 렌더링 대기 — Pretendard가 CDN에서 비동기로 로드되는 웹폰트라, 페이지 진입 직후
-        //   바로 저장하면 폰트 교체가 덜 끝난 상태(대체 폰트)로 html2canvas가 캡처해버려서
-        //   화면(나중에 폰트 로드 완료 후 재렌더링됨)과 저장된 이미지의 숫자 정렬이 미세하게
-        //   달라지는 원인이 됐다 — document.fonts.ready로 폰트 로딩 자체를 먼저 기다린다.
-        if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
-        await new Promise(r => setTimeout(r, isMobile ? 300 : 80));
-
-        // 3. 캡처
-        const canvas = await html2canvas(clone, {
-            backgroundColor: '#ffffff',
-            scale: OUTPUT_SCALE,
-            useCORS: true,
-            logging: false,
-            width:  930,
-            height: clone.scrollHeight,
-            windowWidth: 930,
-            onclone: window._h2cOnclone,
-        });
-
-        // 4. 컨테이너 제거
-        document.body.removeChild(container);
+        // 출력/PDF와 같은 공통 캔버스 (_invRenderCanvas 주석 참고)
+        const canvas = await _invRenderCanvas(OUTPUT_SCALE);
 
         // 6. 파일명
         const fileName = buildInvoiceFileName() + '.jpg';
@@ -15873,8 +15877,6 @@ async function saveInvoiceImage() {
         }
     } catch(e) {
         if (e && e.name === 'AbortError') return;
-        const el2 = document.getElementById('invoiceDoc');
-        if (el2) { el2.style.transform = ''; el2.style.marginBottom = ''; }
         showToast('저장 실패: ' + e.message);
     }
 }
@@ -15883,21 +15885,8 @@ async function saveInvoicePdf() {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     try {
         await _invStampToday();
-        // Pretendard 웹폰트 로딩이 안 끝난 상태로 캡처되는 걸 막는다(saveInvoiceImage와 동일 이유).
-        if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
-        await new Promise(r => setTimeout(r, 300));
-
-        const el = document.getElementById('invoiceDoc');
-        if (!el) { showToast('견적서를 먼저 생성해주세요.'); return; }
-
-        const canvas = await html2canvas(el, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            windowWidth: el.scrollWidth,
-            windowHeight: el.scrollHeight,
-            onclone: window._h2cOnclone,
-        });
+        // 이미지 저장/출력과 같은 공통 캔버스 (_invRenderCanvas 주석 참고)
+        const canvas = await _invRenderCanvas(isMobile ? 2 : 3);
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
         const imgW = canvas.width;
