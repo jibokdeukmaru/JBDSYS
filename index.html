@@ -15829,6 +15829,14 @@ function renderInvoice() {
         return;
     }
 
+    // ★ 2026-11-06: 분류 'A/S'는 REMARKS 내용을 비우는 게 기본 — 제목(REMARKS)만 남긴다.
+    //   직접입력(위 분기)은 그대로 우선 적용되고, 일반/자재로 바꾸면 자동 문구가 다시 나온다.
+    if ((document.getElementById('invCategory')?.value || '') === 'A/S') {
+        if (remarksDiv) remarksDiv.innerHTML = '<div class="inv-remarks-title">REMARKS</div>';
+        setTimeout(updateInvoiceScale, 30);
+        return;
+    }
+
     // 제품별 박스 메타 정보 생성 (품번(Xpcs/Y㎡ or Y평))
     function buildBoxMetaStr(unit) {
         const boxes = [...document.querySelectorAll('[data-inv-item]')];
