@@ -3793,6 +3793,10 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 .inv-table th:nth-child(n), .inv-table td:nth-child(n) { width:16.6667% !important; }
 .inv-table th:nth-child(2) { text-align:left; padding-left:8px; }
 .inv-table td:nth-child(2) { text-align:left; padding-left:8px; }
+/* SIZE(규격)는 금액이 아니라 자릿수 맞춤이 필요 없음 → 화면에서도 고정폭 숫자를 꺼서 이미지 저장(h2c-capture)과
+   같은 글자폭으로 그리고, 줄바꿈 없이 한 줄. 칸보다 길면 _invFitSizeCells()가 글자만 줄여 맞춘다 (2026-11-10) */
+.inv-table td.td-size { font-variant-numeric:normal; white-space:nowrap; }
+.inv-size-txt { display:inline-block; white-space:nowrap; }
 .inv-table th:nth-child(3), .inv-table td:nth-child(3) { text-align:center; }
 .inv-table th:nth-child(4), .inv-table td:nth-child(4) { text-align:center; }
 .inv-total-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-top:56.36px; padding-top:0; border-top:1px solid #9b9898; border-bottom:0; }
@@ -15471,7 +15475,7 @@ function getInvItemFromBox(box) {
     if (isManual) {
         const name      = wrap.querySelector('.inv-manual-name')?.value.trim()  || '';
         const size      = wrap.querySelector('.inv-manual-size')?.value.trim()  || '';
-        const unit      = (wrap.querySelector('.inv-manual-unit')?.value || '').trim().toUpperCase();
+        const unit      = _invNormUnit(wrap.querySelector('.inv-manual-unit')?.value);
         const qtyRaw    = (wrap.querySelector('.inv-manual-qty')?.value || '').replace(/[^0-9.]/g, '');
         const hasQty    = qtyRaw !== '';
         const qty       = hasQty ? (parseFloat(qtyRaw) || 1) : '';
@@ -15631,6 +15635,12 @@ function _invRemarksNoticeLines(isDraft) {
     return html;
 }
 
+// 직접입력 단위: 대문자 통일 + m2/m²/㎡ 표기는 모두 'M2'로 (견적서에는 'm²'로 표시) (2026-11-10)
+function _invNormUnit(v) {
+    const u = String(v || '').trim().toUpperCase();
+    return /^(M2|M²|㎡)$/.test(u) ? 'M2' : u;
+}
+
 function renderInvoice() {
 
     // 메타
@@ -15694,7 +15704,7 @@ function renderInvoice() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="td-item" style="white-space:pre-line;">${item.name}</td>
-            <td class="td-center">${item.size}</td>
+            <td class="td-center td-size"><span class="inv-size-txt">${item.size}</span></td>
             <td class="td-center">${item.unit === 'M2' ? 'm²' : item.unit}</td>
             <td class="td-center">${qtyDisplay}</td>
             <td class="td-right">${unitPriceDisplay === '' ? '' : wonHtml(unitPriceDisplay)}</td>
@@ -15704,6 +15714,8 @@ function renderInvoice() {
     }
 
     invoiceItems.forEach(addItemRow);
+    _invFitSizeCells(tbody);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => _invFitSizeCells(tbody)).catch(() => {});
 
     // 공과잡비
     if (miscRaw > 0) {
@@ -15763,7 +15775,7 @@ function renderInvoice() {
     // REMARKS 단위 표시 업데이트 - 모든 제품 박스의 단위 확인 (직접입력 모드 포함)
     const allUnits = [...document.querySelectorAll('[data-inv-item]')].map(box => {
         const isManual = box.querySelector('.inv-manual-toggle')?.checked;
-        if (isManual) return (box.querySelector('.inv-manual-unit')?.value || '').trim().toUpperCase();
+        if (isManual) return _invNormUnit(box.querySelector('.inv-manual-unit')?.value);
         return box.querySelector('.inv-unit-select')?.value || '';
     }).filter(Boolean);
     const unit1 = allUnits[0] || 'M2';
@@ -15939,6 +15951,24 @@ ${_invRemarksNoticeLines(false)}원목마루는 천연 원목을 사용하여 �
 //   캡처해서 같은 견적서인데 출력물의 위치·크기·색·굵기가 전부 달랐다.
 //   원본 #invoiceDoc을 복제하되 id를 떼서(모바일 @media의 #invoiceDoc !important 축소/절대배치
 //   규칙이 복제본에 걸리지 않게) 필요한 본체 스타일을 직접 지정한다.
+// SIZE 칸 규격이 칸 폭보다 길면 그 칸만 글자 크기를 줄여 한 줄에 맞춤(최소 10px). 화면/이미지 공통.
+function _invFitSizeCells(root) {
+    if (!root) return;
+    root.querySelectorAll('td.td-size').forEach(td => {
+        const span = td.querySelector('.inv-size-txt');
+        if (!span) return;
+        td.style.fontSize = '';
+        const cs = getComputedStyle(td);
+        const avail = td.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        if (!(avail > 0)) return; // 숨겨진 상태라 측정 불가 → 캡처 때 다시 맞춤
+        let fs = parseFloat(cs.fontSize) || 14;
+        while (span.offsetWidth > avail && fs > 10) {
+            fs -= 0.5;
+            td.style.fontSize = fs + 'px';
+        }
+    });
+}
+
 async function _invRenderCanvas(outputScale) {
     const el = document.getElementById('invoiceDoc');
     if (!el) throw new Error('견적서를 먼저 생성해주세요.');
@@ -15965,6 +15995,7 @@ async function _invRenderCanvas(outputScale) {
         if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         await new Promise(r => setTimeout(r, isMobile ? 300 : 80));
+        _invFitSizeCells(clone);
         return await html2canvas(clone, {
             backgroundColor: '#ffffff',
             scale: outputScale,
