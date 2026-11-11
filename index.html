@@ -14689,7 +14689,7 @@ let invoiceInited = false;
 function fillInvoiceSelects() {
     document.querySelectorAll('.inv-product-select').forEach((sel, idx) => {
         const prev = sel.value;
-        sel.innerHTML = '<option value="">-- 제품 선택 --</option><option value="__EPOXY__">에폭시</option>';
+        sel.innerHTML = '<option value="">-- 제품 선택 --</option><option value="__EPOXY__">에폭시</option><option value="__MINUS_MOLDING__">마이너스 몰딩</option>';
         products.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.code;
@@ -14748,7 +14748,7 @@ function createInvoiceItem(index) {
         <div class="inv-auto-fields">
           <div class="inv-field">
             <div class="inv-label">제품 선택</div>
-            <select id="invProduct${index}" class="inv-product-select" onchange="if(this.value==='__EPOXY__'){const u=this.closest('.inv-item-box').querySelector('.inv-unit-select');if(u)u.value='KG';}">
+            <select id="invProduct${index}" class="inv-product-select" onchange="const u=this.closest('.inv-item-box').querySelector('.inv-unit-select');if(u){if(this.value==='__EPOXY__')u.value='KG';else if(this.value==='__MINUS_MOLDING__'&&u.value!=='PY'&&u.value!=='M2')u.value='PY';}">
               <option value="">-- 없음 --</option>
             </select>
           </div>
@@ -15534,6 +15534,14 @@ function getInvItemFromBox(box) {
         if (qty <= 0) return null;
         const epoxyPrice = 3000;
         return { name: '에폭시', size: '', unit: 'KG', qty, unitPrice: epoxyPrice, total: Math.round(qty * epoxyPrice) };
+    }
+
+    // ── 마이너스 몰딩 (재고 품목이 아닌 자재 — PY 5,000원 / m² 1,600원 고정, 소비자·업체 동일, 로스 미적용) ──
+    if (code === '__MINUS_MOLDING__') {
+        if (qty <= 0) return null;
+        const mUnit = unit === 'M2' ? 'M2' : 'PY';
+        const mPrice = mUnit === 'M2' ? 1600 : 5000;
+        return { name: '마이너스 몰딩', size: '', unit: mUnit, qty, unitPrice: mPrice, total: Math.round(qty * mPrice) };
     }
 
     const p = products.find(x => x.code === code);
