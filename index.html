@@ -15861,7 +15861,9 @@ function renderInvoice() {
     const isFinal = !!document.getElementById('invFinalCheck')?.checked;
 
     // 정산서는 공사가 끝난 뒤 쓰므로 같은 날짜칸을 '시공 완료일'로 표시 (저장값은 workDate 그대로)
-    const workDateLabel = isFinal ? '시공 완료일' : '시공 예정일';
+    // [분류]가 자재면 시공이 없으므로 같은 칸을 '배송 요청일'로 표시 (저장값은 workDate 그대로)
+    const isMaterialCatLabel = (document.getElementById('invCategory')?.value || '') === '자재';
+    const workDateLabel = isMaterialCatLabel ? '배송 요청일' : (isFinal ? '시공 완료일' : '시공 예정일');
     ['invWorkDateLabel', 'pvWorkDateKey'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = workDateLabel; });
 
     // 상단 제목 — "ESTIMATE  |  가견적서" 형식(영문 | 국문 병기). 로고는 고정폭 SVG라
@@ -16587,6 +16589,7 @@ function _ivQuoteWorkDate(q) {
     }
     const text = snap ? String(snap.workDate || '').trim() : '';
     if (!text) return { text: '', date: null };
+    const material = (snap.category || q.category) === '자재'; // 자재 견적서는 이 칸이 '배송 요청일'
     const pad = n => String(n).padStart(2, '0');
     let base = '';
     const m = String(snap.date || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
@@ -16596,7 +16599,7 @@ function _ivQuoteWorkDate(q) {
         base = `${c.getFullYear()}-${pad(c.getMonth() + 1)}-${pad(c.getDate())}`;
     }
     const info = (typeof window._csWorkTimingInfo === 'function') ? window._csWorkTimingInfo(text, base) : null;
-    return { text, date: info ? info.date : null };
+    return { text, date: info ? info.date : null, material };
 }
 // 시공예정일 빠른 순 → 해석 불가/빈칸은 맨 아래(그 안에서는 최근 수정 순).
 function _ivSortByWorkDate(rows) {
@@ -17043,7 +17046,7 @@ function _ivRenderQuoteRow(q, flags, locationLabel) {
         : `<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#eee;color:#555;">${q.category || ''}</span>`;
     const displayTitle = _ivNoBreakPhone(q.fileName || q.companyName || '(파일명 미입력)');
     const wd = q._wd || _ivQuoteWorkDate(q);
-    const companyLine = _ivNoBreakPhone(q.companyName) + (wd.text ? ` · 시공 ${window._escHtml(wd.text)}` : '');
+    const companyLine = _ivNoBreakPhone(q.companyName) + (wd.text ? ` · ${wd.material ? '배송' : '시공'} ${window._escHtml(wd.text)}` : '');
     const subtitle = locationLabel
         ? `${companyLine} · ${q.authorName || ''} · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${locationLabel} · ${stageStrip}`
         : `${companyLine} · ${q.authorName || ''} · ${stageStrip}`;
