@@ -13233,6 +13233,13 @@ window.FLOOR_PY_M2 = 3.24;
 //   Math.ceil하면 11박스가 됐다(A1507 기준 1~200박스 중 60건에서 1박스 초과). 백만분의 1 이하의 넘침은 오차로 본다.
 //   박스 수/면적 올림은 계산기·견적서 모두 이 함수를 쓴다.
 function ceilSafe(x) { return Math.ceil(x - 1e-6); }
+// ★ 견적서 박스기준 헤베계산용 박스 수(2026-11-18). 수량을 '박스 수 × 박스당㎡'로 미리 계산해 소수점 둘째 자리로
+//   반올림해 넣으면(예: 3박스×2.166=6.498→6.50) 반올림 초과분 때문에 1박스가 더 올라가던 문제 — 입력 반올림
+//   단위(tolSqm, ㎡ 환산) 이내의 초과는 무시하고, 그보다 많이 넘친 경우만 올린다.
+function invBoxCount(sqm, boxM2, tolSqm) {
+  if (!(sqm > 0)) return 0;
+  return Math.max(1, ceilSafe((sqm - tolSqm) / boxM2));
+}
 // ★ 제품 단가 계산의 단일 소스(2026-10-16). 제품에는 소비자가(평)·업체가(평)·시공비만 입력하고
 //   나머지는 전부 여기서 계산한다 — 단가표/단가안내/계산기/견적서/관리자 목록/저장값이 모두 이 결과를 쓴다.
 //   헤베 = 평 ÷ 3.24 → 100원 올림 / 자재평 = 평 − 시공비 / 자재헤베 = 자재평 ÷ 3.24 → 100원 올림
@@ -15697,7 +15704,7 @@ function getInvItemFromBox(box) {
         const useBoxCalc  = !!document.getElementById('invBoxCalcCheck')?.checked;
         if (useBoxCalc && p.box_m2) {
             // 박스기준 헤베계산: 박스 올림 → 실헤베 소수점 둘째자리 반올림
-            const boxes   = ceilSafe(sqmWithLoss / p.box_m2);
+            const boxes   = invBoxCount(sqmWithLoss, p.box_m2, 0.01 * lossMultiplier);
             const realSqm = Math.round(boxes * p.box_m2 * 100) / 100;
             unitPrice  = sqmPrice;
             displayQty = realSqm;
@@ -15714,7 +15721,7 @@ function getInvItemFromBox(box) {
         if (useBoxCalc && p.box_m2) {
             // 박스기준 PY계산: PY×3.24 → ÷box_m2 → 올림 → ×box_m2 → ÷3.24 → 소수점 둘째자리 올림
             const sqmWithLoss = pyWithLoss * PY_FACTOR;
-            const boxes       = ceilSafe(sqmWithLoss / p.box_m2);
+            const boxes       = invBoxCount(sqmWithLoss, p.box_m2, 0.01 * PY_FACTOR * lossMultiplier);
             const realSqm     = boxes * p.box_m2;
             const realPy      = ceilSafe(realSqm / PY_FACTOR * 100) / 100;
             unitPrice  = pyPrice;
