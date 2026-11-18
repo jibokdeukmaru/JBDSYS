@@ -14263,9 +14263,10 @@ function initApp() {
   $('searchInput').addEventListener('input',renderAll);
   $('audienceSelect').addEventListener('change',e=>{ state.audience=e.target.value; renderAll(); });
   $('priceModeSelect').addEventListener('change',e=>{ state.priceMode=e.target.value; renderAll(); });
-  $('boxCheck').addEventListener('change',e=>{ state.box=e.target.checked; renderAll(); });
-  $('sqmCheck').addEventListener('change',e=>{ state.sqm=e.target.checked; renderAll(); });
-  $('splitCheck').addEventListener('change',e=>{ state.split=e.target.checked; renderAll(); });
+  // ★ 박스당 단가는 단독으로만 켠다(2026-11-18) — 박스 체크 시 m²·재료비/노무비 분리 해제, 반대로 m²/분리 체크 시 박스 해제
+  $('boxCheck').addEventListener('change',e=>{ state.box=e.target.checked; if (state.box) { state.sqm=false; state.split=false; } renderAll(); });
+  $('sqmCheck').addEventListener('change',e=>{ state.sqm=e.target.checked; if (state.sqm) state.box=false; renderAll(); });
+  $('splitCheck').addEventListener('change',e=>{ state.split=e.target.checked; if (state.split) state.box=false; renderAll(); });
   $('resetBtn').addEventListener('click',resetAll);
   $('saveBtn').addEventListener('click',saveCapture);
   $('copyBtn').addEventListener('click',()=>copyToClipboard($('copyText').value));
