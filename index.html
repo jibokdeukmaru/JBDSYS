@@ -1691,6 +1691,7 @@ button { word-break:keep-all; }
             <div class="check-row">
               <label class="check-chip"><input type="checkbox" id="sqmCheck" /> m² 단가</label>
               <label class="check-chip"><input type="checkbox" id="boxCheck" /> 박스당 단가</label>
+              <label class="check-chip"><input type="checkbox" id="splitCheck" /> 재료비/노무비 분리</label>
             </div>
             <select id="audienceSelect" class="plain-select no-capture">
               <option value="consumer">소비자가</option>
@@ -1711,7 +1712,7 @@ button { word-break:keep-all; }
           </div>
 
           <div class="notice">
-            <ul>
+            <ul id="pricingNoticeList">
               <li id="noticeLinePrimary">시공비 포함 (VAT 별도)</li>
               <li id="noticeLineSecondary">공과잡비 별도 (운임비, 양중비 등)</li>
               <li id="noticeLineTertiary">평당 단순 단가이며, 실제 견적과 차이가 있을 수 있습니다.</li>
@@ -13218,7 +13219,7 @@ return: [
   '감사합니다.'
 ].join('\n')
 };
-const PRICING_DEFAULTS = { audience: 'consumer', priceMode: 'included', box: false, sqm: false };
+const PRICING_DEFAULTS = { audience: 'consumer', priceMode: 'included', box: false, sqm: false, split: false };
 const state = { selected: [], maxSelected: 10, ...PRICING_DEFAULTS };
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => (Number.isFinite(n) ? `${n.toLocaleString('ko-KR')}원` : '-');
@@ -13323,15 +13324,103 @@ function renderLeftTable() {
   });
   table.appendChild(frag);
 }
-function buildRightHeader() { const row=$('rightHeaderRow'); if(!row) return; const cols=[]; cols.push('<th style="width:14%;">품번</th>'); cols.push('<th style="width:26%;">스펙</th>'); const unitLabel = state.sqm ? '(평/m²)' : '(평)'; if (state.audience === 'both') { cols.push(`<th style="width:15%;">소비자가${unitLabel}</th>`); cols.push(`<th style="width:15%;">업체가${unitLabel}</th>`); } else { cols.push(`<th style="width:18%;">가격${unitLabel}</th>`); } if (state.box) cols.push('<th style="width:18%;">박스당 단가</th>'); row.innerHTML=cols.join(''); }
-function boxMeta(partyProduct, party) { const amount = fmt(getUnitValue(partyProduct, party, 'box')); return `<div>${amount}</div><div class="muted meta-box">${boxSizeLabel(partyProduct)}</div>`; }
-function renderRightTable() { const table=$('rightTable'); if(!table) return; table.innerHTML=''; const frag=document.createDocumentFragment(); const showCompany = state.audience === 'both'; const priceCell = (p, aud) => { const py = fmt(getUnitValue(p, aud, 'py')); if (!state.sqm) return py; const sqm = fmt(getUnitValue(p, aud, 'sqm')); return `<span style="white-space:nowrap;">${py} / ${sqm}</span>`; }; state.selected.forEach(code=>{ const p=products.find(x=>x.code===code); if(!p) return; const tr=document.createElement('tr'); const cells=[]; cells.push(`<td>${p.code}</td>`); cells.push(`<td class="spec-right">${p.spec}</td>`); if (showCompany) { cells.push(`<td>${priceCell(p,'consumer')}</td>`); cells.push(`<td>${priceCell(p,'vendor')}</td>`); } else { cells.push(`<td>${priceCell(p, state.audience === 'vendor' ? 'vendor' : 'consumer')}</td>`); } if (state.box) { cells.push(`<td>${boxMeta(p, state.audience === 'consumer' ? 'consumer' : 'vendor')}</td>`); } tr.innerHTML=cells.join(''); tr.addEventListener('dblclick',()=>removeCode(p.code)); frag.appendChild(tr); }); table.appendChild(frag); }
-function buildGuideText() { const lines=['안녕하세요.','단가 안내드립니다.','']; const unitLabel = state.sqm ? '(평/m²)' : ''; const priceStr = (p, aud) => { const py = fmt(getUnitValue(p, aud, 'py')); if (!state.sqm) return py; return `${py} / ${fmt(getUnitValue(p, aud, 'sqm'))}`; }; state.selected.forEach(code=>{ const p=products.find(x=>x.code===code); if(!p) return; lines.push(`품번 : ${p.code}`); lines.push(`스펙 : ${p.spec}`); if (state.audience === 'both') { lines.push(`소비자가${unitLabel} : ${priceStr(p,'consumer')}`); lines.push(`업체가${unitLabel} : ${priceStr(p,'vendor')}`); } else { lines.push(`가격${unitLabel} : ${priceStr(p, state.audience === 'vendor' ? 'vendor' : 'consumer')}`); } if (state.box) { lines.push(`박스당 단가 : ${fmt(getUnitValue(p, state.audience === 'consumer' ? 'consumer' : 'vendor', 'box'))} (${boxSizeLabel(p)})`); } lines.push(''); }); lines.push(`■ ${modeText()}`); if (state.priceMode === 'material') { lines.push('■ 운임비 별도'); } else { lines.push('■ 공과잡비 별도 (운임비, 양중비 등)'); } lines.push(state.sqm ? '■ 단순 단가이며, 실제 견적과 차이가 있을 수 있습니다.' : '■ 평당 단순 단가이며, 실제 견적과 차이가 있을 수 있습니다.'); return lines.join('\n'); }
-function renderMeta() { updateQuoteDate(); $('noticeLinePrimary').textContent = modeText(); $('noticeLineSecondary').textContent = state.priceMode === 'material' ? '운임비 별도' : '공과잡비 별도 (운임비, 양중비 등)'; const _nt = $('noticeLineTertiary'); if (_nt) _nt.textContent = state.sqm ? '단순 단가이며, 실제 견적과 차이가 있을 수 있습니다.' : '평당 단순 단가이며, 실제 견적과 차이가 있을 수 있습니다.'; $('countText').textContent = `선택 ${state.selected.length} / ${state.maxSelected}`; $('audienceSelect').value = state.audience; $('priceModeSelect').value = state.priceMode; $('boxCheck').checked = !!state.box; $('sqmCheck').checked = !!state.sqm; const ta=$('copyText'); if(ta) ta.value = buildGuideText(); }
+// ★ 단가안내 표·하단 안내·문자 문구가 모두 쓰는 단일 데이터(2026-11-18). 금액은 전부
+//   calcProductPrices()에서만 가져온다 — 견적서 '재료비/노무비 분리'와 같은 값(자재 / 인건비, 부자재비).
+//   단위: m² 체크 시 m²만, 미체크 시 평만. 박스당 단가만 체크(m²·분리 미체크) 시 평/m² 금액은 빼고 박스만.
+function pricingView() {
+  const unit = state.sqm ? 'sqm' : 'py';
+  const unitText = state.sqm ? 'm²' : '평';
+  const splitOn = !!state.split && state.priceMode !== 'material';
+  const boxOnly = !!state.box && !state.sqm && !splitOn;
+  const parties = state.audience === 'both' ? ['consumer', 'vendor'] : [state.audience === 'vendor' ? 'vendor' : 'consumer'];
+  return { unit, unitText, splitOn, boxOnly, parties, both: parties.length > 1 };
+}
+const PARTY_LABEL = { consumer: '소비자가', vendor: '업체가' };
+function pricingPartyData(p, party, v) {
+  const all = calcProductPrices(p);
+  const r = all[party];
+  const total = v.unit === 'sqm' ? r.sqm : r.py;
+  const material = v.unit === 'sqm' ? r.materialSqm : r.materialPy;
+  // 시공비 기준이 없는 제품은 견적서처럼 분리하지 않고 시공 포함 금액만 보여준다.
+  const canSplit = v.splitOn && !all.installMissing && material > 0;
+  return {
+    main: state.priceMode === 'material' ? material : total,
+    split: canSplit ? { material, labor: total - material } : null,
+    box: r.box, // BOX는 항상 자재 기준
+  };
+}
+function pricingFooterLines(v) {
+  const tail = (state.sqm || v.boxOnly) ? '단순 단가이며, 실제 견적과 차이가 있을 수 있습니다.' : '평당 단순 단가이며, 실제 견적과 차이가 있을 수 있습니다.';
+  if (v.boxOnly || state.priceMode === 'material') return ['자재 금액 (VAT 별도)', '운임비 별도', tail];
+  const lines = [v.splitOn ? 'VAT 별도' : '시공 포함 (VAT 별도)', '공과잡비 별도 (운임비, 양중비 등)'];
+  if (state.box) lines.push('박스 단가는 자재 금액이며, 운임비 별도입니다.');
+  lines.push(tail);
+  return lines;
+}
+function buildRightHeader() {
+  const row=$('rightHeaderRow'); if(!row) return; const v = pricingView();
+  const cols=['<th style="width:14%;">품번</th>','<th style="width:26%;">스펙</th>'];
+  if (!v.boxOnly) {
+    if (v.both) v.parties.forEach(pt => cols.push(`<th>${PARTY_LABEL[pt]}(${v.unitText})</th>`));
+    else cols.push(`<th>가격(${v.unitText})</th>`);
+  }
+  if (state.box) {
+    if (v.both && v.boxOnly) v.parties.forEach(pt => cols.push(`<th>${PARTY_LABEL[pt]} 박스당</th>`));
+    else cols.push('<th>박스당 단가</th>');
+  }
+  row.innerHTML=cols.join('');
+}
+function renderRightTable() {
+  const table=$('rightTable'); if(!table) return; table.innerHTML=''; const frag=document.createDocumentFragment(); const v = pricingView();
+  const num = (n) => Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-';
+  const priceCell = (d) => d.split
+    ? `<div style="white-space:nowrap;">자재 ${num(d.split.material)}</div><div style="white-space:nowrap;">인건비, 부자재비 ${num(d.split.labor)}</div>`
+    : fmt(d.main);
+  const sizeHtml = (p) => `<div class="muted meta-box">${boxSizeLabel(p)}</div>`;
+  state.selected.forEach(code=>{ const p=products.find(x=>x.code===code); if(!p) return; const tr=document.createElement('tr'); const cells=[`<td>${p.code}</td>`,`<td class="spec-right">${p.spec}</td>`];
+    const data = v.parties.map(pt => pricingPartyData(p, pt, v));
+    if (!v.boxOnly) data.forEach(d => cells.push(`<td>${priceCell(d)}</td>`));
+    if (state.box) {
+      if (v.both && v.boxOnly) data.forEach(d => cells.push(`<td><div>${fmt(d.box)}</div>${sizeHtml(p)}</td>`));
+      else if (v.both) cells.push(`<td>${data.map((d,i)=>`<div style="white-space:nowrap;">${v.parties[i]==='consumer'?'소비자':'업체'} ${fmt(d.box)}</div>`).join('')}${sizeHtml(p)}</td>`);
+      else cells.push(`<td><div>${fmt(data[0].box)}</div>${sizeHtml(p)}</td>`);
+    }
+    tr.innerHTML=cells.join(''); tr.addEventListener('dblclick',()=>removeCode(p.code)); frag.appendChild(tr); });
+  table.appendChild(frag);
+}
+function buildGuideText() {
+  const v = pricingView(); const lines=['안녕하세요.','단가 안내드립니다.',''];
+  const per = (n) => `${fmt(n)}/${v.unitText}`;
+  state.selected.forEach(code=>{ const p=products.find(x=>x.code===code); if(!p) return;
+    lines.push(`${p.code} (${p.name})`); lines.push(`· 스펙 : ${p.spec}`);
+    const data = v.parties.map(pt => pricingPartyData(p, pt, v));
+    if (!v.both) {
+      const d = data[0];
+      if (!v.boxOnly) {
+        if (d.split) { lines.push(`· 자재 : ${per(d.split.material)}`); lines.push(`· 인건비, 부자재비 : ${per(d.split.labor)}`); }
+        else lines.push(`· ${state.priceMode === 'material' ? '자재' : '시공 포함'} : ${per(d.main)}`);
+      }
+      if (state.box) lines.push(`· 박스당 : ${fmt(d.box)} (${boxSizeLabel(p)})`);
+    } else {
+      if (state.box) lines.push(`· 박스 규격 : ${boxSizeLabel(p)}`);
+      v.parties.forEach((pt, i) => { const d = data[i]; const label = PARTY_LABEL[pt];
+        if (v.boxOnly) { lines.push(`· ${label} 박스당 : ${fmt(d.box)}`); return; }
+        if (d.split) {
+          lines.push(`· ${label}`); lines.push(`  - 자재 : ${per(d.split.material)}`); lines.push(`  - 인건비, 부자재비 : ${per(d.split.labor)}`);
+          if (state.box) lines.push(`  - 박스당 : ${fmt(d.box)}`);
+        } else lines.push(`· ${label} : ${per(d.main)}${state.box ? `, 박스당 ${fmt(d.box)}` : ''}`);
+      });
+    }
+    lines.push('');
+  });
+  pricingFooterLines(v).forEach(t => lines.push(`■ ${t}`));
+  return lines.join('\n');
+}
+function renderMeta() { updateQuoteDate(); const v = pricingView(); const ul = $('pricingNoticeList'); if (ul) ul.innerHTML = pricingFooterLines(v).map(t => `<li>${t}</li>`).join(''); $('countText').textContent = `선택 ${state.selected.length} / ${state.maxSelected}`; syncPricingControls(); const ta=$('copyText'); if(ta) ta.value = buildGuideText(); }
 function renderAll() { renderLeftTable(); buildRightHeader(); renderRightTable(); renderMeta(); }
 function addCode(code) { if(!code || state.selected.includes(code)) return; if(state.selected.length >= state.maxSelected) return showToast(`선택은 최대 ${state.maxSelected}개까지만 가능합니다.`); state.selected.push(code); renderAll(); }
 function removeCode(code) { state.selected = state.selected.filter(x=>x!==code); renderAll(); }
-function syncPricingControls() { $('audienceSelect').value=state.audience; $('priceModeSelect').value=state.priceMode; $('boxCheck').checked=state.box; $('sqmCheck').checked=state.sqm; }
+function syncPricingControls() { $('audienceSelect').value=state.audience; $('priceModeSelect').value=state.priceMode; $('boxCheck').checked=!!state.box; $('sqmCheck').checked=!!state.sqm; const sc=$('splitCheck'); if (sc) { const off = state.priceMode === 'material'; sc.checked = !!state.split && !off; sc.disabled = off; const chip = sc.closest('.check-chip'); if (chip) chip.style.opacity = off ? '0.45' : ''; } }
 function resetAll() { state.selected=[]; Object.assign(state, PRICING_DEFAULTS); syncPricingControls(); renderAll(); }
 async function saveCapture() { const el=$('captureArea'); if(!el) return; window.appBusy('이미지 저장 중…'); const captureNow = new Date(); updateQuoteDate(captureNow); const scrollers=el.querySelectorAll('.scroll'); const prev=[]; el.classList.add('is-capturing'); scrollers.forEach(node=>{ prev.push([node,node.style.overflow,node.style.maxHeight]); node.style.overflow='visible'; node.style.maxHeight='none'; }); try { const canvas=await html2canvas(el,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,onclone:window._h2cOnclone}); const now=new Date(); const stamp=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const _capName=`단가안내_${stamp}.png`; const _capUrl=canvas.toDataURL('image/png'); if (await window.appSaveBlobNative(window.appDataUrlToBlob(_capUrl), _capName)) return; const a=document.createElement('a'); a.href=_capUrl; a.download=_capName; a.click(); } finally { prev.forEach(([node,overflow,maxHeight])=>{ node.style.overflow=overflow; node.style.maxHeight=maxHeight; }); el.classList.remove('is-capturing'); } }
 function initPreviews() { document.querySelectorAll('[data-preview]').forEach(node=>{ node.textContent = templates[node.dataset.preview] || ''; }); }
@@ -14176,6 +14265,7 @@ function initApp() {
   $('priceModeSelect').addEventListener('change',e=>{ state.priceMode=e.target.value; renderAll(); });
   $('boxCheck').addEventListener('change',e=>{ state.box=e.target.checked; renderAll(); });
   $('sqmCheck').addEventListener('change',e=>{ state.sqm=e.target.checked; renderAll(); });
+  $('splitCheck').addEventListener('change',e=>{ state.split=e.target.checked; renderAll(); });
   $('resetBtn').addEventListener('click',resetAll);
   $('saveBtn').addEventListener('click',saveCapture);
   $('copyBtn').addEventListener('click',()=>copyToClipboard($('copyText').value));
