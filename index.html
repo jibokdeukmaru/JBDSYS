@@ -13372,9 +13372,9 @@ function buildRightHeader() {
 }
 function renderRightTable() {
   const table=$('rightTable'); if(!table) return; table.innerHTML=''; const frag=document.createDocumentFragment(); const v = pricingView();
-  const num = (n) => Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-';
+  // 분리 금액은 한 줄로(칸이 좁으면 ' / ' 뒤에서만 줄바꿈)
   const priceCell = (d) => d.split
-    ? `<div style="white-space:nowrap;">자재 ${num(d.split.material)}</div><div style="white-space:nowrap;">인건비, 부자재비 ${num(d.split.labor)}</div>`
+    ? `<span style="white-space:nowrap;">자재 ${fmt(d.split.material)}</span> / <span style="white-space:nowrap;">인건비, 부자재비 ${fmt(d.split.labor)}</span>`
     : fmt(d.main);
   const sizeHtml = (p) => `<div class="muted meta-box">${boxSizeLabel(p)}</div>`;
   state.selected.forEach(code=>{ const p=products.find(x=>x.code===code); if(!p) return; const tr=document.createElement('tr'); const cells=[`<td>${p.code}</td>`,`<td class="spec-right">${p.spec}</td>`];
@@ -15820,15 +15820,29 @@ function renderInvoice() {
         .filter(Boolean);
     if (mergeLaborCosts) {
         let laborTotal = 0;
+        const laborItems = [];
         invoiceItems = invoiceItems.filter(item => {
             if (item.isLaborCost) {
                 laborTotal += item.total;
+                laborItems.push(item);
                 return false;
             }
             return true;
         });
         if (laborTotal > 0) {
-            invoiceItems.push({
+            // ★ 2026-11-18: 합칠 인건비 줄들의 단위·단가가 모두 같으면(품목 1개 포함) 단위/수량 합계/단가를
+            //   그대로 보여준다 — 예전엔 항상 금액만 남겨서 품목 1개일 때 분리가 사라진 것처럼 보였다.
+            //   단가가 서로 다른 제품이 섞이면 지금처럼 합계 금액만 표시.
+            const same = laborItems.every(it => it.unit === laborItems[0].unit && it.unitPrice === laborItems[0].unitPrice);
+            const qtySum = Math.round(laborItems.reduce((s, it) => s + (Number(it.qty) || 0), 0) * 1000) / 1000;
+            invoiceItems.push(same ? {
+                name: '인건비, 부자재비',
+                size: '',
+                unit: laborItems[0].unit,
+                qty: qtySum,
+                unitPrice: laborItems[0].unitPrice,
+                total: laborTotal,
+            } : {
                 name: '인건비, 부자재비',
                 size: '',
                 unit: '',
