@@ -1795,7 +1795,10 @@ button { word-break:keep-all; }
             </div>
             <div>
               <div class="calc-field-label">적용 방식</div>
-              <div class="calc-hint" style="margin-top:14px;">평/㎡ 입력 시 필요 박스 수에 반영되고, 박스 수 입력 시에는 입력 박스 수에 로스율이 적용됩니다.</div>
+              <label style="display:flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer; font-size:13px;">
+                <input type="checkbox" id="calcBoxCalcCheck" style="width:auto; margin:0;" /> 박스기준 계산
+              </label>
+              <div class="calc-hint">견적서와 같은 방식: 평/㎡에 로스율을 더한 수량 × 단가. 박스기준 체크 시 박스 올림 수량으로 계산 (BOX 입력은 로스율 미적용)</div>
             </div>
           </div>
           <div>
@@ -13240,6 +13243,54 @@ function invBoxCount(sqm, boxM2, tolSqm) {
   if (!(sqm > 0)) return 0;
   return Math.max(1, ceilSafe((sqm - tolSqm) / boxM2));
 }
+// ★ 품목 금액 계산의 단일 소스(2026-11-19) — 견적서 품목 줄과 계산기 탭이 모두 이 함수만 쓴다.
+//   예전엔 계산기가 따로 계산해서 ① 자재별도를 '박스수×BOX단가'로, ② 시공포함은 로스율을 금액에 안 넣어서
+//   로스율만 넣으면 자재별도가 시공포함보다 비싸지는 등 견적서와 금액이 달랐다.
+//   unit: 'PY' | 'M2' | 'BOX' / priceMode: 'included' | 'material' / BOX는 항상 자재 BOX단가·로스 미적용
+//   반환: { displayQty(수량칸), unitPrice, total, boxes(필요 박스 수 — 참고 표시용), coverSqm(박스 기준 면적) }
+function calcLineAmount(p, party, priceMode, unit, qty, lossRate, useBoxCalc) {
+  const PY_FACTOR = window.FLOOR_PY_M2;
+  const lossMultiplier = lossRate > 0 ? (1 + lossRate / 100) : 1;
+  const boxM2 = Number(p.box_m2) || 0;
+  let displayQty, unitPrice, total, boxes = 0;
+
+  if (unit === 'BOX') {
+    boxes      = Math.ceil(qty);
+    unitPrice  = getUnitValue(p, party, 'box', 'material');
+    displayQty = boxes;
+    total      = boxes * unitPrice;
+  } else if (unit === 'M2') {
+    const sqmWithLoss = qty * lossMultiplier;
+    unitPrice = getUnitValue(p, party, 'sqm', priceMode);
+    if (useBoxCalc && boxM2) {
+      // 박스기준 헤베계산: 박스 올림 → 실헤베 소수점 둘째자리 반올림
+      boxes = invBoxCount(sqmWithLoss, boxM2, 0.01 * lossMultiplier);
+      const realSqm = Math.round(boxes * boxM2 * 100) / 100;
+      displayQty = realSqm;
+      total      = Math.round(realSqm * unitPrice);
+    } else {
+      boxes = boxM2 && sqmWithLoss > 0 ? ceilSafe(sqmWithLoss / boxM2) : 0;
+      displayQty = Math.round(sqmWithLoss * 1000) / 1000;
+      total      = Math.round(sqmWithLoss * unitPrice);
+    }
+  } else {
+    const pyWithLoss = qty * lossMultiplier;
+    const sqmWithLoss = pyWithLoss * PY_FACTOR;
+    unitPrice = getUnitValue(p, party, 'py', priceMode);
+    if (useBoxCalc && boxM2) {
+      // 박스기준 PY계산: PY×3.24 → ÷box_m2 → 올림 → ×box_m2 → ÷3.24 → 소수점 둘째자리 올림
+      boxes = invBoxCount(sqmWithLoss, boxM2, 0.01 * PY_FACTOR * lossMultiplier);
+      const realPy = ceilSafe(boxes * boxM2 / PY_FACTOR * 100) / 100;
+      displayQty = realPy;
+      total      = Math.round(realPy * unitPrice);
+    } else {
+      boxes = boxM2 && sqmWithLoss > 0 ? ceilSafe(sqmWithLoss / boxM2) : 0;
+      displayQty = Math.round(pyWithLoss * 1000) / 1000;
+      total      = Math.round(pyWithLoss * unitPrice);
+    }
+  }
+  return { displayQty, unitPrice, total, boxes, coverSqm: boxes * boxM2 };
+}
 // ★ 제품 단가 계산의 단일 소스(2026-10-16). 제품에는 소비자가(평)·업체가(평)·시공비만 입력하고
 //   나머지는 전부 여기서 계산한다 — 단가표/단가안내/계산기/견적서/관리자 목록/저장값이 모두 이 결과를 쓴다.
 //   헤베 = 평 ÷ 3.24 → 100원 올림 / 자재평 = 평 − 시공비 / 자재헤베 = 자재평 ÷ 3.24 → 100원 올림
@@ -14195,9 +14246,8 @@ function runCalculator() {
 
   const PY_FACTOR = window.FLOOR_PY_M2;
   let inputPy, inputSqm, inputBoxes;
-  let calcPy, calcSqm, calcBoxes;
 
-  // 1. 입력 모드에 따른 기본 면적 계산
+  // 1. 입력 모드에 따른 기본 면적 (표시용)
   if (inputMode === 'py') {
     inputPy = raw;
     inputSqm = raw * PY_FACTOR;
@@ -14210,33 +14260,19 @@ function runCalculator() {
     inputPy = inputSqm / PY_FACTOR;
   }
 
-  // 2. 로스율 적용 및 최종 필요한 '박스 수' 결정 (정수 올림)
-  const targetSqmWithLoss = inputSqm * lossMultiplier;
-  calcBoxes = ceilSafe(targetSqmWithLoss / p.box_m2);
-  
-  // 3. 핵심: 정수로 맞춰진 박스 수량이 실제로 커버하는 면적 계산
-  const finalCoverageSqm = calcBoxes * p.box_m2;
+  // 2. 금액 — 견적서 품목 줄과 같은 함수(calcLineAmount)로 계산 (2026-11-19)
+  const lineUnit = inputMode === 'py' ? 'PY' : inputMode === 'sqm' ? 'M2' : 'BOX';
+  const useBoxCalc = !!$('calcBoxCalcCheck')?.checked;
+  const line = calcLineAmount(p, party, priceMode, lineUnit, raw, lossRate, useBoxCalc);
+  const total = line.total;
+  const calcBoxes = line.boxes;
+  const finalCoverageSqm = line.coverSqm;
   const finalCoveragePy = finalCoverageSqm / PY_FACTOR;
 
   const pyPrice = getUnitValue(p, party, 'py', priceMode);
   const sqmPrice = getUnitValue(p, party, 'sqm', priceMode);
   const boxPrice = getUnitValue(p, party, 'box', priceMode);
-
-  // 4. 금액 계산
-  let total;
-  if (inputMode === 'box') {
-    // BOX 모드: 박스 단가 × 박스수
-    total = calcBoxes * boxPrice;
-  } else if (priceMode === 'material') {
-    // 자재별도: 박스 단위로 보내야 하므로 박스수 × 박스단가
-    total = calcBoxes * boxPrice;
-  } else if (inputMode === 'sqm') {
-    // m² 모드 (시공비 포함): m² 단가 × 입력 m²
-    total = Math.round(inputSqm * sqmPrice);
-  } else {
-    // 평 모드 (시공비 포함): 평 단가 × 입력 평
-    total = Math.round(inputPy * pyPrice);
-  }
+  const qtyUnitLabel = lineUnit === 'PY' ? '평' : lineUnit === 'M2' ? '㎡' : '박스';
 
   const totalVat = calcVatIncluded(total);
   const priceLabel = `${party === 'consumer' ? '소비자가' : '업체가'} / ${priceMode === 'material' ? '자재 별도' : '시공비 포함'}`;
@@ -14257,12 +14293,11 @@ function runCalculator() {
   $('summaryArea').textContent = `박스 환산 면적 ${formatDecimal(finalCoveragePy, 3)}평 / ${formatDecimal(finalCoverageSqm, 3)}㎡`;
   $('summaryMode').textContent = priceLabel;
   $('summaryLoss').textContent = lossRate ? `${formatDecimal(lossRate)}%` : '0%';
-  $('calcNotice').textContent = priceMode === 'material'
-    ? `자재별도: 필요 수량 ${calcBoxes}박스 × 박스단가 ${fmt(boxPrice)} = ${fmt(total)} (박스 기준 면적 ${formatDecimal(finalCoverageSqm, 3)}㎡)`
-    : `필요 수량 ${calcBoxes}박스에 맞춰 면적을 ${formatDecimal(finalCoverageSqm, 3)}㎡로 계산했습니다.`;
+  $('calcNotice').textContent = `견적서 계산과 동일: ${formatDecimal(line.displayQty, 3)}${qtyUnitLabel} × ${fmt(line.unitPrice)} = ${fmt(total)}`
+    + (lineUnit !== 'BOX' && calcBoxes ? ` (자재 출고 ${calcBoxes}박스 · ${formatDecimal(finalCoverageSqm, 3)}㎡)` : '');
 }
 
-function resetCalculator() { $('calcAudienceSelect').value='consumer'; $('calcPriceModeSelect').value='included'; $('calcInputModeSelect').value='py'; $('calcAreaInput').value=''; if($('calcLossRateInput')) $('calcLossRateInput').value=''; syncCalcInputUi(); resetCalcResults(); runCalculator(); }
+function resetCalculator() { $('calcAudienceSelect').value='consumer'; $('calcPriceModeSelect').value='included'; $('calcInputModeSelect').value='py'; $('calcAreaInput').value=''; if($('calcLossRateInput')) $('calcLossRateInput').value=''; if($('calcBoxCalcCheck')) $('calcBoxCalcCheck').checked=false; syncCalcInputUi(); resetCalcResults(); runCalculator(); }
 function runSelfTests() { console.assert(fmt(12000)==='12,000원','fmt formats'); { const t = calcProductPrices({ code:'C19012', box_m2:2.112, installCost:50000, consumer:{py:480000}, vendor:{py:410000} }); console.assert(t.consumer.sqm===148200 && t.vendor.sqm===126600 && t.consumer.materialSqm===132800 && t.consumer.box===280500 && t.vendor.box===234900, 'calcProductPrices C19012 example', t); } if(products.length>0){ console.assert(getUnitValue(products[0],'consumer','sqm','included')===calcProductPrices(products[0]).consumer.sqm,'included sqm'); console.assert(getUnitValue(products[0],'consumer','box','included')===products[0].consumer.box,'box raw'); console.assert(getUnitValue(products[0],'consumer','sqm','material')===ceilTo(getMaterialPyPrice(products[0],'consumer')/3.24,100),'material sqm calc'); } }
 function initApp() {
   fillSelect(); initPreviews(); syncPricingControls(); renderAll(); syncCalcInputUi(); resetCalcResults(); runCalculator(); runSelfTests();
@@ -14280,6 +14315,7 @@ function initApp() {
   ['calcProductSelect','calcAudienceSelect','calcPriceModeSelect','calcInputModeSelect'].forEach(id=>$(id).addEventListener('change',()=>{ if(id==='calcInputModeSelect') syncCalcInputUi(); runCalculator(); }));
   $('calcAreaInput').addEventListener('input',runCalculator);
   $('calcLossRateInput').addEventListener('input',runCalculator);
+  $('calcBoxCalcCheck')?.addEventListener('change',runCalculator);
   $('calcResetBtn').addEventListener('click',resetCalculator);
   document.querySelectorAll('.js-copy-template').forEach(btn=>btn.addEventListener('click',()=>{
     if (btn.classList.contains('copy-selected')) return; // 연타 방지
@@ -15685,55 +15721,9 @@ function getInvItemFromBox(box) {
     const party     = partyRaw.replace('_material', '');
     const priceMode = isMaterialOnly ? 'material' : 'included';
 
-    const PY_FACTOR = window.FLOOR_PY_M2;
-    const lossMultiplier = lossRate > 0 ? (1 + lossRate / 100) : 1;
-
-    let displayQty, unitPrice, total;
-
-    const boxPrice = getUnitValue(p, party, 'box', 'material');
-    const sqmPrice = getUnitValue(p, party, 'sqm', priceMode);
-    const pyPrice  = getUnitValue(p, party, 'py',  priceMode);
-
-    if (unit === 'BOX') {
-        const boxes = Math.ceil(qty);
-        unitPrice   = boxPrice;
-        displayQty  = boxes;
-        total       = boxes * unitPrice;
-    } else if (unit === 'M2') {
-        const sqmWithLoss = qty * lossMultiplier;
-        const useBoxCalc  = !!document.getElementById('invBoxCalcCheck')?.checked;
-        if (useBoxCalc && p.box_m2) {
-            // 박스기준 헤베계산: 박스 올림 → 실헤베 소수점 둘째자리 반올림
-            const boxes   = invBoxCount(sqmWithLoss, p.box_m2, 0.01 * lossMultiplier);
-            const realSqm = Math.round(boxes * p.box_m2 * 100) / 100;
-            unitPrice  = sqmPrice;
-            displayQty = realSqm;
-            total      = Math.round(realSqm * unitPrice);
-        } else {
-            // 기존 방식
-            unitPrice  = sqmPrice;
-            displayQty = Math.round(sqmWithLoss * 1000) / 1000;
-            total      = Math.round(sqmWithLoss * unitPrice);
-        }
-    } else {
-        const pyWithLoss = qty * lossMultiplier;
-        const useBoxCalc = !!document.getElementById('invBoxCalcCheck')?.checked;
-        if (useBoxCalc && p.box_m2) {
-            // 박스기준 PY계산: PY×3.24 → ÷box_m2 → 올림 → ×box_m2 → ÷3.24 → 소수점 둘째자리 올림
-            const sqmWithLoss = pyWithLoss * PY_FACTOR;
-            const boxes       = invBoxCount(sqmWithLoss, p.box_m2, 0.01 * PY_FACTOR * lossMultiplier);
-            const realSqm     = boxes * p.box_m2;
-            const realPy      = ceilSafe(realSqm / PY_FACTOR * 100) / 100;
-            unitPrice  = pyPrice;
-            displayQty = realPy;
-            total      = Math.round(realPy * unitPrice);
-        } else {
-            // 기존 방식
-            unitPrice  = pyPrice;
-            displayQty = Math.round(pyWithLoss * 1000) / 1000;
-            total      = Math.round(pyWithLoss * unitPrice);
-        }
-    }
+    // ★ 품목 금액 계산은 calcLineAmount() 하나만 쓴다 — 계산기 탭도 같은 함수(2026-11-19)
+    const useBoxCalc = !!document.getElementById('invBoxCalcCheck')?.checked;
+    const { displayQty, unitPrice, total } = calcLineAmount(p, party, priceMode, unit, qty, lossRate, useBoxCalc);
 
     const splitCosts = !!box.querySelector('.inv-split-cost-toggle')?.checked;
     if (splitCosts && unit !== 'BOX') {
