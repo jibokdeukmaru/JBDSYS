@@ -5635,6 +5635,12 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   table.dw-table thead th { position:relative; padding:8px 8px; text-align:center; font-weight:800; color:#fff; background:var(--brand); border:1.5px solid var(--brand-deep); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; user-select:none; }
   table.dw-table tbody td { padding:6.5px 8px; text-align:center; border:1.5px solid var(--border-2); color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   table.dw-table tbody tr { cursor:pointer; }
+  /* 쇼룸상담 표: 재방문 = 성함 앞 작은 배지(재방문 칸 대신) */
+  #csTable .cs-revisit-mark { display:inline-flex; align-items:center; justify-content:center; padding:0 5px; height:17px; border-radius:5px; background:#2e7d32; color:#fff; font-size:10.5px; font-weight:800; margin-right:4px; vertical-align:1px; }
+  /* 좁은 화면(표 영역이 칸 폭 합계보다 좁을 때, JS가 cs-compact 부여): 글자·여백만 살짝 줄임 */
+  #csTable.cs-compact { font-size:11.5px; }
+  #csTable.cs-compact thead th, #csTable.cs-compact tbody td { padding-left:4px; padding-right:4px; }
+  #csTable.cs-compact .dw-status-pill { padding-left:6px; padding-right:6px; }
   table.dw-table tbody tr:hover { background:var(--cream-2); }
 
   .dw-col-resizer { position:absolute; right:-3px; top:0; width:6px; height:100%; cursor:col-resize; z-index:2; }
@@ -5905,7 +5911,6 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           <th data-col="no" style="width:23px;">No.<span class="dw-col-resizer"></span></th>
           <th data-col="check" style="width:34px;"><input type="checkbox" class="dw-checkbox" disabled><span class="dw-col-resizer"></span></th>
           <th data-col="status" style="width:54px; cursor:pointer;" onclick="toggleSort('status')">상태 <span id="sort-status"></span><span class="dw-col-resizer"></span></th>
-          <th data-col="revisit" style="width:70px;">재방문<span class="dw-col-resizer"></span></th>
           <th data-col="counselor" style="width:110px; cursor:pointer;" onclick="toggleSort('counselor')">상담자 <span id="sort-counselor"></span><span class="dw-col-resizer"></span></th>
           <th data-col="name" style="width:90px; cursor:pointer;" onclick="toggleSort('name')">성함 <span id="sort-name"></span><span class="dw-col-resizer"></span></th>
           <th data-col="company" style="width:100px; cursor:pointer;" onclick="toggleSort('company')">업체명 <span id="sort-company"></span><span class="dw-col-resizer"></span></th>
@@ -5916,7 +5921,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         </tr>
       </thead>
       <tbody id="csTableBody">
-        <tr class="dw-empty-row"><td colspan="11">불러오는 중...</td></tr>
+        <tr class="dw-empty-row"><td colspan="10">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -6559,7 +6564,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     const q = (document.getElementById('csSearch').value || '').trim();
     if (q) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">검색 중...</td></tr>';
+      if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">검색 중...</td></tr>';
     }
     currentPage = 1;
     await renderConsultList();
@@ -6590,7 +6595,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     }
     // 캐시가 없거나 강제 새로고침: 로딩 표시 후 받아오기
     const bodyEl = document.getElementById('csTableBody');
-    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">불러오는 중...</td></tr>';
+    if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">불러오는 중...</td></tr>';
     await _fetchConsults();
   };
 
@@ -6713,7 +6718,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       }
       if (!_consultsCache) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="11">오류: ${window._escHtml(e.message)}<br><button type="button" onclick="loadConsults(true)" style="margin-top:8px;padding:6px 14px;border:1px solid #2c5fc4;border-radius:6px;background:#fff;color:#2c5fc4;font-weight:700;cursor:pointer;">다시 불러오기</button></td></tr>`;
+        if (bodyEl) bodyEl.innerHTML = `<tr class="dw-empty-row"><td colspan="10">오류: ${window._escHtml(e.message)}<br><button type="button" onclick="loadConsults(true)" style="margin-top:8px;padding:6px 14px;border:1px solid #2c5fc4;border-radius:6px;background:#fff;color:#2c5fc4;font-weight:700;cursor:pointer;">다시 불러오기</button></td></tr>`;
       }
     } finally {
       _consultsLoading = false;
@@ -6798,7 +6803,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     currentPage = 1;
     if (_myConsultsOnly) {
       const bodyEl = document.getElementById('csTableBody');
-      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">나의 상담내역 조회 중...</td></tr>';
+      if (bodyEl && !_consultsFullCache) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">나의 상담내역 조회 중...</td></tr>';
     }
     renderConsultList();
   };
@@ -6992,7 +6997,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     if (!list.length) {
       // 최초 조회(재시도 포함)가 아직 진행 중이면 "데이터 없음"이 아니라 로딩 중으로 표시
       const _stillLoading = _consultsMode === 'recent' && !_consultsCache && _consultsLoading;
-      document.getElementById('csTableBody').innerHTML = `<tr class="dw-empty-row"><td colspan="11">${_stillLoading ? '불러오는 중...' : '데이터가 없습니다.'}</td></tr>`;
+      document.getElementById('csTableBody').innerHTML = `<tr class="dw-empty-row"><td colspan="10">${_stillLoading ? '불러오는 중...' : '데이터가 없습니다.'}</td></tr>`;
       return;
     }
 
@@ -7042,7 +7047,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       if (_isMobileCard) {
         return `
           <tr onclick="openConsultNewTab(${r._origIdx})" data-orig-idx="${r._origIdx}" style="cursor:pointer;">
-            <td colspan="11" style="padding:0;border:none;">
+            <td colspan="10" style="padding:0;border:none;">
               <div class="cs-card${rowCls}">
                 <div class="cs-card-top">
                   <input type="checkbox" class="dw-checkbox" onclick="event.stopPropagation()" style="margin-right:8px;flex-shrink:0;">
@@ -7072,12 +7077,11 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           <td>${i + 1 + start}</td>
           <td onclick="event.stopPropagation()"><input type="checkbox" class="dw-checkbox"></td>
           <td><span class="dw-status-pill ${status}">${status}</span>${showN ? '<span class="nbadge" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e74c3c;color:#fff;font-size:8.5px;font-weight:800;margin-left:3px;vertical-align:middle;">N</span>' : ''}</td>
-          <td style="text-align:center;">${isRevisit ? '<span style="display:inline-block;padding:3px 10px;border-radius:6px;background:#2e7d32;color:#fff;font-size:11px;font-weight:700;">재방문</span>' : ''}</td>
           <td>${counselorDisplay}</td>
-          <td class="dw-td-name">${r.name||''} <span style="color:#ccc;font-size:11px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span></td>
+          <td class="dw-td-name">${isRevisit ? '<span class="cs-revisit-mark" title="재방문">재</span>' : ''}${r.name||''} <span style="color:#ccc;font-size:11px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span></td>
           <td>${r.company||''}</td>
           <td title="${(r.address||'').replace(/"/g,'&quot;')}">${r.address||''}</td>
-          <td>${scheduleDisplay}</td>
+          <td title="${scheduleDisplay}">${csDateDisplayShort(dateStr)}${timeStart ? ' ' + timeStart : ''}</td>
           <td>${workTag}</td>
           <td>${r.phone||''}</td>
         </tr>
@@ -7086,6 +7090,8 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
     // 페이지네이션 렌더
     renderPagination(totalPages, list.length);
+    // 탭이 숨겨진 채 처음 계산됐거나 화면 폭이 바뀐 경우를 위해 칸 폭(좁은 화면 모드 포함) 다시 맞춤
+    if (typeof window._applyConsultColWidths === 'function') window._applyConsultColWidths();
   };
 
   // ── 페이지네이션 렌더 ──
@@ -7125,7 +7131,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       const curTotalPages = Math.ceil((allConsults || []).length / pageSize);
       if (p > curTotalPages) {
         const bodyEl = document.getElementById('csTableBody');
-        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">전체 상담내역 불러오는 중...</td></tr>';
+        if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">전체 상담내역 불러오는 중...</td></tr>';
         let full = [];
         try {
           full = await ensureFullConsults();
@@ -7137,7 +7143,7 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
           if (typeof _syncConsultRefs === 'function') _syncConsultRefs();
         } else {
           // 전체 불러오기 실패/빈손: 무반응 방지 — 안내 후 현재 페이지 유지
-          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="11">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
+          if (bodyEl) bodyEl.innerHTML = '<tr class="dw-empty-row"><td colspan="10">전체 상담내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
           alert('전체 상담내역을 불러오지 못했습니다.\n네트워크 상태를 확인한 뒤 다시 시도해주세요.');
           renderConsultList();
           return;
@@ -7150,7 +7156,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
   // ── 쇼룸상담 표 컬럼 너비: 사원별 저장/복원 ──
   //   개인설정(_syncUserPrefs/userPrefs) 패턴과 동일하게, 기기(localStorage)엔 즉시 반영하고
   //   로그인 계정(Firestore userPrefs/{uid}.consultColWidths)에도 저장해 다른 기기에서도 유지되게 한다.
-  const CS_COL_DEFAULT_WIDTHS = { no:23, check:34, status:54, revisit:70, counselor:110, name:90, company:100, address:160, date:120, work:130, phone:104 };
+  const CS_COL_DEFAULT_WIDTHS = { no:23, check:34, status:62, counselor:110, name:90, company:100, address:160, date:120, work:130, phone:104 };
+  // 좁은 화면 전용 고정 폭(현장주소는 남는 폭으로 계산). 상태 칸은 '상담완료'·'예약N' 배지가 다 보이는 폭.
+  const CS_COL_COMPACT_WIDTHS = { no:28, check:30, status:76, counselor:92, name:104, company:90, address:0, date:100, work:120, phone:102 };
   function _csColWidthsStorageKey() {
     const uid = window._currentUser && window._currentUser.id;
     return uid ? `baram_consult_col_widths_${uid}` : 'baram_consult_col_widths';
@@ -7160,7 +7168,18 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     if (!table) return;
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(_csColWidthsStorageKey()) || 'null'); } catch(_) {}
-    const widths = Object.assign({}, CS_COL_DEFAULT_WIDTHS, saved || {});
+    let widths = Object.assign({}, CS_COL_DEFAULT_WIDTHS, saved || {});
+    // ★ 화면(표 영역)이 저장된 px 합계보다 좁으면(폴드 펼친 화면·작은 노트북 등) 모든 칸을 똑같이 줄이면
+    //   상태·일정·연락처까지 잘린다 → 좁은 화면 전용 폭(CS_COL_COMPACT_WIDTHS)을 쓰고 남는 폭은 현장주소 칸만 받는다.
+    const _avail = (table.parentElement && table.parentElement.clientWidth) || 0;
+    const _savedTotal = Object.keys(CS_COL_DEFAULT_WIDTHS).reduce((sum, k) => sum + (Number(widths[k]) || 0), 0);
+    const _compact = _avail > 0 && _avail < _savedTotal;
+    table.classList.toggle('cs-compact', _compact);
+    if (_compact) {
+      widths = Object.assign({}, CS_COL_COMPACT_WIDTHS);
+      const others = Object.keys(widths).reduce((sum, k) => sum + (k === 'address' ? 0 : widths[k]), 0);
+      widths.address = Math.max(60, _avail - others);
+    }
     // ★ px 합계가 화면보다 넓으면 가로 스크롤이 생겨서(시공예정 칸 추가 후), 저장된 px는 '비율'로만 쓰고
     //   %로 바꿔 표를 항상 화면 너비에 맞춘다. 드래그로 한 칸을 넓히면 나머지 칸이 그만큼 줄어든다.
     const ths = Array.from(table.querySelectorAll('thead th[data-col]'));
@@ -7181,6 +7200,11 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
     try { localStorage.setItem(_csColWidthsStorageKey(), JSON.stringify(widths)); } catch(_) {}
     if (typeof _syncUserPrefs === 'function') _syncUserPrefs({ consultColWidths: widths });
   }
+  let _csColResizeT = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(_csColResizeT);
+    _csColResizeT = setTimeout(function() { if (typeof window._applyConsultColWidths === 'function') window._applyConsultColWidths(); }, 150);
+  });
   function initColumnResize() {
     const table = document.getElementById('csTable');
     let startX, startWidth, currentTh, allThs;
@@ -7341,6 +7365,14 @@ function csDateInputValue(val) {
     return s;
   }
   // ★ 화면 표시(쇼룸상담 목록 등)용 날짜 표기 — 연도 포함, fmtDateOnly와 동일한 형식으로 통일
+  // 표(PC) 일정 칸 전용 짧은 표기: 2026-11-21 → 26.11.21 (연도 유지). 카드·문자·상세는 csDateDisplayFull 그대로.
+  function csDateDisplayShort(val) {
+    if (!val) return '';
+    const s = String(val).trim();
+    const parts = s.slice(0, 10).split('-');
+    if (parts.length === 3 && parts[0].length === 4) return parts[0].slice(2) + '.' + parts[1] + '.' + parts[2];
+    return s;
+  }
   function csDateDisplayFull(val) {
     if (!val) return '';
     const s = String(val).trim();
@@ -13594,6 +13626,8 @@ function setTab(tabId, fromPopstate) {
     // 필터가 걸린 채로 탭을 나갔다 들어와도(다른 사람이 그 사이 등록한 건을 보도록) 전체캐시를
     // 다시 읽게 신호를 켠다 — 안 걸려있으면 어차피 최근100 캐시 경로라 이 신호는 무시된다.
     if (typeof window._markConsultsFilterDirty === 'function') window._markConsultsFilterDirty();
+    // 탭이 보이게 된 뒤 칸 폭 재계산(숨김 상태에선 폭이 0이라 좁은 화면 판정이 안 됨)
+    if (typeof window._applyConsultColWidths === 'function') requestAnimationFrame(() => window._applyConsultColWidths());
     // 쇼룸상담 목록 + 직원맵 병렬 로드
     Promise.all([
       loadConsults(),
