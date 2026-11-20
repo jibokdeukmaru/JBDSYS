@@ -158,7 +158,8 @@ functions.http('driveGallery', async (req, res) => {
         return res.status(403).json({ status: 'error', message: '허용되지 않은 폴더입니다' });
       }
       let cached = _folderCache.get(folderId);
-      if (!cached || Date.now() - cached.at > FOLDER_CACHE_MS) {
+      // (2026-11-20) fresh=1 = 앱의 새로고침 버튼 — 5분 캐시를 건너뛰고 드라이브에서 바로 읽는다
+      if (!cached || req.query.fresh === '1' || Date.now() - cached.at > FOLDER_CACHE_MS) {
         cached = { at: Date.now(), data: await listFolder(drive, folderId) };
         if (_folderCache.size > 300) _folderCache.clear();
         _folderCache.set(folderId, cached);

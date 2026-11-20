@@ -808,6 +808,10 @@ window.fetchEmployeesFS = async function() {
 .gal-tree { width:260px; flex-shrink:0; border-right:1px solid #eee; overflow-y:auto; padding:10px 6px; background:#fafafa; }
 .gal-tree-row { display:flex; align-items:center; gap:4px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:13px; color:#333; user-select:none; }
 .gal-tree-row:hover { background:#eee; }
+.gal-tree-tools { display:flex; justify-content:flex-end; padding:0 4px 6px; }
+.gal-refresh-btn { border:1px solid #ddd; background:#fff; color:#444; font-size:12px; padding:4px 10px; border-radius:6px; cursor:pointer; }
+.gal-refresh-btn:hover { background:#f0f0f0; }
+.gal-refresh-btn:disabled { opacity:.6; cursor:default; }
 .gal-tree-row.active { background:var(--brand); color:#fff; font-weight:700; }
 .gal-tree-arrow { width:14px; text-align:center; color:#999; flex-shrink:0; transition:transform .15s; font-size:10px; }
 .gal-tree-arrow.open { transform:rotate(90deg); }
@@ -2362,8 +2366,10 @@ window.appBuildPrintDoc = function(doc, bodyClass, bodyHtml) {
       localStorage.setItem(GAL_STORE_KEY, JSON.stringify(all));
     } catch (e) {}
   }
-  async function fetchFolderFromServer(folderId) {
+  async function fetchFolderFromServer(folderId, fresh) {
     const params = new URLSearchParams({ action: 'listFolder', folderId, _appKey: window.GALLERY_API_KEY });
+    // ★ (2026-11-20) 새로고침 버튼 — 서버의 5분 폴더캐시도 건너뛴다(서버 재배포 전에는 무시되는 값)
+    if (fresh) params.set('fresh', '1');
     const res = await fetchWithRetry(`${window.GALLERY_API_URL}?${params}`);
     const data = await res.json();
     if (data.status !== 'ok') throw new Error(data.message || '');
@@ -2382,6 +2388,7 @@ window.appBuildPrintDoc = function(doc, bodyClass, bodyHtml) {
         const before = JSON.stringify(state.foldersCache[folderId].folders);
         state.foldersCache[folderId] = { folders: fresh.folders, images: fresh.images };
         if (JSON.stringify(fresh.folders) !== before) renderTree();
+        galApplyFreshImages(folderId, fresh.images);
       }).catch(() => {});
       return state.foldersCache[folderId];
     }
@@ -2395,6 +2402,51 @@ window.appBuildPrintDoc = function(doc, bodyClass, bodyHtml) {
       return { folders: [], images: [] };
     }
   }
+  // ★ (2026-11-20) 드라이브에 사진을 추가해도 보고 있는 폴더 화면이 안 바뀌던 문제 —
+  //   최신 목록의 사진 구성이 달라졌으면 지금 보던 사진 위치를 유지한 채 다시 그린다.
+  function galApplyFreshImages(folderId, images) {
+    const cur = state.current;
+    if (!cur || cur.folderId !== folderId) return;
+    images = images || [];
+    const ids = a => a.map(x => x.id).join(',');
+    if (ids(images) === ids(cur.images)) return;
+    const curId = cur.images[cur.index] && cur.images[cur.index].id;
+    let idx = images.findIndex(x => x.id === curId);
+    if (idx < 0) idx = Math.min(cur.index, Math.max(0, images.length - 1));
+    state.current = { folderId, images, index: idx };
+    if (images.length) renderGallery();
+    else {
+      const view = document.getElementById('galView');
+      const f = state.foldersCache[folderId];
+      if (view) view.innerHTML = `<div class="gal-empty">이 폴더에는 이미지가 없습니다${f && f.folders.length ? ' — 하위 폴더를 펼쳐보세요' : ''}</div>`;
+    }
+  }
+  // ★ (2026-11-20) 🔄 새로고침 — 브라우저 보관 목록(30분)·메모리 목록을 버리고 서버에서 바로 다시 받는다.
+  let _galRefreshing = false;
+  window._galRefresh = async function() {
+    if (_galRefreshing || !state.rootId) return;
+    _galRefreshing = true;
+    renderTree();
+    try {
+      try { localStorage.removeItem(GAL_STORE_KEY); } catch (e) {}
+      const targets = [state.rootId].concat(Object.keys(state.treeExpanded).filter(id => state.treeExpanded[id] && id !== state.rootId));
+      if (state.current && targets.indexOf(state.current.folderId) < 0) targets.push(state.current.folderId);
+      state.foldersCache = {};
+      let failed = false;
+      for (const id of targets) {
+        try {
+          const entry = await fetchFolderFromServer(id, true);
+          if (id === state.rootId && entry.folderName) state.rootName = entry.folderName;
+          state.foldersCache[id] = { folders: entry.folders, images: entry.images };
+          galApplyFreshImages(id, entry.images);
+        } catch (e) { failed = true; }
+      }
+      showToast(failed ? '일부 폴더를 불러오지 못했습니다 — 잠시 후 다시 눌러주세요' : '시공사례 목록을 새로 불러왔습니다');
+    } finally {
+      _galRefreshing = false;
+      renderTree();
+    }
+  };
   // ★ (2026-09-30 속도) 폴더를 열면 그 하위 폴더 목록(최대 8개)을 뒤에서 하나씩 미리 받아둔다 — 다음 단계를 펼칠 때 즉시 표시
   let _galPrefetching = false;
   async function prefetchChildren(folderId) {
@@ -2442,7 +2494,8 @@ window.appBuildPrintDoc = function(doc, bodyClass, bodyHtml) {
   function renderTree() {
     const el = document.getElementById('galTree');
     if (!el) return;
-    el.innerHTML = renderNode(state.rootId, state.rootName, 0);
+    el.innerHTML = `<div class="gal-tree-tools"><button type="button" class="gal-refresh-btn" onclick="window._galRefresh()"${_galRefreshing ? ' disabled' : ''}>${_galRefreshing ? '불러오는 중…' : '🔄 새로고침'}</button></div>`
+      + renderNode(state.rootId, state.rootName, 0);
   }
 
   // 클릭 즉시(네트워크 응답을 기다리지 않고) 화살표/트리를 펼치고, 데이터는 이어서 채운다.
