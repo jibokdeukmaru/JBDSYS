@@ -119,7 +119,7 @@
   // ★ 2026-11-25 휴가 기간 표시 공용 함수 — 떨어진 날짜(15,16,29,30,31)를 15~31로 뭉쳐 보이던 문제.
   //   leave-api(Cloud Function) 알림 문구도 같은 로직을 쓴다.
   window._fmtLeavePeriod = function(r) {
-  // 실제 고른 날짜(selectedDates)를 연속 구간으로 묶어 "12/15~16 (2일), 12/29~31 (3일)"로 표시.
+  // 실제 고른 날짜(selectedDates)를 연속 구간(같은 달)으로 묶어 "12월 15,16 / 12월 29,30,31"로 표시(사용자 지정 형식).
   // selectedDates가 없으면(예전 신청) startDate~endDate 연속으로 본다. 반차 등은 구간 일수에 1일당 일수를 곱한다.
   let ds = r && r.selectedDates;
   if (typeof ds === 'string') { try { ds = JSON.parse(ds); } catch (e) { ds = []; } }
@@ -134,15 +134,13 @@
   const per = Number.isFinite(total) && total > 0 ? total / ds.length : 1;
   const nextDay = k => { const d = new Date(k + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
   const runs = [];
-  ds.forEach(k => { const last = runs[runs.length - 1]; if (last && nextDay(last[last.length - 1]) === k) last.push(k); else runs.push([k]); });
+  ds.forEach(k => { const last = runs[runs.length - 1]; if (last && nextDay(last[last.length - 1]) === k && last[0].slice(0, 7) === k.slice(0, 7)) last.push(k); else runs.push([k]); });
   const thisYear = String(new Date().getFullYear());
-  const md = k => (k.slice(0, 4) !== thisYear ? k.slice(0, 4) + '/' : '') + Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10));
-  const nd = n => String(Math.round(n * 100) / 100);
+  void per;
   return runs.map(run => {
-    const a = run[0], b = run[run.length - 1];
-    const label = run.length === 1 ? md(a) : (a.slice(0, 7) === b.slice(0, 7) ? md(a) + '~' + Number(b.slice(8, 10)) : md(a) + '~' + md(b));
-    return label + ' (' + nd(run.length * per) + '일)';
-  }).join(', ');
+    const a = run[0];
+    return (a.slice(0, 4) !== thisYear ? a.slice(0, 4) + '년 ' : '') + Number(a.slice(5, 7)) + '월 ' + run.map(k => Number(k.slice(8, 10))).join(',');
+  }).join(' / ');
 };
 
   window._escHtml = function(s) {
@@ -20119,6 +20117,8 @@ if ('serviceWorker' in navigator) {
           : String(r.approverIds||'').split(',').map(s=>s.trim());
         if (!approvers.includes(String(user.id))) return false;
         if (_approvalIsStale(r)) return false;
+        // ★ 2026-11-25 신청자가 취소한 건은 결재자에게 보여줄 필요 없음(과거 건 포함, 데이터는 그대로)
+        if (r.status === '취소') return false;
         return true;
       });
       if (_approvalPage > Math.max(1, Math.ceil(_approvalRows.length / APPROVAL_PAGE_SIZE))) _approvalPage = 1;
@@ -20181,7 +20181,7 @@ if ('serviceWorker' in navigator) {
         + '<span class="appr-type" style="background:' + _approvalTypeColor(r.leaveType) + ';">' + (r.leaveType||'') + '</span>'
         + '</div>'
         + '<div class="appr-card-sub">'
-        + '<span>' + _approvalShortDate(r.startDate) + ' ~ ' + _approvalShortDate(r.endDate) + '</span>'
+        + '<span>' + window._fmtLeavePeriod(r) + '</span>'
         + '<span>' + (r.days||0) + '일</span>'
         + '</div>'
         + '<div class="appr-reason">' + (r.reason||'-') + '</div>'
