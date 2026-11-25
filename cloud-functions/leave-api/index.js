@@ -56,7 +56,35 @@ async function createNotification(n) {
   } catch (e) { console.error('createNotification 실패:', e.message); }
 }
 
-async function notifyLeaveApprover(status, approverIds, name, leaveType, days) {
+// ★ 2026-11-25 ERP 화면(window._fmtLeavePeriod)과 같은 로직 — 떨어진 날짜를 구간별로 표시.
+function fmtLeavePeriod(r) {
+  // 실제 고른 날짜(selectedDates)를 연속 구간으로 묶어 "12/15~16 (2일), 12/29~31 (3일)"로 표시.
+  // selectedDates가 없으면(예전 신청) startDate~endDate 연속으로 본다. 반차 등은 구간 일수에 1일당 일수를 곱한다.
+  let ds = r && r.selectedDates;
+  if (typeof ds === 'string') { try { ds = JSON.parse(ds); } catch (e) { ds = []; } }
+  ds = Array.isArray(ds) ? ds.filter(Boolean).map(String).sort() : [];
+  if (!ds.length && r && r.startDate) {
+    const s = new Date(r.startDate + 'T00:00:00Z'), e = new Date((r.endDate || r.startDate) + 'T00:00:00Z');
+    for (let d = new Date(s); d <= e && ds.length < 400; d.setUTCDate(d.getUTCDate() + 1)) ds.push(d.toISOString().slice(0, 10));
+  }
+  ds = ds.filter((v, i) => ds.indexOf(v) === i);
+  if (!ds.length) return '';
+  const total = parseFloat(r.days);
+  const per = Number.isFinite(total) && total > 0 ? total / ds.length : 1;
+  const nextDay = k => { const d = new Date(k + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
+  const runs = [];
+  ds.forEach(k => { const last = runs[runs.length - 1]; if (last && nextDay(last[last.length - 1]) === k) last.push(k); else runs.push([k]); });
+  const thisYear = String(new Date().getFullYear());
+  const md = k => (k.slice(0, 4) !== thisYear ? k.slice(0, 4) + '/' : '') + Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10));
+  const nd = n => String(Math.round(n * 100) / 100);
+  return runs.map(run => {
+    const a = run[0], b = run[run.length - 1];
+    const label = run.length === 1 ? md(a) : (a.slice(0, 7) === b.slice(0, 7) ? md(a) + '~' + Number(b.slice(8, 10)) : md(a) + '~' + md(b));
+    return label + ' (' + nd(run.length * per) + '일)';
+  }).join(', ');
+}
+
+async function notifyLeaveApprover(status, approverIds, name, leaveType, days, period) {
   const needRole = status === '대기' ? 'manager' : status === '대표승인대기' ? 'head' : null;
   if (!needRole) return;
   for (const aid of (approverIds || [])) {
@@ -66,7 +94,7 @@ async function notifyLeaveApprover(status, approverIds, name, leaveType, days) {
     if (!isRight) continue;
     await createNotification({
       toEmail: emp.email, type: 'leaveApproval', title: '휴가 결재 대기',
-      body: `${name}님의 ${leaveType} ${days}일 신청이 결재를 기다리고 있습니다.`
+      body: `${name}님의 ${leaveType} 총 ${days}일${period ? ' (' + period + ')' : ''} 신청이 결재를 기다리고 있습니다.`
     });
   }
 }
@@ -110,7 +138,8 @@ async function submitLeave(p) {
     status, managerApproval, headApproval, approverIds, requestType: '',
     prevSnapshot: null, selectedDates, deducted: false, createdAtMs: Date.now()
   });
-  if (!isHead) await notifyLeaveApprover(status, approverIds, p.name || '', p.leaveType || '연차', days);
+  if (!isHead) await notifyLeaveApprover(status, approverIds, p.name || '', p.leaveType || '연차', days,
+    fmtLeavePeriod({ startDate: p.startDate, endDate: p.endDate, selectedDates, days }));
   return { status: 'ok', applyId: docRef.id };
 }
 
@@ -206,7 +235,7 @@ async function approveLeave(p) {
   if (approverRole === 'manager') {
     if (action === 'approve') {
       await ref.update({ managerApproval: `승인(${now})`, status: '대표승인대기' });
-      await notifyLeaveApprover('대표승인대기', approverIds, data.name || '', data.leaveType || '연차', data.days);
+      await notifyLeaveApprover('대표승인대기', approverIds, data.name || '', data.leaveType || '연차', data.days, fmtLeavePeriod(data));
     } else {
       await ref.update({ managerApproval: `반려(${now})`, status: '반려' });
     }
@@ -300,7 +329,8 @@ async function requestChangeLeave(p) {
       status: '대기', managerApproval: '', headApproval: '',
       requestType: '변경', prevSnapshot: snapshot, selectedDates
     });
-    await notifyLeaveApprover('대기', data.approverIds || [], data.name || '', p.leaveType || '연차', days);
+    await notifyLeaveApprover('대기', data.approverIds || [], data.name || '', p.leaveType || '연차', days,
+      fmtLeavePeriod({ startDate: p.startDate, endDate: p.endDate, selectedDates, days }));
   }
   return { status: 'ok' };
 }
@@ -330,7 +360,7 @@ async function requestCancelLeave(p) {
       reason: '[취소요청] ' + (data.reason || ''), status: '대기',
       managerApproval: '', headApproval: '', requestType: '취소', prevSnapshot: snapshot
     });
-    await notifyLeaveApprover('대기', data.approverIds || [], data.name || '', data.leaveType || '연차', data.days);
+    await notifyLeaveApprover('대기', data.approverIds || [], data.name || '', data.leaveType || '연차', data.days, fmtLeavePeriod(data));
   } else {
     return { status: 'error', message: '취소할 수 없는 상태입니다.' };
   }

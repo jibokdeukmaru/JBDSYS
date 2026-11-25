@@ -116,6 +116,35 @@
   // 여러 곳(소비자 예약폼/상담/메모/이메일 등)에 거의 똑같이 중복 구현돼 있던
   // "&<>\" 이스케이프" 헬퍼를 하나로 통일 — 각 화면의 로컬 _esc/_memoEsc/_emEsc는
   // 호출부는 그대로 두고 내부에서 이걸 호출하도록만 바꿔서 동작은 완전히 동일하다.
+  // ★ 2026-11-25 휴가 기간 표시 공용 함수 — 떨어진 날짜(15,16,29,30,31)를 15~31로 뭉쳐 보이던 문제.
+  //   leave-api(Cloud Function) 알림 문구도 같은 로직을 쓴다.
+  window._fmtLeavePeriod = function(r) {
+  // 실제 고른 날짜(selectedDates)를 연속 구간으로 묶어 "12/15~16 (2일), 12/29~31 (3일)"로 표시.
+  // selectedDates가 없으면(예전 신청) startDate~endDate 연속으로 본다. 반차 등은 구간 일수에 1일당 일수를 곱한다.
+  let ds = r && r.selectedDates;
+  if (typeof ds === 'string') { try { ds = JSON.parse(ds); } catch (e) { ds = []; } }
+  ds = Array.isArray(ds) ? ds.filter(Boolean).map(String).sort() : [];
+  if (!ds.length && r && r.startDate) {
+    const s = new Date(r.startDate + 'T00:00:00Z'), e = new Date((r.endDate || r.startDate) + 'T00:00:00Z');
+    for (let d = new Date(s); d <= e && ds.length < 400; d.setUTCDate(d.getUTCDate() + 1)) ds.push(d.toISOString().slice(0, 10));
+  }
+  ds = ds.filter((v, i) => ds.indexOf(v) === i);
+  if (!ds.length) return '';
+  const total = parseFloat(r.days);
+  const per = Number.isFinite(total) && total > 0 ? total / ds.length : 1;
+  const nextDay = k => { const d = new Date(k + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
+  const runs = [];
+  ds.forEach(k => { const last = runs[runs.length - 1]; if (last && nextDay(last[last.length - 1]) === k) last.push(k); else runs.push([k]); });
+  const thisYear = String(new Date().getFullYear());
+  const md = k => (k.slice(0, 4) !== thisYear ? k.slice(0, 4) + '/' : '') + Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10));
+  const nd = n => String(Math.round(n * 100) / 100);
+  return runs.map(run => {
+    const a = run[0], b = run[run.length - 1];
+    const label = run.length === 1 ? md(a) : (a.slice(0, 7) === b.slice(0, 7) ? md(a) + '~' + Number(b.slice(8, 10)) : md(a) + '~' + md(b));
+    return label + ' (' + nd(run.length * per) + '일)';
+  }).join(', ');
+};
+
   window._escHtml = function(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   };
@@ -19584,8 +19613,7 @@ if ('serviceWorker' in navigator) {
   const _LEAVE_KIND_LABEL = { cancel: '바로 취소', request: '취소 요청(재승인 필요)', withdraw: '요청 철회(원래대로 복구)' };
   const _LEAVE_KIND_ACTION = { cancel: 'cancelLeave', request: 'requestCancelLeave', withdraw: 'withdrawLeaveRequest' };
   function _leaveDesc(r) {
-    const d = r.startDate === r.endDate ? r.startDate : r.startDate + ' ~ ' + r.endDate;
-    return `${r.leaveType} ${r.days}일 · ${d}`;
+    return `${r.leaveType} 총 ${r.days}일 · ${window._fmtLeavePeriod(r)}`;
   }
   let _leaveCancelSel = new Set();
 
@@ -19716,7 +19744,7 @@ if ('serviceWorker' in navigator) {
           </label>
           <span style="font-size:11px;font-weight:700;color:${statusColor};white-space:nowrap;">${statusText}</span>
         </div>
-        <div style="font-size:12px;color:#777;">${r.startDate} ~ ${r.endDate}</div>
+        <div style="font-size:12px;color:#777;">${window._fmtLeavePeriod(r)}</div>
         ${r.reason ? `<div style="font-size:11px;color:#aaa;margin-top:4px;">${r.reason}</div>` : ''}
         ${kind === 'withdraw' ? `<div style="display:flex;gap:8px;margin-top:8px;">
           <button onclick="cancelLeaveReq('${r.rowIdx}')" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e67e22;border-radius:6px;color:#e67e22;font-size:12px;font-weight:700;cursor:pointer;">${r.requestType} 요청 철회</button>
@@ -19737,9 +19765,10 @@ if ('serviceWorker' in navigator) {
     const pending = _allLeaves.filter(r => {
       if (r.id === user.id) return false;
       const approvers = String(r.approverIds||'').split(',').map(s=>s.trim());
-      return approvers.includes(user.id);
+      // ★ 2026-11-25 진행 중인 건만 — 취소·반려·확정된 건은 결재자 목록에서 뺀다(완료 기록은 관리자 결재완료 내역).
+      return approvers.includes(user.id) && (r.status === '대기' || r.status === '대표승인대기');
     });
-    if (pending.length === 0) { section.style.display = 'none'; return; }
+    if (pending.length === 0) { section.style.display = 'none'; list.innerHTML = ''; return; }
     section.style.display = 'block';
     list.innerHTML = pending.map(r => {
       const isManager = user.isManager;
@@ -19749,13 +19778,13 @@ if ('serviceWorker' in navigator) {
       const canApprove  = needManager || needHead;
       const approverRole = isHead && r.status === '대표승인대기' ? 'head' : 'manager';
       return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--cream);">
-        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${r.name} · ${r.leaveType} ${r.days}일</div>
-        <div style="font-size:12px;color:#777;margin-bottom:8px;">${r.startDate} ~ ${r.endDate}</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${r.name} · ${r.leaveType} 총 ${r.days}일</div>
+        <div style="font-size:12px;color:#777;margin-bottom:8px;">${window._fmtLeavePeriod(r)}</div>
         ${canApprove ? `
         <div style="display:flex;gap:6px;">
           <button onclick="leaveApprove('${r.rowIdx}','approve','${approverRole}')" style="flex:1;padding:7px 0;background:#1a7a45;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">승인</button>
           <button onclick="leaveApprove('${r.rowIdx}','reject','${approverRole}')" style="flex:1;padding:7px 0;background:#c0392b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">반려</button>
-        </div>` : `<div style="font-size:11px;color:#aaa;">${r.status}</div>`}
+        </div>` : `<div style="font-size:11px;color:#aaa;">${r.status === '대표승인대기' ? '대표 결재 중' : r.status}</div>`}
       </div>`;
     }).join('');
   }
@@ -19956,7 +19985,7 @@ if ('serviceWorker' in navigator) {
     const pageRows = filtered.slice((page - 1) * APPROVED_LEAVE_PAGE_SIZE, page * APPROVED_LEAVE_PAGE_SIZE);
     list.innerHTML = pageRows.length ? pageRows.map(r => {
       const approvedAt = String(r.headApproval || '').replace(/^[^(]*\(|\)$/g, '');
-      const period = r.endDate && r.endDate !== r.startDate ? `${r.startDate} ~ ${r.endDate}` : (r.startDate || '');
+      const period = window._fmtLeavePeriod(r);
       return `<div style="display:flex;align-items:center;gap:14px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;">
         <div style="min-width:90px;font-weight:700;font-size:13px;">${esc(r.name)}<span style="color:#999;font-weight:400;font-size:11px;margin-left:4px;">${esc(r.dept || '')}</span></div>
         <div style="font-size:12.5px;color:#666;">${esc(r.leaveType || '')} ${r.days || 0}일</div>
