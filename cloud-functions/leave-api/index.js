@@ -232,8 +232,36 @@ async function cancelLeave(p) {
   if (!snap.exists) return { status: 'error', message: '존재하지 않는 신청건입니다.' };
   const data = snap.data();
   if (String(data.empId || '').trim() !== requesterId) return { status: 'error', message: '본인만 취소 가능합니다.' };
-  if (String(data.status || '').trim() !== '대기') return { status: 'error', message: '대기 상태만 취소 가능합니다.' };
+  // ★ 2026-11-25: 최종 확정 전(대기·대표승인대기)인 새 신청건은 결재 없이 바로 취소.
+  //   변경/취소 요청이 진행 중인 건은 여기서 취소하면 원래 확정 휴가까지 날아가므로 막고 '요청 철회'로 보낸다.
+  const st = String(data.status || '').trim();
+  if (data.requestType) return { status: 'error', message: '변경/취소 요청 중인 건입니다. 요청 철회를 이용하세요.' };
+  if (st !== '대기' && st !== '대표승인대기') return { status: 'error', message: '결재 전(대기) 상태만 바로 취소 가능합니다.' };
   await ref.update({ status: '취소' });
+  return { status: 'ok' };
+}
+
+// ★ 2026-11-25: 진행 중인 변경/취소 요청을 본인이 철회 — 요청 전 상태(prevSnapshot)로 되돌린다.
+async function withdrawLeaveRequest(p) {
+  const rowIdx = String(p.rowIdx || '');
+  const requesterId = String(p.id || '');
+  const ref = db.collection('leaves').doc(rowIdx);
+  const snap = await ref.get();
+  if (!snap.exists) return { status: 'error', message: '존재하지 않는 신청건입니다.' };
+  const data = snap.data();
+  if (String(data.empId || '').trim() !== requesterId) return { status: 'error', message: '본인만 철회 가능합니다.' };
+  const st = String(data.status || '').trim();
+  const snapshot = data.prevSnapshot || null;
+  if (!data.requestType || !snapshot || (st !== '대기' && st !== '대표승인대기')) {
+    return { status: 'error', message: '철회할 요청이 없습니다(이미 처리됐을 수 있음).' };
+  }
+  await ref.update({
+    startDate: snapshot.startDate || '', endDate: snapshot.endDate || '',
+    days: snapshot.days || 0, leaveType: snapshot.leaveType || '연차',
+    reason: snapshot.reason || '', status: snapshot.status || '확정',
+    managerApproval: snapshot.managerApproval || '', headApproval: snapshot.headApproval || '',
+    requestType: '', prevSnapshot: null
+  });
   return { status: 'ok' };
 }
 
@@ -249,6 +277,7 @@ async function requestChangeLeave(p) {
   if (['반려', '취소'].includes(curStatus)) return { status: 'error', message: '변경할 수 없는 상태입니다.' };
   const curStartDate = data.startDate || '';
   if (curStartDate && curStartDate < todayStr()) return { status: 'error', message: '이미 지난 휴가는 변경할 수 없습니다.' };
+  if (data.requestType) return { status: 'error', message: '이미 변경/취소 요청 중인 건입니다. 요청 철회 후 다시 시도하세요.' };
 
   const days = parseFloat(p.days) || 0;
   let selectedDates = [];
@@ -287,6 +316,7 @@ async function requestCancelLeave(p) {
   const curStatus = String(data.status || '').trim();
   const curStartDate = data.startDate || '';
   if (curStartDate && curStartDate < todayStr()) return { status: 'error', message: '이미 지난 휴가는 취소할 수 없습니다.' };
+  if (data.requestType) return { status: 'error', message: '이미 변경/취소 요청 중인 건입니다. 요청 철회 후 다시 시도하세요.' };
 
   if (curStatus === '대기') {
     await ref.update({ status: '취소' });
@@ -347,7 +377,7 @@ exports.leaveApi = async (req, res) => {
     else { params.id = caller.id; params.role = caller.role === 'admin' ? 'admin' : 'staff'; }
   } else if (action === 'approveLeave') {
     params.approverId = caller.id;
-  } else if (['cancelLeave', 'requestChangeLeave', 'requestCancelLeave'].indexOf(action) !== -1) {
+  } else if (['cancelLeave', 'requestChangeLeave', 'requestCancelLeave', 'withdrawLeaveRequest'].indexOf(action) !== -1) {
     params.id = caller.id;
   }
   try {
@@ -361,6 +391,7 @@ exports.leaveApi = async (req, res) => {
       case 'cancelLeave': result = await cancelLeave(params); break;
       case 'requestChangeLeave': result = await requestChangeLeave(params); break;
       case 'requestCancelLeave': result = await requestCancelLeave(params); break;
+      case 'withdrawLeaveRequest': result = await withdrawLeaveRequest(params); break;
       default: result = { status: 'error', message: '알 수 없는 action: ' + action };
     }
     res.json(result);

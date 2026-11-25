@@ -19349,21 +19349,74 @@ if ('serviceWorker' in navigator) {
     } catch(e) { msg.textContent = '오류: ' + e.message; }
   }
 
-  window.cancelLeaveReq = async function(docId) {
+  // ★ 2026-11-25 휴가 취소 정리:
+  //   - 최종 확정 전(대기·대표승인대기) 새 신청 → 결재 없이 바로 취소(cancelLeave)
+  //   - 확정 → 취소 요청(재승인, requestCancelLeave)
+  //   - 변경/취소 요청 진행 중(requestType 있음) → 요청 철회(withdrawLeaveRequest): 원래 상태로 복구.
+  //     예전엔 이런 건도 '대기'라서 취소를 누르면 원래 확정 휴가까지 통째로 취소되던 버그가 있었다.
+  function _leaveCancelKind(r) {
+    if (!r) return null;
+    if (r.requestType) return 'withdraw';
+    if (r.status === '대기' || r.status === '대표승인대기') return 'cancel';
+    if (r.status === '확정') return 'request';
+    return null;
+  }
+  const _LEAVE_KIND_LABEL = { cancel: '바로 취소', request: '취소 요청(재승인 필요)', withdraw: '요청 철회(원래대로 복구)' };
+  const _LEAVE_KIND_ACTION = { cancel: 'cancelLeave', request: 'requestCancelLeave', withdraw: 'withdrawLeaveRequest' };
+  function _leaveDesc(r) {
+    const d = r.startDate === r.endDate ? r.startDate : r.startDate + ' ~ ' + r.endDate;
+    return `${r.leaveType} ${r.days}일 · ${d}`;
+  }
+  let _leaveCancelSel = new Set();
+
+  async function _runLeaveCancels(rows) {
     const user = window._currentUser;
     if (!user) return;
+    const fails = [];
+    for (const r of rows) {
+      const kind = _leaveCancelKind(r);
+      try {
+        const data = await window._leaveApiCall(_LEAVE_KIND_ACTION[kind], { rowIdx: r.rowIdx, id: user.id });
+        if (data.status !== 'ok') fails.push(_leaveDesc(r) + ' — ' + (data.message || '실패'));
+      } catch(e) { fails.push(_leaveDesc(r) + ' — ' + e.message); }
+    }
+    _leaveCancelSel = new Set();
+    await loadLeaveData();
+    switchLeaveTab('history');
+    if (fails.length) alert('처리하지 못한 건이 있습니다.\n\n' + fails.join('\n'));
+  }
+
+  window.cancelLeaveReq = async function(docId) {
     const row = _allLeaves.find(r => r.rowIdx === docId);
-    const needsReapproval = row && row.status !== '대기';
-    if (!await appConfirm(needsReapproval
-      ? '이미 결재가 진행된 휴가입니다. 취소 요청을 보내면 상위 결재자의 재승인이 필요합니다.\n계속할까요?'
-      : '휴가 신청을 취소하시겠습니까?')) return;
-    try {
-      const action = needsReapproval ? 'requestCancelLeave' : 'cancelLeave';
-      const data = await window._leaveApiCall(action, { rowIdx: docId, id: user.id });
-      if (data.status !== 'ok') { alert('취소 실패: ' + (data.message||'')); return; }
-      loadLeaveData();
-      switchLeaveTab('history');
-    } catch(e) { alert('오류: ' + e.message); }
+    const kind = _leaveCancelKind(row);
+    if (!kind) return;
+    const msg = {
+      cancel: '아직 최종 확정 전인 휴가입니다. 바로 취소할까요?',
+      request: '이미 확정된 휴가입니다. 취소하려면 결재자 재승인이 필요합니다.\n취소 요청을 보낼까요?',
+      withdraw: `진행 중인 ${row.requestType} 요청을 철회할까요?\n요청 전 상태로 돌아갑니다.`
+    }[kind];
+    if (!await appConfirm(_leaveDesc(row) + '\n\n' + msg)) return;
+    await _runLeaveCancels([row]);
+  };
+
+  window.toggleLeaveCancelSel = function(docId, on) {
+    if (on) _leaveCancelSel.add(docId); else _leaveCancelSel.delete(docId);
+    _updateLeaveCancelBar();
+  };
+  function _updateLeaveCancelBar() {
+    const bar = document.getElementById('leaveCancelSelBar');
+    if (!bar) return;
+    const n = _leaveCancelSel.size;
+    bar.style.display = n ? 'flex' : 'none';
+    const cnt = document.getElementById('leaveCancelSelCount');
+    if (cnt) cnt.textContent = n;
+  }
+  window.cancelSelectedLeaves = async function() {
+    const rows = _allLeaves.filter(r => _leaveCancelSel.has(r.rowIdx) && _leaveCancelKind(r));
+    if (!rows.length) return;
+    const lines = rows.map(r => '• ' + _leaveDesc(r) + '  →  ' + _LEAVE_KIND_LABEL[_leaveCancelKind(r)]);
+    if (!await appConfirm(`선택한 ${rows.length}건을 처리할까요?\n\n` + lines.join('\n'), { yes: '처리', no: '닫기' })) return;
+    await _runLeaveCancels(rows);
   };
 
   // 결재 대기 뱃지 업데이트
@@ -19422,20 +19475,32 @@ if ('serviceWorker' in navigator) {
     const user = window._currentUser;
     const list = document.getElementById('leaveHistoryList');
     const mine = _allLeaves.filter(r => r.id === (user&&user.id));
+    const _today = new Date().toISOString().slice(0,10);
+    // 화면에 없는(처리됐거나 날짜 지난) 건은 선택에서 정리
+    _leaveCancelSel = new Set([..._leaveCancelSel].filter(id => mine.some(r => r.rowIdx === id && _leaveCancelKind(r) && String(r.startDate||'') >= _today)));
+    _updateLeaveCancelBar();
     if (mine.length === 0) { list.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px 0;">신청 내역이 없습니다.</div>'; return; }
     const today = new Date().toISOString().slice(0,10);
     list.innerHTML = mine.map(r => {
       const statusColor = r.status==='확정'?'#1a7a45':r.status==='반려'||r.status==='취소'?'#c0392b':'#e67e22';
       // 시작일이 안 지난 대기/대표승인대기/확정 건만 취소·변경 가능
       const canManage = ['대기','대표승인대기','확정'].includes(r.status) && String(r.startDate||'') >= today;
-      return `<div style="border:1px solid #eee;border-radius:10px;padding:12px 14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <span style="font-size:13px;font-weight:700;">${r.leaveType} · ${r.days}일</span>
-          <span style="font-size:11px;font-weight:700;color:${statusColor};">${r.status}</span>
+      const kind = canManage ? _leaveCancelKind(r) : null;
+      const statusText = r.requestType ? `${r.status} · ${r.requestType}요청` : r.status;
+      const checked = _leaveCancelSel.has(r.rowIdx);
+      return `<div style="border:1px solid ${checked ? '#e74c3c' : '#eee'};border-radius:10px;padding:12px 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;${kind ? 'cursor:pointer;' : ''}">
+            ${kind ? `<input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleLeaveCancelSel('${r.rowIdx}', this.checked); this.closest('div[style*=border-radius]').style.borderColor = this.checked ? '#e74c3c' : '#eee';" style="width:17px;height:17px;margin:0;accent-color:#e74c3c;cursor:pointer;">` : ''}
+            <span>${r.leaveType} · ${r.days}일</span>
+          </label>
+          <span style="font-size:11px;font-weight:700;color:${statusColor};white-space:nowrap;">${statusText}</span>
         </div>
         <div style="font-size:12px;color:#777;">${r.startDate} ~ ${r.endDate}</div>
         ${r.reason ? `<div style="font-size:11px;color:#aaa;margin-top:4px;">${r.reason}</div>` : ''}
-        ${canManage ? `<div style="display:flex;gap:8px;margin-top:8px;">
+        ${kind === 'withdraw' ? `<div style="display:flex;gap:8px;margin-top:8px;">
+          <button onclick="cancelLeaveReq('${r.rowIdx}')" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e67e22;border-radius:6px;color:#e67e22;font-size:12px;font-weight:700;cursor:pointer;">${r.requestType} 요청 철회</button>
+        </div>` : kind ? `<div style="display:flex;gap:8px;margin-top:8px;">
           <button onclick="startChangeLeaveReq('${r.rowIdx}')" style="flex:1;padding:7px 0;background:#fff;border:1px solid #ccc;border-radius:6px;color:#555;font-size:12px;font-weight:700;cursor:pointer;">변경</button>
           <button onclick="cancelLeaveReq('${r.rowIdx}')" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e74c3c;border-radius:6px;color:#e74c3c;font-size:12px;font-weight:700;cursor:pointer;">취소</button>
         </div>` : ''}
@@ -22338,6 +22403,9 @@ if ('serviceWorker' in navigator) {
   <!-- 내역 탭 -->
   <div id="leavePanelContent_history" style="padding:20px;display:none;">
     <div id="leaveHistoryList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    <div id="leaveCancelSelBar" style="display:none;position:sticky;bottom:0;margin-top:12px;padding:10px 0;background:#fff;gap:8px;">
+      <button onclick="cancelSelectedLeaves()" style="flex:1;padding:12px 0;background:#e74c3c;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;">선택한 <span id="leaveCancelSelCount">0</span>건 취소</button>
+    </div>
   </div>
 
   <!-- A/B팀 근무자현황 탭 -->
