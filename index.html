@@ -13509,9 +13509,9 @@ function fillSelect() {
   const frag1=document.createDocumentFragment();
   const frag2=document.createDocumentFragment();
   products.forEach(p=>{
-    const text=`${p.code} (${p.name})`;
-    const opt1=document.createElement('option'); opt1.value=p.code; opt1.textContent=text; frag1.appendChild(opt1);
-    const opt2=document.createElement('option'); opt2.value=p.code; opt2.textContent=text; frag2.appendChild(opt2);
+    const text=productOptionText(p);
+    const opt1=document.createElement('option'); opt1.value=p.id; opt1.textContent=text; frag1.appendChild(opt1);
+    const opt2=document.createElement('option'); opt2.value=p.id; opt2.textContent=text; frag2.appendChild(opt2);
   });
   if(leftSel) leftSel.appendChild(frag1);
   if(calcSel) calcSel.appendChild(frag2);
@@ -13531,7 +13531,7 @@ function renderLeftTable() {
     const isNatural = !!p.natural;
     if (isNatural) tr.style.cssText = 'background:#fffbeb; border-left:3px solid #f59e0b;';
     tr.innerHTML=`<td>${p.code}</td><td class="name">${p.name}</td><td class="spec-left">${p.spec}</td><td class="price">${fmt(p.consumer.py)}</td><td class="price">${fmt(p.vendor.py)}</td><td class="price">${fmt(getMaterialPyPrice(p,'consumer'))}</td><td class="price">${fmt(getMaterialPyPrice(p,'vendor'))}</td>`;
-    tr.addEventListener('dblclick',()=>addCode(p.code));
+    tr.addEventListener('dblclick',()=>addCode(p.id));
     frag.appendChild(tr);
   });
   table.appendChild(frag);
@@ -13589,7 +13589,7 @@ function renderRightTable() {
     ? `<span style="white-space:nowrap;">자재 ${fmt(d.split.material)}</span> / <span style="white-space:nowrap;">인건비, 부자재비 ${fmt(d.split.labor)}</span>`
     : fmt(d.main);
   const sizeHtml = (p) => `<div class="muted meta-box">${boxSizeLabel(p)}</div>`;
-  state.selected.forEach(code=>{ const p=products.find(x=>x.code===code); if(!p) return; const tr=document.createElement('tr'); const cells=[`<td>${p.code}</td>`,`<td class="spec-right">${p.spec}</td>`];
+  state.selected.forEach(code=>{ const p=findProduct(code); if(!p) return; const tr=document.createElement('tr'); const cells=[`<td>${p.code}</td>`,`<td class="spec-right">${p.spec}</td>`];
     const data = v.parties.map(pt => pricingPartyData(p, pt, v));
     if (!v.boxOnly) data.forEach(d => cells.push(`<td>${priceCell(d)}</td>`));
     if (state.box) {
@@ -13597,13 +13597,13 @@ function renderRightTable() {
       else if (v.both) cells.push(`<td>${data.map((d,i)=>`<div style="white-space:nowrap;">${v.parties[i]==='consumer'?'소비자':'업체'} ${fmt(d.box)}</div>`).join('')}${sizeHtml(p)}</td>`);
       else cells.push(`<td><div>${fmt(data[0].box)}</div>${sizeHtml(p)}</td>`);
     }
-    tr.innerHTML=cells.join(''); tr.addEventListener('dblclick',()=>removeCode(p.code)); frag.appendChild(tr); });
+    tr.innerHTML=cells.join(''); tr.addEventListener('dblclick',()=>removeCode(code)); frag.appendChild(tr); });
   table.appendChild(frag);
 }
 function buildGuideText() {
   const v = pricingView(); const lines=['안녕하세요.','단가 안내드립니다.',''];
   const per = (n) => `${fmt(n)}/${v.unitText}`;
-  state.selected.forEach(code=>{ const p=products.find(x=>x.code===code); if(!p) return;
+  state.selected.forEach(code=>{ const p=findProduct(code); if(!p) return;
     lines.push(`${p.code} (${p.name})`); lines.push(`· 스펙 : ${p.spec}`);
     const data = v.parties.map(pt => pricingPartyData(p, pt, v));
     if (!v.both) {
@@ -13630,7 +13630,7 @@ function buildGuideText() {
 }
 function renderMeta() { updateQuoteDate(); const v = pricingView(); const ul = $('pricingNoticeList'); if (ul) ul.innerHTML = pricingFooterLines(v).map(t => `<li>${t}</li>`).join(''); $('countText').textContent = `선택 ${state.selected.length} / ${state.maxSelected}`; syncPricingControls(); const ta=$('copyText'); if(ta) ta.value = buildGuideText(); }
 function renderAll() { renderLeftTable(); buildRightHeader(); renderRightTable(); renderMeta(); }
-function addCode(code) { if(!code || state.selected.includes(code)) return; if(state.selected.length >= state.maxSelected) return showToast(`선택은 최대 ${state.maxSelected}개까지만 가능합니다.`); state.selected.push(code); renderAll(); }
+function addCode(code) { code = resolveProductKey(code); if(!code || state.selected.includes(code)) return; if(state.selected.length >= state.maxSelected) return showToast(`선택은 최대 ${state.maxSelected}개까지만 가능합니다.`); state.selected.push(code); renderAll(); }
 function removeCode(code) { state.selected = state.selected.filter(x=>x!==code); renderAll(); }
 function syncPricingControls() { $('audienceSelect').value=state.audience; $('priceModeSelect').value=state.priceMode; $('boxCheck').checked=!!state.box; $('sqmCheck').checked=!!state.sqm; const sc=$('splitCheck'); if (sc) { const off = state.priceMode === 'material'; sc.checked = !!state.split && !off; sc.disabled = off; const chip = sc.closest('.check-chip'); if (chip) chip.style.opacity = off ? '0.45' : ''; } }
 function resetAll() { state.selected=[]; Object.assign(state, PRICING_DEFAULTS); syncPricingControls(); renderAll(); }
@@ -14382,7 +14382,7 @@ function runCalculator() {
   const lossRateRaw = Number(($('calcLossRateInput')?.value || '').trim());
   const lossRate = Number.isFinite(lossRateRaw) && lossRateRaw > 0 ? lossRateRaw : 0;
   const lossMultiplier = 1 + (lossRate / 100);
-  const p = products.find(x => x.code === code);
+  const p = findProduct(code);
 
   if (!p) { resetCalcResults(); return; }
 
@@ -14655,6 +14655,20 @@ function _productDocId(code) {
 function _productColRef() {
     return window.FB.collection(window.FB.db, 'products');
 }
+// ★ 2026-11-25 같은 품번 + 다른 스펙 지원: 제품의 고유 키는 문서 id(p.id).
+//   기존 제품은 id = 품번이라 예전에 품번으로 저장된 견적서/선택값도 그대로 찾아진다(품번 fallback).
+function findProduct(key) {
+    if (!key) return null;
+    return products.find(x => x.id === key) || products.find(x => x.code === key) || null;
+}
+function resolveProductKey(key) { const p = findProduct(key); return p ? p.id : key; }
+function _isDupCode(p, list) { return (list || products).filter(x => x.code === p.code).length > 1; }
+// 선택 목록 표시용 — 품번이 겹치는 제품만 스펙을 붙인다.
+function productOptionText(p) {
+    return `${p.code}${_isDupCode(p) ? ' [' + p.spec + ']' : ''}${p.name ? ' (' + p.name + ')' : ''}`;
+}
+// 견적서 REMARKS [1BOX = ...] 등 — 품번이 겹칠 때만 스펙을 붙여 구분.
+function productShortLabel(p) { return _isDupCode(p) ? `${p.code} ${p.spec}` : p.code; }
 // 스펙의 곱하기 기호 X는 대문자/소문자 상관없이 소문자 x로 통일 (예: 1200X190X12T → 1200x190x12T)
 function normalizeProductSpec(spec) {
     return String(spec || '').replace(/X/g, 'x');
@@ -14769,7 +14783,7 @@ function openProductModal(id) {
         const posSel = $('productModalPosition');
         const opts = ['<option value="end">맨 뒤 (기본)</option>', '<option value="start">맨 앞</option>'];
         _adminProducts.forEach(prod => {
-            opts.push(`<option value="${prod.id}">${escapeHtmlProduct(prod.code)} (${escapeHtmlProduct(prod.name)}) 뒤</option>`);
+            opts.push(`<option value="${prod.id}">${escapeHtmlProduct(prod.code)}${_isDupCode(prod, _adminProducts) ? " [" + escapeHtmlProduct(prod.spec) + "]" : ""} (${escapeHtmlProduct(prod.name)}) 뒤</option>`);
         });
         posSel.innerHTML = opts.join('');
         posSel.value = 'end';
@@ -14911,8 +14925,23 @@ async function saveProductModal() {
     const code = $('productModalCode').value.trim();
     const msg = $('productModalMsg');
     if (!code) { msg.textContent = '품번을 입력하세요.'; msg.style.color = '#c0392b'; return; }
-    const id = origId || _productDocId(code);
     const num = (elId) => { const v = parseFloat($(elId).value); return Number.isFinite(v) ? v : 0; };
+    // ★ 2026-11-25 같은 품번이라도 스펙이 다르면 별도 제품으로 등록(예전엔 같은 품번 저장 시 기존 제품을 덮어씀).
+    //   id: 처음 품번은 품번 그대로, 같은 품번이 이미 있으면 "품번 스펙". 품번+스펙이 같으면 중복으로 막는다.
+    let id = origId;
+    if (!id) {
+        const specNorm = normalizeProductSpec($('productModalSpec').value.trim());
+        const _sk = v => String(v || '').toLowerCase().replace(/\s+/g, '');
+        const same = _adminProducts.find(x => x.code === code && _sk(x.spec) === _sk(specNorm));
+        if (same) { msg.textContent = '이미 같은 품번 + 스펙으로 등록된 제품이 있습니다. 목록에서 수정해 주세요.'; msg.style.color = '#c0392b'; return; }
+        id = _productDocId(code);
+        if (_adminProducts.some(x => x.id === id)) {
+            if (!specNorm) { msg.textContent = '같은 품번이 이미 있습니다. 구분할 수 있게 스펙을 입력해 주세요.'; msg.style.color = '#c0392b'; return; }
+            id = _productDocId(code + ' ' + specNorm);
+            let n = 2; const base = id;
+            while (_adminProducts.some(x => x.id === id)) id = base.slice(0, 145) + ' #' + (n++);
+        }
+    }
     const existing = _adminProducts.find(x => x.id === id);
     const data = {
         code,
@@ -15189,11 +15218,11 @@ function fillInvoiceSelects() {
         sel.innerHTML = '<option value="">-- 제품 선택 --</option><option value="__EPOXY__">에폭시</option><option value="__MINUS_MOLDING__">마이너스 몰딩</option>';
         products.forEach(p => {
             const opt = document.createElement('option');
-            opt.value = p.code;
-            opt.textContent = `${p.code} (${p.name})`;
+            opt.value = p.id;
+            opt.textContent = productOptionText(p);
             sel.appendChild(opt);
         });
-        if (prev) sel.value = prev;
+        if (prev) sel.value = prev.startsWith('__') ? prev : resolveProductKey(prev);
     });
 }
 
@@ -16041,7 +16070,7 @@ function getInvItemFromBox(box) {
         return { name: '마이너스 몰딩', size: '', unit: mUnit, qty, unitPrice: mPrice, total: Math.round(qty * mPrice) };
     }
 
-    const p = products.find(x => x.code === code);
+    const p = findProduct(code);
     if (!p) return null;
 
     // 자재만 여부 분리
@@ -16360,15 +16389,15 @@ function renderInvoice() {
             if (isManual) return;
             const code = box.querySelector('.inv-product-select')?.value;
             if (!code) return;
-            const p = products.find(x => x.code === code);
+            const p = findProduct(code);
             if (!p || !p.box_m2) return;
             const pcs = p.sheets_per_box || '';
             const pcsStr = pcs ? `${pcs}pcs/` : '';
             if (unit === 'PY') {
                 const py = Math.round(p.box_m2 / window.FLOOR_PY_M2 * 100) / 100;
-                metaList.push(`${code}(${pcsStr}${py}평)`);
+                metaList.push(`${productShortLabel(p)}(${pcsStr}${py}평)`);
             } else {
-                metaList.push(`${code}(${pcsStr}${p.box_m2}㎡)`);
+                metaList.push(`${productShortLabel(p)}(${pcsStr}${p.box_m2}㎡)`);
             }
         });
         if (!metaList.length) return '';
@@ -16893,7 +16922,7 @@ function _ivApplySnapshot(snap) {
             setField('.inv-manual-price', it.price);
         } else {
             const prodSel = wrap.querySelector('.inv-product-select');
-            if (prodSel) prodSel.value = it.product || '';
+            if (prodSel) prodSel.value = (it.product && !String(it.product).startsWith('__')) ? resolveProductKey(it.product) : (it.product || '');
             const unitSel = wrap.querySelector('.inv-unit-select');
             if (unitSel) unitSel.value = it.unit || 'M2';
             const qtyEl = wrap.querySelector('.inv-qty-input');
