@@ -118,6 +118,16 @@
   // 호출부는 그대로 두고 내부에서 이걸 호출하도록만 바꿔서 동작은 완전히 동일하다.
   // ★ 2026-11-25 휴가 기간 표시 공용 함수 — 떨어진 날짜(15,16,29,30,31)를 15~31로 뭉쳐 보이던 문제.
   //   leave-api(Cloud Function) 알림 문구도 같은 로직을 쓴다.
+  // ★ F5 새로고침 직후 화면이 서서히 나타나게(새로고침됐다는 걸 눈으로 알 수 있게) — 플래그는 F5 핸들러가 남긴다.
+  try {
+    if (sessionStorage.getItem('_erpF5Reload')) {
+      sessionStorage.removeItem('_erpF5Reload');
+      const st = document.createElement('style');
+      st.textContent = '@keyframes erpF5In{from{opacity:0}to{opacity:1}} body{animation:erpF5In .5s ease-out}';
+      document.head.appendChild(st);
+    }
+  } catch (e) {}
+
   window._fmtLeavePeriod = function(r) {
   // 실제 고른 날짜(selectedDates)를 연속 구간(같은 달)으로 묶어 "12월 15,16 / 12월 29,30,31"로 표시(사용자 지정 형식).
   // selectedDates가 없으면(예전 신청) startDate~endDate 연속으로 본다. 반차 등은 구간 일수에 1일당 일수를 곱한다.
@@ -15726,7 +15736,21 @@ async function resetInvoiceForm() {
             _busy = false;
             if (!ok) return;
         }
-        location.reload();
+        // 눈으로 보이는 반응: 화면 흐림 + 가운데 🔄 회전 → 0.3초 뒤 새로고침, 새 화면은 서서히 나타남
+        _busy = true;
+        try {
+            sessionStorage.setItem('_erpF5Reload', '1');
+            const ov = document.createElement('div');
+            ov.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);');
+            ov.innerHTML = '<div style="font-size:44px;line-height:1;animation:erpF5Spin .5s linear infinite;">🔄</div>';
+            if (!document.getElementById('erpF5Style')) {
+                const st = document.createElement('style'); st.id = 'erpF5Style';
+                st.textContent = '@keyframes erpF5Spin{to{transform:rotate(360deg)}}';
+                document.head.appendChild(st);
+            }
+            document.body.appendChild(ov);
+        } catch (e) {}
+        setTimeout(() => location.reload(), 300);
     }
     function _onKey(e) {
         const isF5 = e.key === 'F5';
