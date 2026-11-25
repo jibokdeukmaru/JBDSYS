@@ -9760,6 +9760,7 @@ function csDateInputValue(val) {
   table.admin-table { width:100%; border-collapse:collapse; font-size:13px; }
   table.admin-table th { padding:10px 8px; background:#fafafa; border:1px solid #e5e5e5; font-weight:700; color:#555; text-align:center; }
   table.admin-table td { padding:10px 8px; border:1px solid #f0f0f0; text-align:center; color:#333; }
+  .pt-tab.pt-drop { outline:3px solid #f39c12; outline-offset:2px; transform:scale(1.06); }
   table.admin-table td.pa-num { white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums; }
   table.admin-table tbody tr:hover { background:var(--cream-2); }
   .admin-empty { padding:40px; text-align:center; color:#aaa; font-size:13px; }
@@ -9959,10 +9960,24 @@ function csDateInputValue(val) {
           <div style="display:flex;gap:6px;"><button class="admin-btn" onclick="recalcAllProductPrices()" title="모든 제품의 ㎡·자재·BOX 단가를 소비자가(평)·업체가(평)·시공비 기준으로 다시 계산해 저장">전체 단가 재계산</button><button class="admin-btn primary" onclick="openProductModal(null)">+ 신규 제품 등록</button></div>
         </div>
         <div id="adminProductListWrap" style="display:none;margin-top:14px;">
+          <!-- ★ 2026-11-25 제품 탭(관리자 목록 정리용, 단가표/계산기/견적서·시공비 계산과 무관) -->
+          <div id="ptTabBar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;"></div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;">
+            <input type="search" id="ptSearch" placeholder="품번·품명 검색 (전체 탭)" oninput="ptSetSearch(this.value)" style="flex:1 1 200px;max-width:320px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;">
+            <span id="ptTabTools" style="display:inline-flex;gap:4px;"></span>
+            <span id="ptMoveBar" style="display:none;align-items:center;gap:6px;margin-left:auto;font-size:12.5px;color:#555;">
+              <b id="ptSelCount">0</b>개 선택 →
+              <select id="ptMoveTarget" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;"></select>
+              <button class="admin-btn primary" style="padding:6px 12px;" onclick="ptMoveSelected()">탭 이동</button>
+              <button class="admin-btn" style="padding:6px 10px;" onclick="ptClearSel()">선택 해제</button>
+            </span>
+          </div>
+          <div style="font-size:11px;color:#999;margin-bottom:8px;">제품 행의 ⠿를 잡아 위 탭에 끌어 놓으면 그 탭으로 옮겨집니다(체크한 제품이 있으면 체크한 것 전부). 폰에서는 체크 후 [탭 이동].</div>
           <div style="overflow-x:auto;">
             <table class="admin-table">
               <thead>
                 <tr>
+                  <th style="width:52px;"><input type="checkbox" id="ptSelAll" onchange="ptToggleAll(this.checked)" title="보이는 제품 전체 선택" style="width:16px;height:16px;cursor:pointer;"></th>
                   <th style="width:70px;">순서</th>
                   <th>품번</th>
                   <th>품명</th>
@@ -9981,7 +9996,7 @@ function csDateInputValue(val) {
                 </tr>
               </thead>
               <tbody id="productAdminTableBody">
-                <tr><td colspan="15" class="admin-empty">불러오는 중...</td></tr>
+                <tr><td colspan="16" class="admin-empty">불러오는 중...</td></tr>
               </tbody>
             </table>
           </div>
@@ -10599,6 +10614,10 @@ function xiParseForecast(wb) {
           <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">품명</label>
           <input type="text" id="productModalName" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
         </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">탭 (관리자 목록 정리용)</label>
+        <select id="productModalTab" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;"></select>
       </div>
       <div id="productModalPositionRow" style="margin-bottom:10px;">
         <label style="font-size:11px;color:#888;font-weight:700;display:block;margin-bottom:4px;">표시 순서</label>
@@ -14662,6 +14681,7 @@ function _productFromDoc(id, v) {
             box:      (v.vendor && v.vendor.box) || 0
         },
         natural: !!v.natural,
+        tab:     v.tab || '',
         order:   Number.isFinite(v.order) ? v.order : 0
     };
 }
@@ -14685,9 +14705,10 @@ async function loadAdminProducts() {
         const q = window.FB.query(_productColRef(), window.FB.orderBy('order', 'asc'));
         const snap = await window.FB.getDocs(q);
         _adminProducts = snap.docs.map(d => _productFromDoc(d.id, d.data()));
+        await _ptLoadTabs();
         renderAdminProductsTable();
     } catch (e) {
-        wrap.innerHTML = `<tr><td colspan="15" class="admin-empty">목록을 불러오지 못했습니다: ${e.message}</td></tr>`;
+        wrap.innerHTML = `<tr><td colspan="16" class="admin-empty">목록을 불러오지 못했습니다: ${e.message}</td></tr>`;
     }
 }
 
@@ -14697,20 +14718,26 @@ const _paNum = (n) => (Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-');
 function renderAdminProductsTable() {
     const wrap = $('productAdminTableBody');
     if (!wrap) return;
-    if (!_adminProducts.length) {
-        wrap.innerHTML = '<tr><td colspan="15" class="admin-empty">등록된 제품이 없습니다.</td></tr>';
+    _ptRenderBars();
+    const list = _ptVisible();
+    const allBox = $('ptSelAll');
+    if (allBox) allBox.checked = list.length > 0 && list.every(p => _ptSel.has(p.id));
+    if (!list.length) {
+        wrap.innerHTML = `<tr><td colspan="16" class="admin-empty">${_adminProducts.length ? (_ptSearch ? '검색 결과가 없습니다.' : '이 탭에 제품이 없습니다. 다른 탭에서 끌어다 놓거나 체크 후 [탭 이동]으로 옮기세요.') : '등록된 제품이 없습니다.'}</td></tr>`;
         return;
     }
+    const showTabBadge = _ptSearch || _ptCur === 'all';
     // ★ 박스당 면적(㎡)/장수는 견적서 REMARKS의 "[1BOX = 품번(Npcs/X㎡)]" 표기와 박스기준
     //   헤베계산(useBoxCalc)의 근거값이라, 관리자가 목록에서 바로 채워졌는지 확인할 수 있어야
     //   한다 — 모달에만 있고 목록엔 안 보여서 "데이터가 없는 것 같다"는 문의가 있었음(2026-09-22).
-    wrap.innerHTML = _adminProducts.map((p, idx) => `
-        <tr>
+    wrap.innerHTML = list.map((p, idx) => `
+        <tr data-pid="${p.id}" draggable="true" ondragstart="ptDragStart(event,'${p.id}')" ondragend="ptDragEnd()" style="${_ptSel.has(p.id) ? 'background:#fff6e5;' : ''}">
+            <td style="white-space:nowrap;"><span title="끌어서 위 탭에 놓기" style="cursor:grab;color:#aaa;font-size:15px;margin-right:4px;user-select:none;">⠿</span><input type="checkbox" ${_ptSel.has(p.id) ? 'checked' : ''} onchange="ptToggleSel('${p.id}', this.checked)" style="width:16px;height:16px;cursor:pointer;vertical-align:middle;"></td>
             <td style="white-space:nowrap;">
                 <button class="admin-btn" style="padding:2px 8px;" ${idx === 0 ? 'disabled' : ''} onclick="moveProductOrder('${p.id}',-1)">▲</button>
-                <button class="admin-btn" style="padding:2px 8px;" ${idx === _adminProducts.length - 1 ? 'disabled' : ''} onclick="moveProductOrder('${p.id}',1)">▼</button>
+                <button class="admin-btn" style="padding:2px 8px;" ${idx === list.length - 1 ? 'disabled' : ''} onclick="moveProductOrder('${p.id}',1)">▼</button>
             </td>
-            <td>${escapeHtmlProduct(p.code)}</td>
+            <td>${escapeHtmlProduct(p.code)}${showTabBadge ? `<div style="font-size:10.5px;color:#999;margin-top:2px;">${escapeHtmlProduct(_ptTabName(p))}</div>` : ''}</td>
             <td>${escapeHtmlProduct(p.name)}</td>
             <td>${escapeHtmlProduct(p.spec)}</td>
             <td style="${p.box_m2 ? '' : 'color:#c0392b;'}">${p.box_m2 ? formatDecimal(p.box_m2, 3) : '미입력'}</td>
@@ -14755,6 +14782,11 @@ function openProductModal(id) {
     $('productModalConsumerPy').value = p ? p.consumer.py : '';
     $('productModalVendorPy').value = p ? p.vendor.py : '';
     $('productModalNatural').checked = p ? !!p.natural : false;
+    {
+        const tabSel = $('productModalTab');
+        tabSel.innerHTML = '<option value="">미분류</option>' + _ptTabs.map(t => `<option value="${t.id}">${escapeHtmlProduct(t.name)}</option>`).join('');
+        tabSel.value = p ? (_ptTabs.some(t => t.id === p.tab) ? p.tab : '') : (_ptTabs.some(t => t.id === _ptCur) ? _ptCur : '');
+    }
     $('productModalMsg').textContent = '';
     $('productModal').style.display = 'flex';
     renderProductModalPreview();
@@ -14893,6 +14925,7 @@ async function saveProductModal() {
         consumer: { py: num('productModalConsumerPy') },
         vendor: { py: num('productModalVendorPy') },
         natural: $('productModalNatural').checked,
+        tab: $('productModalTab') ? $('productModalTab').value : '',
         updatedAtMs: Date.now()
     };
     Object.assign(data, _productPriceFields(data));
@@ -14955,10 +14988,12 @@ async function deleteProductAdmin(id) {
 }
 
 async function moveProductOrder(id, dir) {
-    const idx = _adminProducts.findIndex(x => x.id === id);
+    // ★ 탭이 생긴 뒤로는 "지금 보이는 목록"에서 바로 옆 제품과 자리를 바꾼다(같은 탭 안 순서).
+    const vis = _ptVisible();
+    const idx = vis.findIndex(x => x.id === id);
     const targetIdx = idx + dir;
-    if (idx < 0 || targetIdx < 0 || targetIdx >= _adminProducts.length) return;
-    const a = _adminProducts[idx], b = _adminProducts[targetIdx];
+    if (idx < 0 || targetIdx < 0 || targetIdx >= vis.length) return;
+    const a = vis[idx], b = vis[targetIdx];
     const aOrder = a.order, bOrder = b.order;
     try {
         await window.fbEnsureAuth();
@@ -14971,6 +15006,162 @@ async function moveProductOrder(id, dir) {
     } catch (e) {
         alert('순서 변경 실패: ' + e.message);
     }
+}
+
+// ============================================================
+//  ★ 2026-11-25 제품 탭 — 관리자 제품관리 목록이 길어져서 탭으로 나눠 보기.
+//   탭 목록: settings/productTabs { tabs:[{id,name}] } (순서 = 배열 순서)
+//   제품: products/{id}.tab = 탭 id ('' 또는 없는 탭 id = 미분류)
+//   목록 정리용일 뿐 — 단가표/계산기/견적서, 시공비 자동계산, order(표시 순서)는 건드리지 않는다.
+// ============================================================
+let _ptTabs = [], _ptCur = 'all', _ptSearch = '', _ptSel = new Set(), _ptDragIds = null;
+const _ptAsk = (msg, def) => new Promise(r => window.showAppPrompt(msg, def || '', r));
+function _ptTabRef() { return window.FB.doc(window.FB.db, 'settings', 'productTabs'); }
+async function _ptLoadTabs() {
+    try {
+        const snap = await window.FB.getDoc(_ptTabRef());
+        _ptTabs = (snap.exists() && Array.isArray(snap.data().tabs)) ? snap.data().tabs.filter(t => t && t.id) : [];
+    } catch (e) { console.error('제품 탭 읽기 실패', e); }
+    if (_ptCur !== 'all' && _ptCur !== '__none' && !_ptTabs.some(t => t.id === _ptCur)) _ptCur = 'all';
+}
+async function _ptSaveTabs() {
+    await window.fbEnsureAuth();
+    await window.FB.setDoc(_ptTabRef(), { tabs: _ptTabs, updatedAtMs: Date.now() }, { merge: true });
+}
+function _ptTabOf(p) { return _ptTabs.some(t => t.id === p.tab) ? p.tab : '__none'; }
+function _ptTabName(p) { const t = _ptTabs.find(x => x.id === p.tab); return t ? t.name : '미분류'; }
+function _ptNorm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ''); }
+function _ptVisible() {
+    if (_ptSearch) {
+        const q = _ptNorm(_ptSearch);
+        return _adminProducts.filter(p => _ptNorm(p.code).includes(q) || _ptNorm(p.name).includes(q) || _ptNorm(p.spec).includes(q));
+    }
+    if (_ptCur === 'all') return _adminProducts;
+    return _adminProducts.filter(p => _ptTabOf(p) === _ptCur);
+}
+function _ptRenderBars() {
+    const bar = $('ptTabBar');
+    if (!bar) return;
+    const cnt = id => id === 'all' ? _adminProducts.length : _adminProducts.filter(p => _ptTabOf(p) === id).length;
+    const btn = (id, name, drop) => {
+        const on = !_ptSearch && _ptCur === id;
+        return `<button type="button" class="pt-tab" data-tab="${id}" onclick="ptSelectTab('${id}')"
+            ${drop ? `ondragover="ptDragOver(event,this)" ondragleave="this.classList.remove('pt-drop')" ondrop="ptDrop(event,'${id}',this)"` : ''}
+            style="padding:7px 12px;border-radius:18px;border:1.5px solid ${on ? 'var(--brand)' : '#ddd'};background:${on ? 'var(--brand)' : '#fff'};color:${on ? '#fff' : '#555'};font-size:12.5px;font-weight:700;cursor:pointer;transition:transform .1s;">
+            ${escapeHtmlProduct(name)} <span style="opacity:.7;font-weight:600;">${cnt(id)}</span></button>`;
+    };
+    bar.innerHTML = btn('all', '전체', false) + btn('__none', '미분류', true)
+        + _ptTabs.map(t => btn(t.id, t.name, true)).join('')
+        + `<button type="button" onclick="ptAddTab()" title="탭 추가" style="padding:7px 12px;border-radius:18px;border:1.5px dashed #bbb;background:#fff;color:#777;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 탭 추가</button>`;
+    const tools = $('ptTabTools');
+    if (tools) {
+        const real = !_ptSearch && _ptTabs.some(t => t.id === _ptCur);
+        const i = _ptTabs.findIndex(t => t.id === _ptCur);
+        tools.innerHTML = real ? `
+            <button class="admin-btn" style="padding:5px 9px;" onclick="ptRenameTab()" title="탭 이름 변경">✏ 이름</button>
+            <button class="admin-btn" style="padding:5px 9px;" ${i === 0 ? 'disabled' : ''} onclick="ptShiftTab(-1)" title="탭 순서 앞으로">◀</button>
+            <button class="admin-btn" style="padding:5px 9px;" ${i === _ptTabs.length - 1 ? 'disabled' : ''} onclick="ptShiftTab(1)" title="탭 순서 뒤로">▶</button>
+            <button class="admin-btn" style="padding:5px 9px;color:#c0392b;" onclick="ptDeleteTab()" title="탭 삭제(제품은 미분류로)">🗑 탭 삭제</button>` : '';
+    }
+    _ptSel = new Set([..._ptSel].filter(id => _adminProducts.some(p => p.id === id)));
+    const mb = $('ptMoveBar');
+    if (mb) {
+        mb.style.display = _ptSel.size ? 'inline-flex' : 'none';
+        $('ptSelCount').textContent = _ptSel.size;
+        const sel = $('ptMoveTarget'), prev = sel.value;
+        sel.innerHTML = '<option value="">미분류</option>' + _ptTabs.map(t => `<option value="${t.id}">${escapeHtmlProduct(t.name)}</option>`).join('');
+        if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    }
+}
+function ptSelectTab(id) {
+    _ptCur = id; _ptSearch = '';
+    const si = $('ptSearch'); if (si) si.value = '';
+    renderAdminProductsTable();
+}
+function ptSetSearch(v) { _ptSearch = String(v || '').trim(); renderAdminProductsTable(); }
+function ptToggleSel(id, on) { if (on) _ptSel.add(id); else _ptSel.delete(id); renderAdminProductsTable(); }
+function ptToggleAll(on) { _ptVisible().forEach(p => on ? _ptSel.add(p.id) : _ptSel.delete(p.id)); renderAdminProductsTable(); }
+function ptClearSel() { _ptSel.clear(); renderAdminProductsTable(); }
+
+async function _ptMove(ids, tabId) {
+    tabId = tabId || '';
+    ids = ids.filter(id => { const p = _adminProducts.find(x => x.id === id); return p && _ptTabOf(p) !== (tabId || '__none'); });
+    if (!ids.length) return;
+    try {
+        await window.fbEnsureAuth();
+        for (let i = 0; i < ids.length; i += 400) {
+            const batch = window.FB.writeBatch(window.FB.db);
+            ids.slice(i, i + 400).forEach(id => batch.update(window.FB.doc(window.FB.db, 'products', id), { tab: tabId }));
+            await batch.commit();
+        }
+        ids.forEach(id => { const p = _adminProducts.find(x => x.id === id); if (p) p.tab = tabId; });
+        _ptSel.clear();
+        renderAdminProductsTable();
+        products = [];
+        const t = _ptTabs.find(x => x.id === tabId);
+        showToast(`${ids.length}개 제품 → ${t ? t.name : '미분류'} 이동`);
+    } catch (e) { alert('탭 이동 실패: ' + e.message); }
+}
+function ptMoveSelected() { return _ptMove([..._ptSel], $('ptMoveTarget').value); }
+
+function ptDragStart(ev, id) {
+    _ptDragIds = _ptSel.has(id) ? [..._ptSel] : [id];
+    try { ev.dataTransfer.setData('text/plain', id); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+}
+function ptDragEnd() { _ptDragIds = null; document.querySelectorAll('.pt-tab.pt-drop').forEach(b => b.classList.remove('pt-drop')); }
+function ptDragOver(ev, el) { if (!_ptDragIds) return; ev.preventDefault(); el.classList.add('pt-drop'); }
+function ptDrop(ev, tabId, el) {
+    ev.preventDefault(); el.classList.remove('pt-drop');
+    const ids = _ptDragIds; _ptDragIds = null;
+    if (ids) _ptMove(ids, tabId === '__none' ? '' : tabId);
+}
+
+async function ptAddTab() {
+    const name = ((await _ptAsk('새 탭 이름 (예: A18)')) || '').trim();
+    if (!name) return;
+    if (_ptTabs.some(t => t.name === name)) { alert('같은 이름의 탭이 이미 있습니다.'); return; }
+    const t = { id: 't' + Date.now().toString(36), name };
+    _ptTabs.push(t);
+    try {
+        await _ptSaveTabs();
+        _ptCur = t.id; _ptSearch = '';
+        const si = $('ptSearch'); if (si) si.value = '';
+        renderAdminProductsTable();
+    } catch (e) { _ptTabs.pop(); alert('탭 추가 실패: ' + e.message); }
+}
+async function ptRenameTab() {
+    const t = _ptTabs.find(x => x.id === _ptCur); if (!t) return;
+    const name = ((await _ptAsk('탭 이름 변경', t.name)) || '').trim();
+    if (!name || name === t.name) return;
+    if (_ptTabs.some(x => x.name === name)) { alert('같은 이름의 탭이 이미 있습니다.'); return; }
+    const old = t.name; t.name = name;
+    try { await _ptSaveTabs(); renderAdminProductsTable(); } catch (e) { t.name = old; alert('이름 변경 실패: ' + e.message); }
+}
+async function ptShiftTab(dir) {
+    const i = _ptTabs.findIndex(x => x.id === _ptCur), j = i + dir;
+    if (i < 0 || j < 0 || j >= _ptTabs.length) return;
+    [_ptTabs[i], _ptTabs[j]] = [_ptTabs[j], _ptTabs[i]];
+    try { await _ptSaveTabs(); renderAdminProductsTable(); }
+    catch (e) { [_ptTabs[i], _ptTabs[j]] = [_ptTabs[j], _ptTabs[i]]; alert('순서 변경 실패: ' + e.message); }
+}
+async function ptDeleteTab() {
+    const t = _ptTabs.find(x => x.id === _ptCur); if (!t) return;
+    const inTab = _adminProducts.filter(p => p.tab === t.id);
+    if (!await appConfirm(`"${t.name}" 탭을 삭제할까요?` + (inTab.length ? `\n안에 있는 제품 ${inTab.length}개는 삭제되지 않고 미분류로 옮겨집니다.` : ''))) return;
+    try {
+        await window.fbEnsureAuth();
+        for (let i = 0; i < inTab.length; i += 400) {
+            const batch = window.FB.writeBatch(window.FB.db);
+            inTab.slice(i, i + 400).forEach(p => batch.update(window.FB.doc(window.FB.db, 'products', p.id), { tab: '' }));
+            await batch.commit();
+        }
+        inTab.forEach(p => { p.tab = ''; });
+        _ptTabs = _ptTabs.filter(x => x.id !== t.id);
+        await _ptSaveTabs();
+        _ptCur = 'all';
+        renderAdminProductsTable();
+        showToast('탭을 삭제했습니다.');
+    } catch (e) { alert('탭 삭제 실패: ' + e.message); await loadAdminProducts(); }
 }
 
 // ============================================================
