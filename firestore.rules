@@ -13,7 +13,7 @@
 // (cloud-functions/auth-api 참고), 커스텀 토큰으로 로그인한 세션(=진짜 직원)과 익명 세션
 // (=게스트/공개예약페이지)을 구분해서 규칙을 걸 수 있다.
 //
-// ── 알려진 한계 (후속조치 필요, 아래 reservations 참고) ──
+// ── (해결됨 2026-11-26) 알려진 한계 — 아래 내용은 당시 기록, 이제 reservations 읽기는 직원 전용 ──
 // 공개 예약페이지(jbdreserve-repo)가 접수번호 생성을 위해 "오늘 접수건수"를 세는 쿼리를
 // 브라우저에서 직접 날리고 있어, reservations 컬렉션의 읽기(list)까지 완전히 막으면 예약
 // 접수 자체가 깨진다 — 이번 조치에서는 읽기는 "인증된 요청(익명 포함)"까지 허용하고, 쓰기 중
@@ -72,8 +72,11 @@ service cloud.firestore {
     }
 
     // ── 회사 설정 (공휴일/월별휴무안내/게스트탭 등) — 공개예약페이지·게스트도 읽어야 함 ──
+    // ★ (2026-11-26) 비로그인(익명)에게는 공개 예약페이지·게스트 화면이 실제로 쓰는 문서만 연다
+    //   (mailNotifyState처럼 직원 메일주소가 든 문서는 직원만).
     match /settings/{docId} {
-      allow read: if request.auth != null;
+      allow read: if isEmployee() ||
+        (request.auth != null && docId in ['guestTabs', 'holidays', 'monthlyNotice', 'productTabs', 'reservationAutoConfirm']);
       allow write: if isAdmin();
     }
 
@@ -90,10 +93,10 @@ service cloud.firestore {
       allow write: if isEmployee();          // 슬롯 마감/초기화는 직원만
     }
     match /reservations/{id} {
-      // 공개예약페이지가 접수번호 생성을 위해 오늘자 접수건수를 직접 쿼리한다 — 위 "알려진
-      // 한계" 참고. create/read는 익명(공개페이지) 포함 허용, 수정/삭제는 직원만.
-      allow create, read: if request.auth != null;
-      allow update, delete: if isEmployee();
+      // ★ (2026-11-26) 공개예약페이지가 더 이상 접수건수를 세지 않으므로(예약시트가 준 접수번호 사용)
+      //   익명은 "새로 만들기"만 가능 — 다른 고객 예약(이름·연락처·주소) 읽기는 직원 전용.
+      allow create: if request.auth != null;
+      allow read, update, delete: if isEmployee();
     }
     match /consults/{id} {
       allow read, write: if isEmployee();

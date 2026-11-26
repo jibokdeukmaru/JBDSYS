@@ -4805,7 +4805,9 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         var gUrl = typeof input === 'string' ? input : (input && input.url) || '';
         // 문자 서버(send-sms)·로그인 서버(auth-api)·휴가 서버(leave-api)도 같은 방식으로 로그인 직원만 허용하므로
         // 토큰을 같이 보낸다 — 단, 로그인 전에 쓰는 기능(로그인/아이디 찾기/비밀번호 찾기 문자)은 제외
+        // ★ (2026-11-26 보안) Apps Script 배포(RESERVE/ERP/SMS/예약 관리용)도 이제 공유키 대신 로그인 토큰으로만 열린다
         var _needTok = gUrl.indexOf(GMAIL_CF_URL) === 0 || gUrl.indexOf(SMS_CF_URL) === 0 || gUrl.indexOf(LEAVE_API_URL) === 0 || gUrl.indexOf(GALLERY_API_URL) === 0
+          || gUrl.indexOf(RESERVE_URL) === 0 || gUrl.indexOf(ERP_URL) === 0 || gUrl.indexOf(SMS_URL) === 0 || gUrl.indexOf(BOOKING_URL) === 0
           || (gUrl.indexOf(AUTH_API_URL) === 0 && !/[?&]action=(login|findIdByNamePhone|resetPasswordBySms)(&|$)/.test(gUrl));
         if (_needTok) {
           var ensure = (typeof window.fbEnsureAuth === 'function') ? window.fbEnsureAuth() : Promise.resolve();
