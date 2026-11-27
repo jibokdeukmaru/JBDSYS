@@ -17024,19 +17024,84 @@ function _invPrintCleanup() {
 
 window.addEventListener('afterprint', _invPrintCleanup);
 
-// 견적서/가견적서/정산서 저장 파일명 규칙: 업체명 현장주소 문서종류 (공백 구분)
-// 문서종류는 정산서 체크 시에만 '정산서', 그 외(가견적서 포함)는 모두 '견적서'. 빈 칸은 건너뛴다.
+// 소비자: "홍길동소비자 010-1234-5678" / "홍길동 소비자님" / "소비자 홍길동" → "홍길동소비자"
+function _invConsumerName(s) {
+    if (!s || s.indexOf('소비자') < 0) return null;
+    const name = s.replace(/\d{2,4}-\d{3,4}-\d{4}/g, '').replace(/\b01\d{8,9}\b/g, '')
+        .replace(/소비자/g, '').replace(/님/g, '').replace(/\s+/g, '');
+    return name ? name + '소비자' : '소비자';
+}
+
+// 파일명용 현장주소 줄이기 (화면 입력값은 그대로, 파일명에서만)
+//   "서울특별시 강남구 삼성로 112길 19 / 덕진빌딩 1층 102호" → "삼성로 덕진빌딩1층"
+//   "판교역로 235 / 래미안아파트 101동 1502호" → "판교역로 래미안아파트101-1502"
+//   시·도/구·군, 건물번호, "112길" 같은 세부 길번호는 빼고 도로명만. 도로명이 없으면(지번) 동 이름.
+//   상세: 건물명 + (동-호 | 층 | 호수) 붙여쓰기. 층이 있으면 호수는 뺀다.
+function _invShortSite(raw) {
+    let s = String(raw || '').replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    // 괄호 안 참고항목 "(삼성동, 덕진빌딩)" → 건물명만 상세 후보로
+    let parenBld = '';
+    s = s.replace(/\(([^)]*)\)/g, (m, inner) => {
+        inner.split(',').map(x => x.trim()).forEach(x => {
+            if (x && !/(동|읍|면|리|가)$/.test(x)) parenBld = parenBld || x;
+        });
+        return ' ';
+    }).replace(/\s+/g, ' ').trim();
+
+    let main = s, detail = '';
+    const sep = s.search(/[\/,]/);
+    if (sep >= 0) { main = s.slice(0, sep).trim(); detail = s.slice(sep + 1).replace(/[\/,]/g, ' ').trim(); }
+
+    const tokens = main.split(' ').filter(Boolean);
+    let place = '', restIdx = -1;
+    const roadRe = /^(.*[가-힣A-Za-z](?:대로|로|길))(\d+번?[가-힣]?길)?$/;
+    for (let i = 0; i < tokens.length; i++) {
+        const m = tokens[i].match(roadRe);
+        if (m && !/(시|도|구|군)$/.test(tokens[i])) { place = m[1]; restIdx = i + 1; break; }
+    }
+    if (!place) {
+        for (let i = 0; i < tokens.length; i++) {
+            if (/[가-힣](동|읍|면|리|가)$/.test(tokens[i]) && !/\d+동$/.test(tokens[i]) && i > 0) {
+                place = tokens[i]; restIdx = i + 1; break;
+            }
+        }
+    }
+    if (!place) return s.replace(/\s+/g, ' ');
+    // 도로명/동 뒤: 세부 길번호·건물번호·번지(숫자) 건너뛰고, 남은 건 상세로
+    const rest = tokens.slice(restIdx);
+    while (rest.length && /^(\d+번?[가-힣]?길|지하|산)?\s*[\d\-~]+(번지)?$|^\d+번?[가-힣]?길$|^(지하|산)$/.test(rest[0])) rest.shift();
+    if (rest.length) detail = (rest.join(' ') + ' ' + detail).trim();
+    if (!detail && parenBld) detail = parenBld;
+
+    let unit = '';
+    let d = ' ' + detail + ' ';
+    let m;
+    if ((m = d.match(/(\d+)\s*동\s*(\d+)\s*호?/)) || (m = d.match(/(\d+)\s*-\s*(\d+)\s*호?/))) {
+        unit = m[1] + '-' + m[2]; d = d.replace(m[0], ' ');
+    } else if ((m = d.match(/(지하\s*|B)?\d+\s*층/i))) {
+        unit = m[0].replace(/\s+/g, ''); d = d.replace(m[0], ' ').replace(/\d+\s*호/g, ' ');
+    } else if ((m = d.match(/(\d+)\s*호/))) {
+        unit = m[1]; d = d.replace(m[0], ' ');
+    }
+    const bld = d.replace(/\s+/g, '') || parenBld.replace(/\s+/g, '');
+    const tail = bld + unit;
+    return tail ? place + ' ' + tail : place;
+}
+
+// 견적서/가견적서/정산서 저장 파일명 규칙 (2026-11-27 정정): 업체명 현장주소(간략) 문서종류
+//   문서종류: 정산서 체크 → 정산서 / 가견적서 체크 → 가견적서 / 둘 다 아니면 → 견적서
+//   업체명: 연락처·담당자 이름+직급 제외. 소비자면 "이름소비자"(띄어쓰기·연락처 제거)
 function buildInvoiceFileName() {
-    const sanitize = s => (s || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
-    // ★ 업체명 칸에 실제로는 "회사명 담당자명 직급님 전화번호"를 한 번에 몰아 적는 경우가
-    //   많아서(예: "에이라이브 전희수 실장님 010-2050-0318"), 파일명엔 전화번호와
-    //   담당자 "이름+직급"을 빼고 업체명만 남긴다. 담당자(invManager) 칸은 실제로는 작성한
-    //   우리 직원 본인 이름이 들어가는 용도로 쓰이고 있어 파일명에는 포함하지 않는다.
-    const company = _cleanInvoiceContactPhrase(sanitize(document.getElementById('invBillTo')?.value));
-    const site    = sanitize(document.getElementById('invSite')?.value);
+    const sanitize = s => (s || '').replace(/[\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    const billTo = sanitize(document.getElementById('invBillTo')?.value);
+    const company = _invConsumerName(billTo) || _cleanInvoiceContactPhrase(billTo);
+    // 주소는 '/'로 상세를 구분하므로 sanitize 전에 줄이고 나서 금지문자 제거
+    const site = sanitize(_invShortSite(document.getElementById('invSite')?.value));
 
     const isFinal = !!document.getElementById('invFinalCheck')?.checked;
-    const docLabel = isFinal ? '정산서' : '견적서';
+    const isDraft = !!document.getElementById('invDraftCheck')?.checked;
+    const docLabel = isFinal ? '정산서' : (isDraft ? '가견적서' : '견적서');
 
     return [company, site, docLabel].filter(Boolean).join(' ');
 }
