@@ -107,6 +107,11 @@ service cloud.firestore {
 
     // ── 시공일정/재고현황(베타) — 직원 전용 ──
     match /constructionSchedule/{id} { allow read, write: if isEmployee(); }
+    // 시공내역(2026-11-28): 직원 읽기 / arc_*(시공일정 자동보관)는 직원 쓰기 / legacy_*(엑셀 옛 내역)는 관리자만 쓰기
+    match /constructionHistory/{id} {
+      allow read: if isEmployee();
+      allow write: if isAdmin() || (isEmployee() && id.matches('^arc_[0-9]{4}-[0-9]{2}$'));
+    }
     match /constructionForecast/{id} { allow read, write: if isEmployee(); }
     match /scheduleDayNotes/{id}     { allow read, write: if isEmployee(); }
     match /scheduleEditHistory/{id}  { allow read, write: if isEmployee(); }

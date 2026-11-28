@@ -1583,6 +1583,7 @@ button { word-break:keep-all; }
       <button type="button" class="tab-btn" data-tab="calculatorTab">계산기</button>
       <button type="button" class="tab-btn" data-tab="stockBetaTab">재고현황(예약/실시간)</button>
       <button type="button" class="tab-btn" data-tab="scheduleTab">시공일정표</button>
+      <button type="button" class="tab-btn" data-tab="workHistoryTab" id="workHistoryTabBtn">시공내역</button>
       <button type="button" class="tab-btn" data-tab="invoiceTab">견적서</button>
       <button type="button" class="tab-btn" data-tab="consultTab">쇼룸상담</button>
       <button type="button" class="tab-btn" id="reservationTabBtn" data-tab="reservationTab">예약관리<span id="rsvPendingBadge" style="display:none;margin-left:4px;background:#e74c3c;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:800;align-items:center;justify-content:center;">N</span></button>
@@ -3039,6 +3040,30 @@ async function _schedulePruneOld(){
     window.FB.where('date', '<', cutoffKey)
   );
   const snap = await window.FB.getDocs(q);
+  if (!snap.docs.length) return { deleted: 0 };
+  // ★ 2026-11-28 시공내역: 지우기 전에 constructionHistory/arc_YYYY-MM 에 원본을 보관한다.
+  //   보관이 하나라도 실패하면(규칙 미적용·네트워크 등) 이번엔 지우지 않는다 — 다음에 페이지를 열 때 다시 시도.
+  //   문서ID(일정 id) 기준 merge라 여러 번 실행돼도 같은 내용이 덮어써질 뿐 중복이 생기지 않는다.
+  try {
+    const byMonth = {};
+    snap.docs.forEach(d => {
+      const x = d.data() || {};
+      const mk = String(x.date || '').slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(mk)) return;
+      (byMonth[mk] = byMonth[mk] || {})[d.id] = {
+        date: x.date, manager: x.manager || '', company: x.company || '', site: x.site || '',
+        suppliedMaterial: x.suppliedMaterial || '', stockMaterial: x.stockMaterial || '',
+        order: x.order || 0, mergeMap: x.mergeMap || {}
+      };
+    });
+    for (const mk of Object.keys(byMonth)) {
+      await window.FB.setDoc(window.FB.doc(window.FB.db, 'constructionHistory', 'arc_' + mk),
+        { entries: byMonth[mk], updatedAtMs: Date.now() }, { merge: true });
+    }
+  } catch (e) {
+    console.warn('[시공일정] 시공내역 보관 실패 — 이번엔 오래된 일정을 지우지 않음', e);
+    return { deleted: 0, archiveFailed: true };
+  }
   let deleted = 0;
   for (let i = 0; i < snap.docs.length; i += 400) {
     const batch = window.FB.writeBatch(window.FB.db);
@@ -4547,6 +4572,341 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
 
 
 <!-- ==================== 연락처 탭 ==================== -->
+<section id="workHistoryTab" class="tab-panel" style="display:none;">
+<style>
+  #workHistoryTab .wh-card{max-width:1280px;margin:0 auto;}
+  #workHistoryTab .wh-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  #workHistoryTab .wh-head h2{margin:0;}
+  #workHistoryTab .wh-sub{font-size:12px;color:var(--muted);font-weight:500;margin-left:6px;}
+  #workHistoryTab .wh-btns{display:flex;gap:6px;flex-wrap:wrap;}
+  #workHistoryTab .wh-btn{padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--tab-bg);color:var(--brand-dark);font-weight:700;}
+  #workHistoryTab .wh-btn:hover{background:var(--tab-hover);}
+  #workHistoryTab .wh-search{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:10px;background:#fff;}
+  #workHistoryTab .wh-years{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;-webkit-overflow-scrolling:touch;}
+  #workHistoryTab .wh-chip{flex-shrink:0;padding:6px 12px;border-radius:16px;border:1px solid var(--border);background:var(--tab-bg);color:var(--tab-text);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  #workHistoryTab .wh-chip.on{background:var(--brand);border-color:var(--brand);color:#fff;}
+  #workHistoryTab .wh-chip .n{font-weight:500;opacity:.8;margin-left:3px;}
+  #workHistoryTab .wh-chip.zero{opacity:.45;}
+  #workHistoryTab .wh-info{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin:2px 0 8px;gap:8px;}
+  #workHistoryTab .wh-sort{background:none;border:none;color:var(--brand-dark);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px;}
+  #workHistoryTab .wh-row{display:grid;grid-template-columns:118px 64px minmax(120px,1.1fr) minmax(140px,1.4fr) minmax(200px,2.2fr);gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px;line-height:1.45;align-items:start;}
+  #workHistoryTab .wh-row.hd{position:sticky;top:0;z-index:1;background:var(--cream);font-weight:700;font-size:12px;color:var(--brand-dark);border-radius:8px 8px 0 0;}
+  #workHistoryTab .wh-row:not(.hd):hover{background:var(--surface-tint);}
+  #workHistoryTab .wh-row > div{min-width:0;word-break:break-all;white-space:pre-line;}
+  #workHistoryTab .wh-date{font-variant-numeric:tabular-nums;white-space:nowrap !important;font-weight:700;color:#333;}
+  #workHistoryTab .wh-raw{display:block;font-size:11px;color:var(--muted);font-weight:500;white-space:pre-line;}
+  #workHistoryTab .wh-co{font-weight:700;color:#222;}
+  #workHistoryTab .wh-ao{display:block;font-size:11px;color:var(--muted);}
+  #workHistoryTab .wh-tag{display:inline-block;font-size:10px;padding:0 5px;border-radius:4px;background:var(--cream);color:var(--brand-dark);margin-left:4px;vertical-align:1px;font-weight:700;}
+  #workHistoryTab mark{background:#ffe58a;color:inherit;padding:0;border-radius:2px;}
+  #workHistoryTab .wh-more{display:block;margin:12px auto 4px;}
+  #workHistoryTab .wh-empty{text-align:center;color:#aaa;font-size:13px;padding:40px 0;}
+  @media (max-width:760px){
+    #workHistoryTab .wh-row.hd{display:none;}
+    #workHistoryTab .wh-row{grid-template-columns:1fr auto;grid-template-areas:"co date" "mt mt" "ad ad" "mg mg";gap:2px 10px;padding:10px 4px;}
+    #workHistoryTab .wh-row > .c-date{grid-area:date;text-align:right;font-size:12px;}
+    #workHistoryTab .wh-row > .c-co{grid-area:co;font-size:14px;}
+    #workHistoryTab .wh-row > .c-mt{grid-area:mt;color:#444;}
+    #workHistoryTab .wh-row > .c-ad{grid-area:ad;color:#555;font-size:12.5px;}
+    #workHistoryTab .wh-row > .c-mg{grid-area:mg;font-size:11.5px;color:var(--muted);}
+    #workHistoryTab .wh-row > .c-mg:not(:empty)::before{content:"담당 ";}
+    #workHistoryTab .wh-raw{display:inline;margin-left:4px;}
+  }
+</style>
+  <div class="card wh-card">
+    <div class="wh-head">
+      <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px;"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>시공내역<span class="wh-sub" id="whTotal"></span></h2>
+      <div class="wh-btns">
+        <button type="button" class="wh-btn" id="whUploadBtn" style="display:none;" title="관리자 전용 — 엑셀(시공내역_통합.xlsx)로 기존 시공내역을 통째로 교체합니다">기존내역 엑셀 올리기</button>
+        <button type="button" class="wh-btn" id="whRefreshBtn" title="최신 시공일정까지 다시 불러오기">새로고침</button>
+      </div>
+      <input type="file" id="whUploadFile" accept=".xlsx,.xls" style="display:none;">
+    </div>
+    <input type="search" id="whSearch" class="wh-search" name="wh_search_noauto" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other" placeholder="업체·소비자 / 주소 / 자재 / 담당자 검색 — 전체 연도에서 찾습니다">
+    <div class="wh-years" id="whYears"></div>
+    <div class="wh-info"><span id="whInfo"></span><button type="button" class="wh-sort" id="whSortBtn"></button></div>
+    <div id="whList"></div>
+    <div id="whStatus" class="wh-empty">불러오는 중...</div>
+    <button type="button" class="wh-btn wh-more" id="whMoreBtn" style="display:none;">더 보기</button>
+  </div>
+</section>
+<script>
+// ════════════════════════════════════════════════════════════════
+//  시공내역 (2026-11-28) — 직원 전용(게스트 숨김), 조회 전용
+//  데이터 = ① 엑셀로 올린 옛 내역(constructionHistory/legacy_YYYY, items 배열)
+//         + ② 시공일정표에서 지워진(3개월 지난) 일정 보관본(constructionHistory/arc_YYYY-MM, entries 맵 —
+//              _schedulePruneOld가 지우기 전에 여기로 보관)
+//         + ③ 아직 시공일정표에 남아있는 오늘 이전 일정(constructionSchedule 실시간)
+//  ②③은 같은 함수(_whGroupSchedule)로 "병합된 줄 = 한 현장", 3일 안에 이어진 같은 현장 = 한 건(1·2일차)으로 묶는다.
+// ════════════════════════════════════════════════════════════════
+(function(){
+  const COL = 'constructionHistory';
+  const ST_KEY = 'wh_state_v1';
+  const CHUNK = 200;
+  let _all = null;
+  let _loading = null;
+  let _st = { year: 'all', q: '', sort: 'desc', shown: CHUNK };
+  try { const s = JSON.parse(sessionStorage.getItem(ST_KEY) || 'null'); if (s) _st = Object.assign(_st, s); } catch(_) {}
+  const _save = () => { try { sessionStorage.setItem(ST_KEY, JSON.stringify(_st)); } catch(_) {} };
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const nz = s => String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+  const one = s => String(s == null ? '' : s).replace(/\r/g, '').split('\n').map(x => x.trim()).filter(Boolean).join('\n');
+  const _isGuest = () => !!window._isGuest || !window._currentUser;
+  const _isAdmin = () => { const u = window._currentUser; return !!(u && u.role === 'admin' && !window._isGuest); };
+  const _dateKey = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const _addDays = (k, n) => { const d = new Date(k + 'T00:00:00'); d.setDate(d.getDate() + n); return _dateKey(d); };
+
+  // ── 시공일정(원본 문서들) → 현장 단위 레코드 ──
+  function _whGroupSchedule(entries){
+    const byDate = {};
+    entries.forEach(e => { if (e && e.date) (byDate[e.date] = byDate[e.date] || []).push(e); });
+    const linked = (a, b) => Object.keys(a.mergeMap || {}).some(f => f !== 'day' && a.mergeMap[f] && (b.mergeMap || {})[f] === a.mergeMap[f]);
+    const groups = [];
+    Object.keys(byDate).sort().forEach(date => {
+      const day = byDate[date].slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+      let cur = null, prev = null;
+      day.forEach(e => {
+        const hasHead = one(e.company) || one(e.site) || one(e.manager);
+        const hasMat = one(e.suppliedMaterial) || one(e.stockMaterial);
+        if (cur && prev && (linked(prev, e) || (!hasHead && hasMat))) cur.push(e);
+        else if (hasHead || hasMat) { cur = [e]; groups.push({ date, rows: cur }); }
+        else cur = null;
+        prev = e;
+      });
+    });
+    const recs = [];
+    groups.forEach(g => {
+      const pick = f => { for (const r of g.rows) { const v = one(r[f]); if (v) return v; } return ''; };
+      const c = pick('company'), a = pick('site');
+      if (!c && !a) return;
+      const mats = [];
+      g.rows.forEach(r => [r.suppliedMaterial, r.stockMaterial].forEach(v => one(v).split('\n').forEach(m => { if (m && !mats.some(x => nz(x) === nz(m))) mats.push(m); })));
+      recs.push({ d: g.date, e: '', m: pick('manager'), c, mt: mats.join('\n'), a, src: 's' });
+    });
+    // 같은 업체+현장이 3일 안에 이어지면(1일차·2일차) 한 건으로
+    recs.sort((x, y) => x.d < y.d ? -1 : x.d > y.d ? 1 : 0);
+    const last = {}, out = [];
+    recs.forEach(r => {
+      const k = nz(r.c) + '|' + nz(r.a);
+      const p = last[k];
+      if (p && (p.e || p.d) >= _addDays(r.d, -3)) {
+        p.e = r.d;
+        one(r.mt).split('\n').forEach(m => { if (m && !one(p.mt).split('\n').some(x => nz(x) === nz(m))) p.mt = one(p.mt + '\n' + m); });
+        if (!p.m && r.m) p.m = r.m;
+        return;
+      }
+      last[k] = r; out.push(r);
+    });
+    return out;
+  }
+  window._whGroupSchedule = _whGroupSchedule;
+
+  function _fmtDate(r){
+    const d = r.d || '';
+    if (!d) return '';
+    const [y, m, dd] = d.split('-');
+    if (!m || m === '00') return y;
+    if (!dd || dd === '00') return y + '.' + m;
+    let s = y + '.' + m + '.' + dd;
+    if (r.e && r.e !== d) {
+      const [, m2, d2] = r.e.split('-');
+      s += '~' + (m2 === m ? d2 : m2 + '.' + d2);
+    }
+    return s;
+  }
+
+  async function _load(force){
+    if (_all && !force) return _all;
+    if (_loading) return _loading;
+    _loading = (async () => {
+      await (window.fbEnsureEmployeeAuth ? window.fbEnsureEmployeeAuth() : window.fbEnsureAuth());
+      const today = _dateKey(new Date());
+      const [snap, liveSnap] = await Promise.all([
+        window.FB.getDocs(window.FB.collection(window.FB.db, COL)),
+        window.FB.getDocs(window.FB.query(window.FB.collection(window.FB.db, 'constructionSchedule'),
+          window.FB.where('date', '>=', '2000-01-01'), window.FB.where('date', '<', today)))
+      ]);
+      const legacy = [], sched = {};
+      snap.docs.forEach(d => {
+        const x = d.data() || {};
+        if (d.id.indexOf('legacy_') === 0) (x.items || []).forEach(it => legacy.push(Object.assign({ src: 'x' }, it)));
+        else if (d.id.indexOf('arc_') === 0) Object.keys(x.entries || {}).forEach(id => { sched[id] = Object.assign({ id }, x.entries[id]); });
+      });
+      liveSnap.docs.forEach(d => { sched[d.id] = Object.assign({ id: d.id }, d.data()); });
+      const fromSched = _whGroupSchedule(Object.values(sched).filter(e => e.date && e.date < today));
+      // 엑셀 옛 내역과 시공일정이 겹치면(같은 업체 · ±3일 · 현장 비슷) 시공일정 쪽만 남긴다
+      const idx = {};
+      fromSched.forEach(r => { (idx[nz(r.c)] = idx[nz(r.c)] || []).push(r); });
+      const near = (a, b) => { const x = nz(a).slice(0, 6), y = nz(b).slice(0, 6); return !!(x && y && (nz(a).includes(y) || nz(b).includes(x))); };
+      const keepLegacy = legacy.filter(l => {
+        const cand = idx[nz(l.c)];
+        if (!cand || !l.d || l.d.slice(8) === '00') return true;
+        return !cand.some(r => r.d >= _addDays(l.d, -3) && r.d <= _addDays(l.d, 3) && (near(r.a, l.a) || near(r.a, l.ao)));
+      });
+      _all = keepLegacy.concat(fromSched).map(r => {
+        const y = (r.d || '').slice(0, 4);
+        r.y = /^\d{4}$/.test(y) ? y : '미상';
+        r.sk = (r.d || '0000-00-00') + (r.src === 's' ? '1' : '0');
+        r.hay = nz([_fmtDate(r), r.d, r.t, r.m, r.c, r.mt, r.a, r.ao].join(' '));
+        return r;
+      });
+      return _all;
+    })();
+    try { return await _loading; } finally { _loading = null; }
+  }
+
+  function _tokens(q){ return String(q || '').trim().toLowerCase().split(/\s+/).filter(Boolean); }
+  function _match(r, toks, whole){
+    if (!toks.length) return true;
+    if (whole && r.hay.includes(whole)) return true;
+    return toks.every(t => r.hay.includes(t));
+  }
+  function _hl(text, toks){
+    let s = esc(text);
+    if (!toks.length || !s) return s;
+    toks.slice().sort((a, b) => b.length - a.length).forEach(t => {
+      const et = esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!et) return;
+      s = s.replace(new RegExp('(' + et + ')(?![^<]*>)', 'gi'), '<mark>$1</mark>');
+    });
+    return s;
+  }
+
+  function _render(){
+    const list = $('whList'); if (!list || !_all) return;
+    const toks = _tokens(_st.q), whole = nz(_st.q);
+    const hits = _all.filter(r => _match(r, toks, whole));
+    const cnt = {}; hits.forEach(r => { cnt[r.y] = (cnt[r.y] || 0) + 1; });
+    const years = [...new Set(_all.map(r => r.y))].sort((a, b) => a === '미상' ? 1 : b === '미상' ? -1 : (a < b ? 1 : -1));
+    if (_st.year !== 'all' && !years.includes(_st.year)) _st.year = 'all';
+    $('whYears').innerHTML = ['all'].concat(years).map(y => {
+      const n = y === 'all' ? hits.length : (cnt[y] || 0);
+      return '<button type="button" class="wh-chip' + (_st.year === y ? ' on' : '') + (n ? '' : ' zero') + '" data-y="' + esc(y) + '">'
+        + (y === 'all' ? '전체' : y === '미상' ? '연도미상' : y + '년') + '<span class="n">' + n.toLocaleString() + '</span></button>';
+    }).join('');
+    const rows = (_st.year === 'all' ? hits : hits.filter(r => r.y === _st.year))
+      .sort((a, b) => _st.sort === 'asc' ? (a.sk < b.sk ? -1 : a.sk > b.sk ? 1 : 0) : (a.sk < b.sk ? 1 : a.sk > b.sk ? -1 : 0));
+    $('whTotal').textContent = '총 ' + _all.length.toLocaleString() + '건';
+    $('whInfo').textContent = (_st.q.trim() ? '‘' + _st.q.trim() + '’ 검색 · ' : '') + (_st.year === 'all' ? '전체' : (_st.year === '미상' ? '연도미상' : _st.year + '년')) + ' ' + rows.length.toLocaleString() + '건';
+    $('whSortBtn').textContent = _st.sort === 'asc' ? '과거순 ▲' : '최신순 ▼';
+    const shown = Math.min(rows.length, Math.max(CHUNK, _st.shown || CHUNK));
+    let html = '<div class="wh-row hd"><div>시공일</div><div>담당자</div><div>업체(소비자)</div><div>시공자재</div><div>현장주소</div></div>';
+    for (let i = 0; i < shown; i++) {
+      const r = rows[i];
+      const ds = _fmtDate(r);
+      const raw = r.t && nz(r.t) !== nz(ds) ? '<span class="wh-raw">' + _hl(r.t, toks) + '</span>' : '';
+      const noDay = !r.d || r.d.slice(5) === '00-00';
+      const dateCell = (ds ? _hl(ds, toks) : '') + (noDay ? ' <span class="wh-tag">날짜미상</span>' : '') + raw;
+      const ao = r.ao && nz(r.ao) !== nz(r.a) ? '<span class="wh-ao" title="원래 적힌 주소">원문: ' + _hl(r.ao, toks) + '</span>' : '';
+      html += '<div class="wh-row"><div class="c-date wh-date">' + dateCell + '</div>'
+        + '<div class="c-mg">' + _hl(r.m, toks) + '</div>'
+        + '<div class="c-co wh-co">' + _hl(r.c, toks) + '</div>'
+        + '<div class="c-mt">' + _hl(r.mt, toks) + '</div>'
+        + '<div class="c-ad">' + _hl(r.a, toks) + ao + '</div></div>';
+    }
+    list.innerHTML = rows.length ? html : '';
+    $('whStatus').style.display = rows.length ? 'none' : 'block';
+    $('whStatus').textContent = _st.q.trim() ? '검색 결과가 없습니다.' : '시공내역이 없습니다.';
+    const more = $('whMoreBtn');
+    more.style.display = shown < rows.length ? 'block' : 'none';
+    more.textContent = '더 보기 (' + (rows.length - shown).toLocaleString() + '건 남음)';
+    _save();
+  }
+
+  // 목록 끝이 보이면 자동으로 더 그리기
+  let _io = null;
+  function _watchMore(){
+    if (_io || !('IntersectionObserver' in window)) return;
+    _io = new IntersectionObserver(es => {
+      const tabOn = $('workHistoryTab') && $('workHistoryTab').style.display !== 'none';
+      if (tabOn && es.some(e => e.isIntersecting) && $('whMoreBtn').style.display !== 'none') { _st.shown = (_st.shown || CHUNK) + CHUNK; _render(); }
+    }, { rootMargin: '600px' });
+    _io.observe($('whMoreBtn'));
+  }
+
+  async function _open(force){
+    const status = $('whStatus');
+    if (!status) return;
+    if (_isGuest()) { $('whList').innerHTML = ''; $('whYears').innerHTML = ''; status.style.display = 'block'; status.textContent = '직원 전용 메뉴입니다.'; return; }
+    $('whUploadBtn').style.display = _isAdmin() ? '' : 'none';
+    const si = $('whSearch'); if (si && si.value !== _st.q) si.value = _st.q || '';
+    if (!_all || force) { status.style.display = 'block'; status.textContent = '불러오는 중...'; if (force) { $('whList').innerHTML = ''; $('whMoreBtn').style.display = 'none'; } }
+    try { await _load(force); _render(); _watchMore(); }
+    catch (e) {
+      console.error('[시공내역] 불러오기 실패', e);
+      if (e && e.code === 'relogin') return;
+      status.style.display = 'block';
+      status.textContent = '불러오지 못했습니다. 새로고침을 눌러 다시 시도해 주세요. (' + ((e && (e.code || e.message)) || '') + ')';
+    }
+  }
+  window._whOpen = _open;
+
+  // ── 관리자: 엑셀(시공내역_통합.xlsx) → legacy_YYYY 문서로 통째 교체 ──
+  async function _upload(file){
+    if (!_isAdmin()) return;
+    if (typeof XLSX === 'undefined') { alert('엑셀 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets['시공내역'] || wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+    const hdr = (rows[0] || []).map(h => String(h).trim());
+    const ci = n => hdr.indexOf(n);
+    const need = ['시공일', '담당자', '업체', '시공자재', '현장주소'];
+    if (need.some(n => ci(n) < 0)) { alert('엑셀 첫 줄에 ' + need.join(' / ') + ' 열이 있어야 합니다.'); return; }
+    const byYear = {};
+    rows.slice(1).forEach(r => {
+      const g = n => ci(n) >= 0 ? one(r[ci(n)]) : '';
+      let d = g('시공일');
+      const m = d.match(/^(\d{4})(?:[.\-\/](\d{1,2}))?(?:[.\-\/](\d{1,2}))?/);
+      d = m ? m[1] + '-' + String(m[2] || '0').padStart(2, '0') + '-' + String(m[3] || '0').padStart(2, '0') : '';
+      const it = { d, m: g('담당자'), c: g('업체'), mt: g('시공자재'), a: g('현장주소') };
+      const t = g('원문날짜'); if (t) it.t = t;
+      const ao = g('원문주소'); if (ao && nz(ao) !== nz(it.a)) it.ao = ao;
+      if (!it.c && !it.a && !it.mt) return;
+      const y = d ? d.slice(0, 4) : 'unknown';
+      (byYear[y] = byYear[y] || []).push(it);
+    });
+    const total = Object.values(byYear).reduce((s, a) => s + a.length, 0);
+    if (!total) { alert('올릴 내역이 없습니다.'); return; }
+    const ok = await window.appConfirm('엑셀의 시공내역 ' + total.toLocaleString() + '건(' + Object.keys(byYear).length + '개 연도)으로\n기존에 올린 엑셀 내역을 통째로 교체합니다.\n(시공일정표에서 넘어온 내역은 그대로 유지됩니다)\n\n진행할까요?', { yes: '교체', no: '취소' });
+    if (!ok) return;
+    await window.fbEnsureEmployeeAuth();
+    const snap = await window.FB.getDocs(window.FB.collection(window.FB.db, COL));
+    for (const y of Object.keys(byYear)) {
+      await window.FB.setDoc(window.FB.doc(window.FB.db, COL, 'legacy_' + y), { items: byYear[y], count: byYear[y].length, updatedAtMs: Date.now() });
+    }
+    for (const d of snap.docs) {
+      if (d.id.indexOf('legacy_') === 0 && !byYear[d.id.slice(7)]) await window.FB.deleteDoc(d.ref);
+    }
+    alert('시공내역 ' + total.toLocaleString() + '건을 올렸습니다.');
+    _open(true);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const si = $('whSearch');
+    if (!si || si.dataset.whBound) return;
+    si.dataset.whBound = '1';
+    let tm = null;
+    si.addEventListener('input', () => {
+      clearTimeout(tm);
+      tm = setTimeout(() => { _st.q = si.value; _st.year = 'all'; _st.shown = CHUNK; _render(); }, 200);
+    });
+    $('whYears').addEventListener('click', e => {
+      const b = e.target.closest('.wh-chip'); if (!b) return;
+      _st.year = b.dataset.y; _st.shown = CHUNK; _render();
+    });
+    $('whSortBtn').addEventListener('click', () => { _st.sort = _st.sort === 'asc' ? 'desc' : 'asc'; _st.shown = CHUNK; _render(); });
+    $('whMoreBtn').addEventListener('click', () => { _st.shown = (_st.shown || CHUNK) + CHUNK; _render(); });
+    $('whRefreshBtn').addEventListener('click', () => _open(true));
+    $('whUploadBtn').addEventListener('click', () => $('whUploadFile').click());
+    $('whUploadFile').addEventListener('change', async e => {
+      const f = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      try { await _upload(f); } catch (err) { console.error(err); alert('올리기 실패: ' + (err.code || err.message)); }
+    });
+  });
+})();
+</script>
 <section id="contactsTab" class="tab-panel" style="display:none;">
   <div class="card" style="max-width:600px; margin:0 auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -11394,6 +11754,8 @@ function xiParseForecast(wb) {
             if (tab === 'myInfoTab' || tab === 'adminTab' || tab === 'leaveManagerTab') return;
             // emailTab/wikiTab은 직원에게는 항상 표시하지만, 게스트에게는 설정에 따름
             if ((tab === 'emailTab' || tab === 'wikiTab') && role !== 'guest') return;
+            // 시공내역은 직원 전용 — 직원에겐 항상 표시, 게스트에겐 절대 표시 안 함
+            if (tab === 'workHistoryTab') { if (role === 'guest') btn.style.display = 'none'; return; }
             if (!allowed.includes(tab)) btn.style.display = 'none';
         });
     }
@@ -13829,6 +14191,7 @@ window.goHomeTab = function() {
     if (btn && btn.style.display === 'none') {
       // 탭 줄에서 개인적으로만 숨긴 탭(권한은 있음)은 복원 허용, 권한 자체가 없으면 불가
       if (window._isGuest || !u) return null;
+      if (t === 'workHistoryTab') return t; // 직원 전용 탭 — 개별 허용목록과 무관하게 직원이면 복원
       const a = u.allowedTabs;
       const ok = isAdmin || a === 'ALL' || a == null || String(a).split(',').map(s => s.trim()).includes(t);
       if (!ok) return null;
@@ -13990,6 +14353,7 @@ function setTab(tabId, fromPopstate) {
   if (tabId === 'galleryTab' && typeof window._galInit === 'function') window._galInit();
   if (tabId === 'stockBetaTab' && typeof window._loadStockBetaFrame === 'function') window._loadStockBetaFrame();
   if (tabId === 'scheduleTab' && typeof window._loadScheduleFrame === 'function') window._loadScheduleFrame();
+  if (tabId === 'workHistoryTab' && typeof window._whOpen === 'function') window._whOpen();
   if (tabId === 'invoiceTab' && typeof window._ivRefreshVaultLock === 'function') window._ivRefreshVaultLock();
   if (tabId === 'invoiceTab' && typeof window._ivDraftMaybeRestore === 'function') window._ivDraftMaybeRestore();
   if (tabId === 'noticeTab' && typeof loadNotices === 'function') loadNotices();
@@ -14165,7 +14529,7 @@ window.addEventListener('popstate', function(e) {
 
 // ── 햄버거 메뉴 ──
 const TAB_LABELS = {
-  pricingTab:'단가표', calculatorTab:'계산기', stockBetaTab:'재고현황(예약/실시간)', scheduleTab:'시공일정표',
+  pricingTab:'단가표', calculatorTab:'계산기', stockBetaTab:'재고현황(예약/실시간)', scheduleTab:'시공일정표', workHistoryTab:'시공내역',
   invoiceTab:'견적서', consultTab:'쇼룸상담', reservationTab:'예약관리',
   cardScanTab:'명함스캐닝', contactsTab:'연락처', floorplanTab:'면적분석',
   memoTab:'메모장', personalCalTab:'개인달력', noticeTab:'전사게시판', adminTab:'관리자', smsTab:'문자발송', emailTab:'이메일', leaveTab:'휴가신청', mySettingsTab:'내 설정', wikiTab:'지복득마루위키', galleryTab:'시공사례'
@@ -14270,6 +14634,7 @@ window.applyVisibleTabs = function() {
   document.querySelectorAll('#mainTabBar .tab-btn[data-tab]').forEach(btn => {
     const tab = btn.dataset.tab;
     if (tab === 'adminTab' || tab === 'leaveManagerTab') return; // 관리자/연차관리 탭은 권한으로만 제어
+    if (tab === 'workHistoryTab' && window._isGuest) { btn.style.display = 'none'; return; } // 시공내역 = 직원 전용
     btn.style.display = visible.includes(tab) ? '' : 'none';
   });
 };
@@ -14290,6 +14655,7 @@ const HAMBURGER_PERM_TABS = ['adminTab', 'approvalTab', 'smsTab', 'myInfoTab'];
 function _isHamburgerTabVisible(id) {
   const tabBtn = document.querySelector(`.tab-btn[data-tab="${id}"]`);
   if (!tabBtn) return false;
+  if (id === 'workHistoryTab' && window._isGuest) return false; // 시공내역 = 직원 전용
   if (HAMBURGER_PERM_TABS.includes(id)) {
     // 권한 탭은 display가 none이 아닐 때만 표시
     return tabBtn.style.display !== 'none';
