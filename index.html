@@ -3027,6 +3027,43 @@ async function _forecastDeleteEntry(id){
   await window.fbEnsureAuth();
   await window.FB.deleteDoc(_forecastDocRef(id));
 }
+// ── 시공내역 보관 (2026-11-28) ──
+// 시공일정 문서를 지우기 "직전"에 호출한다(3개월 자동정리 _schedulePruneOld + 엑셀업로드 교체 xlsImportRun 공통).
+// 오늘 이전 날짜만 constructionHistory/arc_YYYY-MM 의 entries 맵에 보관하고, 같은 날짜의 예전 보관본은
+// 새 내용으로 통째로 바꾼다(날짜 단위 교체 — 같은 날짜를 엑셀로 다시 올려도 중복이 안 생기게).
+// 실패하면 throw — 호출하는 쪽은 그때 지우지 말아야 한다.
+window._whArchiveEntries = async function(docs){
+  const now = new Date();
+  const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  const byMonth = {};
+  (docs || []).forEach(d => {
+    const x = d.data || {};
+    const date = String(x.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date >= today) return;
+    const mk = date.slice(0, 7);
+    (byMonth[mk] = byMonth[mk] || {})[d.id] = {
+      date, manager: x.manager || '', company: x.company || '', site: x.site || '',
+      suppliedMaterial: x.suppliedMaterial || '', stockMaterial: x.stockMaterial || '',
+      order: x.order || 0, mergeMap: x.mergeMap || {}
+    };
+  });
+  const months = Object.keys(byMonth);
+  if (!months.length) return 0;
+  await window.fbEnsureAuth();
+  let n = 0;
+  for (const mk of months) {
+    const ref = window.FB.doc(window.FB.db, 'constructionHistory', 'arc_' + mk);
+    const snap = await window.FB.getDoc(ref);
+    const old = (snap.exists() && (snap.data() || {}).entries) || {};
+    const dates = new Set(Object.values(byMonth[mk]).map(e => e.date));
+    const merged = {};
+    Object.keys(old).forEach(id => { if (!dates.has(old[id] && old[id].date)) merged[id] = old[id]; });
+    Object.assign(merged, byMonth[mk]);
+    await window.FB.setDoc(ref, { entries: merged, updatedAtMs: Date.now() });
+    n += Object.keys(byMonth[mk]).length;
+  }
+  return n;
+};
 // 직전 3개월(이번 달 포함)보다 오래된 일정은 페이지를 열 때마다 조용히 정리한다.
 // ★ 재고현황 자동이월 때와 달리 이건 "삭제만" 하는 멱등 연산이라 중복 실행 부작용이 없다
 //   (그때 문제는 "없으면 새로 만든다"는 자동 생성 로직이 여러 곳에서 겹쳐 실행된 것이었음).
@@ -3041,25 +3078,9 @@ async function _schedulePruneOld(){
   );
   const snap = await window.FB.getDocs(q);
   if (!snap.docs.length) return { deleted: 0 };
-  // ★ 2026-11-28 시공내역: 지우기 전에 constructionHistory/arc_YYYY-MM 에 원본을 보관한다.
-  //   보관이 하나라도 실패하면(규칙 미적용·네트워크 등) 이번엔 지우지 않는다 — 다음에 페이지를 열 때 다시 시도.
-  //   문서ID(일정 id) 기준 merge라 여러 번 실행돼도 같은 내용이 덮어써질 뿐 중복이 생기지 않는다.
+  // ★ 2026-11-28 시공내역: 지우기 전에 보관(_whArchiveEntries). 보관 실패 시 이번엔 지우지 않는다 — 다음에 페이지를 열 때 다시 시도.
   try {
-    const byMonth = {};
-    snap.docs.forEach(d => {
-      const x = d.data() || {};
-      const mk = String(x.date || '').slice(0, 7);
-      if (!/^\d{4}-\d{2}$/.test(mk)) return;
-      (byMonth[mk] = byMonth[mk] || {})[d.id] = {
-        date: x.date, manager: x.manager || '', company: x.company || '', site: x.site || '',
-        suppliedMaterial: x.suppliedMaterial || '', stockMaterial: x.stockMaterial || '',
-        order: x.order || 0, mergeMap: x.mergeMap || {}
-      };
-    });
-    for (const mk of Object.keys(byMonth)) {
-      await window.FB.setDoc(window.FB.doc(window.FB.db, 'constructionHistory', 'arc_' + mk),
-        { entries: byMonth[mk], updatedAtMs: Date.now() }, { merge: true });
-    }
+    await window._whArchiveEntries(snap.docs.map(d => ({ id: d.id, data: d.data() })));
   } catch (e) {
     console.warn('[시공일정] 시공내역 보관 실패 — 이번엔 오래된 일정을 지우지 않음', e);
     return { deleted: 0, archiveFailed: true };
@@ -4727,13 +4748,16 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
         window.FB.getDocs(window.FB.query(window.FB.collection(window.FB.db, 'constructionSchedule'),
           window.FB.where('date', '>=', '2000-01-01'), window.FB.where('date', '<', today)))
       ]);
-      const legacy = [], sched = {};
+      const legacy = [], sched = {}, arc = [];
       snap.docs.forEach(d => {
         const x = d.data() || {};
         if (d.id.indexOf('legacy_') === 0) (x.items || []).forEach(it => legacy.push(Object.assign({ src: 'x' }, it)));
-        else if (d.id.indexOf('arc_') === 0) Object.keys(x.entries || {}).forEach(id => { sched[id] = Object.assign({ id }, x.entries[id]); });
+        else if (d.id.indexOf('arc_') === 0) Object.keys(x.entries || {}).forEach(id => arc.push(Object.assign({ id }, x.entries[id])));
       });
-      liveSnap.docs.forEach(d => { sched[d.id] = Object.assign({ id: d.id }, d.data()); });
+      // 날짜 단위로 "지금 시공일정표에 있는 쪽"이 우선 — 같은 날짜를 엑셀로 다시 올려도 보관본과 겹치지 않게
+      const liveDates = new Set();
+      liveSnap.docs.forEach(d => { const x = d.data() || {}; liveDates.add(x.date); sched[d.id] = Object.assign({ id: d.id }, x); });
+      arc.forEach(e => { if (!liveDates.has(e.date) && !sched[e.id]) sched[e.id] = e; });
       const fromSched = _whGroupSchedule(Object.values(sched).filter(e => e.date && e.date < today));
       // 엑셀 옛 내역과 시공일정이 겹치면(같은 업체 · ±3일 · 현장 비슷) 시공일정 쪽만 남긴다
       const idx = {};
@@ -10898,6 +10922,12 @@ function xiParseForecast(wb) {
   async function replaceCollection(name, items, fixedIds, shouldRemove) {
     var FB = window.FB;
     var oldSnap = await FB.getDocs(FB.collection(FB.db, name));
+    // ★ 2026-11-28 시공내역: 시공일정을 교체하기 전에, 지워질 기존 문서 중 오늘 이전 일정을 먼저 보관한다.
+    //   보관 실패 시 여기서 throw → 새 문서를 쓰거나 기존 문서를 지우기 전에 멈춘다(아무것도 안 바뀜).
+    if (name === 'constructionSchedule' && typeof window._whArchiveEntries === 'function') {
+      var willRemove = oldSnap.docs.filter(function(d){ return !shouldRemove || shouldRemove(d); });
+      await window._whArchiveEntries(willRemove.map(function(d){ return { id: d.id, data: d.data() }; }));
+    }
     var now = Date.now(), keep = {};
     for (var i = 0; i < items.length; i += 400) {
       var b = FB.writeBatch(FB.db);
