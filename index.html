@@ -3044,7 +3044,7 @@ window._whArchiveEntries = async function(docs){
     (byMonth[mk] = byMonth[mk] || {})[d.id] = {
       date, manager: x.manager || '', company: x.company || '', site: x.site || '',
       suppliedMaterial: x.suppliedMaterial || '', stockMaterial: x.stockMaterial || '',
-      order: x.order || 0, mergeMap: x.mergeMap || {}
+      order: x.order || 0, mergeMap: x.mergeMap || {}, highlightMap: x.highlightMap || {}
     };
   });
   const months = Object.keys(byMonth);
@@ -4703,15 +4703,19 @@ window._SCHEDULE_HTML_B64 = "PHRpdGxlPuyLnOqzteydvOyglTwvdGl0bGU+CjxtZXRhIGNoYXJ
       if (!c && !a) return;
       const mats = [];
       g.rows.forEach(r => [r.suppliedMaterial, r.stockMaterial].forEach(v => one(v).split('\n').forEach(m => { if (m && !mats.some(x => nz(x) === nz(m))) mats.push(m); })));
-      recs.push({ d: g.date, e: '', m: pick('manager'), c, mt: mats.join('\n'), a, src: 's' });
+      // 2일차 표시(노란색 #FFFF00 — 시공일정표 '일정 이동'의 1·2일차 판정과 같은 기준)
+      const day2 = g.rows.some(r => Object.values(r.highlightMap || {}).some(cl => String(cl || '').replace('#', '').toUpperCase() === 'FFFF00'));
+      recs.push({ d: g.date, e: '', m: pick('manager'), c, mt: mats.join('\n'), a, src: 's', day2 });
     });
-    // 같은 업체+현장이 3일 안에 이어지면(1일차·2일차) 한 건으로
+    // 날짜가 다르면 별건. 단, 2일차(노란색)로 표시된 일정만 14일 안의 같은 업체+현장 1일차와 한 건으로(예: 11.18~19)
     recs.sort((x, y) => x.d < y.d ? -1 : x.d > y.d ? 1 : 0);
     const last = {}, out = [];
     recs.forEach(r => {
       const k = nz(r.c) + '|' + nz(r.a);
       const p = last[k];
-      if (p && (p.e || p.d) >= _addDays(r.d, -3)) {
+      const isDay2 = r.day2; delete r.day2;
+      // 같은 날 + 같은 업체 + 같은 현장 = 한 현장(병합 안 된 줄이 따로 있어도 합침)
+      if (p && ((p.e || p.d) === r.d || (isDay2 && (p.e || p.d) >= _addDays(r.d, -14)))) {
         p.e = r.d;
         one(r.mt).split('\n').forEach(m => { if (m && !one(p.mt).split('\n').some(x => nz(x) === nz(m))) p.mt = one(p.mt + '\n' + m); });
         if (!p.m && r.m) p.m = r.m;
